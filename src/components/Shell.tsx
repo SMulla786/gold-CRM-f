@@ -1,5 +1,5 @@
 import { LogOut } from 'lucide-react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 
 import { BranchSwitcher } from '@/components/BranchSwitcher'
 import { Button } from '@/components/ui/button'
@@ -15,10 +15,26 @@ interface ShellProps {
 }
 
 export function Shell({ area, nav, showBranch }: ShellProps) {
-  const { me, logout, readOnly } = useAuth()
+  const { me, logout, readOnly, endImpersonation } = useAuth()
+  const navigate = useNavigate()
+
+  const onEndImpersonation = async () => {
+    await endImpersonation()
+    navigate('/platform', { replace: true })
+  }
 
   return (
     <div className="flex min-h-screen flex-col">
+      {me?.impersonatedBy && (
+        <div className="flex items-center justify-center gap-3 bg-amber-500 px-4 py-1.5 text-center text-sm font-medium text-black">
+          Viewing as {me.name}
+          {me.business ? ` · ${me.business.name}` : ''} — support session by {me.impersonatedBy.name}
+          <Button variant="outline" size="sm" className="h-6 border-black/30 bg-transparent text-black hover:bg-black/10" onClick={() => void onEndImpersonation()}>
+            End
+          </Button>
+        </div>
+      )}
+
       <header className="flex h-14 shrink-0 items-center gap-4 border-b bg-card px-4">
         <span className="font-semibold">Just Udhari</span>
         <span className="rounded bg-secondary px-2 py-0.5 text-xs text-secondary-foreground">{area}</span>

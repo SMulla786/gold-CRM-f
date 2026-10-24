@@ -11,6 +11,9 @@ interface AuthValue {
   setBranch: (b: string) => void
   login: (login: string, password: string) => Promise<MeDto>
   logout: () => Promise<void>
+  /** Super Admin: act as a business's owner (sets impersonated session). */
+  impersonate: (businessId: number, reason: string) => Promise<void>
+  endImpersonation: () => Promise<void>
   can: (pageKey: string, action?: PermissionAction) => boolean
   hasModule: (moduleKey: string, core?: boolean) => boolean
   readOnly: boolean
@@ -33,25 +36,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setActiveBranch(user ? b : null)
   }, [])
 
-  // Restore session on load: refresh the access token from the cookie, then fetch /me.
+  // Refresh the access token from the cookie, then load /me.
+  const restore = useCallback(async () => {
+    try {
+      const r = await api.post<{ accessToken: string }>('/auth/refresh')
+      setAccessToken(r.accessToken)
+      apply(await api.get<MeDto>('/auth/me'))
+    } catch {
+      apply(null)
+    }
+  }, [apply])
+
   useEffect(() => {
     let alive = true
-    ;(async () => {
-      try {
-        const r = await api.post<{ accessToken: string }>('/auth/refresh')
-        setAccessToken(r.accessToken)
-        const user = await api.get<MeDto>('/auth/me')
-        if (alive) apply(user)
-      } catch {
-        if (alive) apply(null)
-      } finally {
-        if (alive) setLoading(false)
-      }
-    })()
+    restore().finally(() => {
+      if (alive) setLoading(false)
+    })
     return () => {
       alive = false
     }
-  }, [apply])
+  }, [restore])
 
   const setBranch = useCallback((b: string) => {
     setActiveBranchState(b)
@@ -77,6 +81,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [apply])
 
+  const impersonate = useCallback(
+    async (businessId: number, reason: string) => {
+      const res = await api.post<LoginResponse>(`/platform/businesses/${businessId}/impersonate`, { reason })
+      setAccessToken(res.accessToken)
+      apply(res.user)
+    },
+    [apply],
+  )
+
+  // End impersonation by restoring the real (super admin) session from the cookie.
+  const endImpersonation = useCallback(async () => {
+    try {
+      await api.post('/platform/impersonation/end')
+    } catch {
+      // ignore — restore is what matters
+    }
+    await restore()
+  }, [restore])
+
   const value = useMemo<AuthValue>(
     () => ({
       me,
@@ -85,6 +108,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setBranch,
       login,
       logout,
+      impersonate,
+      endImpersonation,
       readOnly: Boolean(me && (me.subscription?.readOnly || me.business?.status === 'SUSPENDED')),
       can: (pageKey, action = 'view') => {
         if (!me) return false
@@ -94,7 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       hasModule: (moduleKey, core = false) =>
         !!me && (core || me.level === 'SUPER_ADMIN' || me.modules.includes(moduleKey)),
     }),
-    [me, loading, activeBranch, setBranch, login, logout],
+    [me, loading, activeBranch, setBranch, login, logout, impersonate, endImpersonation],
   )
 
   return <AuthContext value={value}>{children}</AuthContext>

@@ -6,7 +6,18 @@ import { useAuth } from '@/lib/auth'
 import { PLATFORM_NAV, useAdminNav, useAppNav } from '@/lib/nav'
 import { Dashboard } from '@/pages/Dashboard'
 import { Login } from '@/pages/Login'
-import { ModulePlaceholder, Placeholder } from '@/pages/Placeholder'
+import { ModulePlaceholder } from '@/pages/Placeholder'
+import { Branches } from '@/pages/admin/Branches'
+import { BusinessProfile } from '@/pages/admin/BusinessProfile'
+import { Roles } from '@/pages/admin/Roles'
+import { SubscriptionView } from '@/pages/admin/SubscriptionView'
+import { Users } from '@/pages/admin/Users'
+import { BusinessDetail } from '@/pages/platform/BusinessDetail'
+import { Businesses } from '@/pages/platform/Businesses'
+import { Payments } from '@/pages/platform/Payments'
+import { PlatformDashboard } from '@/pages/platform/PlatformDashboard'
+import { Plans } from '@/pages/platform/Plans'
+import { Signups } from '@/pages/platform/Signups'
 
 function HomeRedirect() {
   const { me } = useAuth()
@@ -27,22 +38,23 @@ export default function App() {
 
         <Route element={<RequireLevel levels={['SUPER_ADMIN']} />}>
           <Route path="/platform" element={<PlatformLayout />}>
-            <Route index element={<Dashboard title="Platform Dashboard" />} />
-            <Route path="signups" element={<Placeholder title="Sign-up Requests" />} />
-            <Route path="businesses" element={<Placeholder title="Businesses" />} />
-            <Route path="plans" element={<Placeholder title="Plans" />} />
-            <Route path="payments" element={<Placeholder title="Payments" />} />
+            <Route index element={<PlatformDashboard />} />
+            <Route path="signups" element={<Signups />} />
+            <Route path="businesses" element={<Businesses />} />
+            <Route path="businesses/:id" element={<BusinessDetail />} />
+            <Route path="plans" element={<Plans />} />
+            <Route path="payments" element={<Payments />} />
           </Route>
         </Route>
 
         <Route element={<RequireLevel levels={['ADMIN']} />}>
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<Dashboard title="Admin Dashboard" />} />
-            <Route path="branches" element={<Placeholder title="Branches" />} />
-            <Route path="users" element={<Placeholder title="Users" />} />
-            <Route path="roles" element={<Placeholder title="Roles & Permissions" />} />
-            <Route path="business" element={<Placeholder title="Business Settings" />} />
-            <Route path="subscription" element={<Placeholder title="Subscription" />} />
+            <Route path="branches" element={<Branches />} />
+            <Route path="users" element={<Users />} />
+            <Route path="roles" element={<Roles />} />
+            <Route path="business" element={<BusinessProfile />} />
+            <Route path="subscription" element={<SubscriptionView />} />
           </Route>
         </Route>
 
