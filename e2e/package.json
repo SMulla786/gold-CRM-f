@@ -1,0 +1,15 @@
+{
+  "name": "@ju/web-e2e",
+  "private": true,
+  "type": "module",
+  "description": "Playwright E2E for the web app. Self-contained (tester-owned) so it doesn't touch frontend/package.json.",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "report": "playwright show-report",
+    "install:browsers": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1"
+  }
+}
