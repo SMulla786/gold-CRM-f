@@ -28,8 +28,10 @@ export interface RequestOpts {
 async function raw<T>(method: string, path: string, body?: unknown, opts: RequestOpts = {}): Promise<T> {
   if (USE_MOCK && mockSupports(path)) return mockHandle<T>(method, path, body)
 
+  // FormData (file uploads, CSV import): let the browser set the multipart Content-Type + boundary.
+  const isForm = typeof FormData !== 'undefined' && body instanceof FormData
   const headers: Record<string, string> = {}
-  if (body !== undefined) headers['Content-Type'] = 'application/json'
+  if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json'
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`
   if (activeBranch) headers[HEADERS.BRANCH] = activeBranch
   if (opts.mpin) headers[HEADERS.MPIN] = opts.mpin
@@ -38,7 +40,7 @@ async function raw<T>(method: string, path: string, body?: unknown, opts: Reques
     method,
     headers,
     credentials: 'include',
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
     signal: opts.signal,
   })
   if (res.status === 204) return undefined as T

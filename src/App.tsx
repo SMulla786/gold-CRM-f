@@ -1,23 +1,26 @@
+import { lazy } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 
 import { Shell } from '@/components/Shell'
 import { RequireAuth, RequireLevel, homeForLevel } from '@/components/guards'
 import { useAuth } from '@/lib/auth'
 import { PLATFORM_NAV, useAdminNav, useAppNav } from '@/lib/nav'
-import { Dashboard } from '@/pages/Dashboard'
 import { Login } from '@/pages/Login'
-import { ModulePlaceholder } from '@/pages/Placeholder'
-import { Branches } from '@/pages/admin/Branches'
-import { BusinessProfile } from '@/pages/admin/BusinessProfile'
-import { Roles } from '@/pages/admin/Roles'
-import { SubscriptionView } from '@/pages/admin/SubscriptionView'
-import { Users } from '@/pages/admin/Users'
-import { BusinessDetail } from '@/pages/platform/BusinessDetail'
-import { Businesses } from '@/pages/platform/Businesses'
-import { Payments } from '@/pages/platform/Payments'
-import { PlatformDashboard } from '@/pages/platform/PlatformDashboard'
-import { Plans } from '@/pages/platform/Plans'
-import { Signups } from '@/pages/platform/Signups'
+
+// Route-level code splitting: each page is its own chunk, loaded on navigation.
+const Dashboard = lazy(() => import('@/pages/Dashboard').then((m) => ({ default: m.Dashboard })))
+const ModulePlaceholder = lazy(() => import('@/pages/Placeholder').then((m) => ({ default: m.ModulePlaceholder })))
+const PlatformDashboard = lazy(() => import('@/pages/platform/PlatformDashboard').then((m) => ({ default: m.PlatformDashboard })))
+const Signups = lazy(() => import('@/pages/platform/Signups').then((m) => ({ default: m.Signups })))
+const Businesses = lazy(() => import('@/pages/platform/Businesses').then((m) => ({ default: m.Businesses })))
+const BusinessDetail = lazy(() => import('@/pages/platform/BusinessDetail').then((m) => ({ default: m.BusinessDetail })))
+const Plans = lazy(() => import('@/pages/platform/Plans').then((m) => ({ default: m.Plans })))
+const Payments = lazy(() => import('@/pages/platform/Payments').then((m) => ({ default: m.Payments })))
+const Branches = lazy(() => import('@/pages/admin/Branches').then((m) => ({ default: m.Branches })))
+const Users = lazy(() => import('@/pages/admin/Users').then((m) => ({ default: m.Users })))
+const Roles = lazy(() => import('@/pages/admin/Roles').then((m) => ({ default: m.Roles })))
+const BusinessProfile = lazy(() => import('@/pages/admin/BusinessProfile').then((m) => ({ default: m.BusinessProfile })))
+const SubscriptionView = lazy(() => import('@/pages/admin/SubscriptionView').then((m) => ({ default: m.SubscriptionView })))
 
 function HomeRedirect() {
   const { me } = useAuth()

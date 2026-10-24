@@ -23,7 +23,7 @@ import type {
 } from '@/shared'
 import type { BusinessProfileDto } from '@/shared'
 
-const qs = (params: Record<string, string | number | undefined>) => {
+export const qs = (params: Record<string, string | number | undefined>) => {
   const sp = new URLSearchParams()
   for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== '') sp.set(k, String(v))
   const s = sp.toString()
@@ -31,7 +31,7 @@ const qs = (params: Record<string, string | number | undefined>) => {
 }
 
 /** Mutation helper: run, invalidate query prefixes, toast success/error. */
-function useApiMutation<TArgs, TOut>(
+export function useApiMutation<TArgs, TOut>(
   fn: (args: TArgs) => Promise<TOut>,
   opts: { invalidate?: QueryKey[]; success?: string } = {},
 ) {

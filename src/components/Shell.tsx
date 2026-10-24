@@ -1,4 +1,5 @@
 import { LogOut } from 'lucide-react'
+import { Suspense } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 
 import { BranchSwitcher } from '@/components/BranchSwitcher'
@@ -72,7 +73,9 @@ export function Shell({ area, nav, showBranch }: ShellProps) {
           ))}
         </nav>
         <main className="flex-1 p-6">
-          <Outlet />
+          <Suspense fallback={<p className="text-sm text-muted-foreground">Loading…</p>}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>
