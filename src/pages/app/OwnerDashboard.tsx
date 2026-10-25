@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useActivity, useDashboard } from '@/lib/reportsQueries'
 import { ACTIVITY_ACTIONS, MODULES } from '@/shared'
@@ -103,7 +104,13 @@ function ActivityFeed() {
 export function OwnerDashboard() {
   const { data, isLoading, isError } = useDashboard()
   if (isError) return <p className="text-sm text-muted-foreground">Couldn’t load the dashboard.</p>
-  if (isLoading || !data) return <p className="text-sm text-muted-foreground">Loading…</p>
+  if (isLoading || !data) {
+    return (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-24" />)}
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

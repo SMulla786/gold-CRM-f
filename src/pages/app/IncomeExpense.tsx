@@ -139,9 +139,10 @@ const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
 export function IncomeExpense() {
   const { can } = useAuth()
   const canEdit = can('income_expense.entry', 'edit')
+  const canList = can('income_expense.list', 'view')
   const [page, setPage] = useState(1)
   const [type, setType] = useState('')
-  const { data, isLoading } = useIncomeExpense({ page, type: type || undefined })
+  const { data, isLoading } = useIncomeExpense({ page, type: type || undefined }, canList)
   const del = useDeleteIncomeExpense()
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<IncomeExpenseDto | null>(null)
@@ -178,16 +179,18 @@ export function IncomeExpense() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold">Income / Expense</h1>
-        <Select value={type || 'all'} onValueChange={(v) => { setType(v === 'all' ? '' : v); setPage(1) }}>
-          <SelectTrigger className="w-36" aria-label="Filter by type">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            <SelectItem value="INCOME">Income</SelectItem>
-            <SelectItem value="EXPENSE">Expense</SelectItem>
-          </SelectContent>
-        </Select>
+        {canList && (
+          <Select value={type || 'all'} onValueChange={(v) => { setType(v === 'all' ? '' : v); setPage(1) }}>
+            <SelectTrigger className="w-36" aria-label="Filter by type">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="INCOME">Income</SelectItem>
+              <SelectItem value="EXPENSE">Expense</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
         {canEdit && (
           <Button className="ml-auto" onClick={() => setCreating(true)}>
             New entry
@@ -195,13 +198,17 @@ export function IncomeExpense() {
         )}
       </div>
 
-      <DataTable
-        columns={columns}
-        data={data?.items ?? []}
-        isLoading={isLoading}
-        emptyText="No entries"
-        pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined}
-      />
+      {canList ? (
+        <DataTable
+          columns={columns}
+          data={data?.items ?? []}
+          isLoading={isLoading}
+          emptyText="No entries yet."
+          pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined}
+        />
+      ) : (
+        <p className="text-sm text-muted-foreground">You can add entries; viewing the list needs the Income / Expense List permission.</p>
+      )}
 
       {creating && <IEDialog onClose={() => setCreating(false)} />}
       {editing && <IEDialog entry={editing} onClose={() => setEditing(null)} />}

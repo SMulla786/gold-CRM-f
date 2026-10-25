@@ -5,12 +5,17 @@ import { DataTable } from '@/components/DataTable'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useGstHsn, useGstRegister, useGstSummary } from '@/lib/reportsQueries'
 import type { GstRegisterRowDto } from '@/shared'
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
+const skeletonRows = (cols: number, rows = 5) =>
+  Array.from({ length: rows }).map((_, r) => (
+    <TableRow key={`sk-${r}`}>{Array.from({ length: cols }).map((_c, c) => <TableCell key={c}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>
+  ))
 
 export function GstReports() {
   const [mode, setMode] = useState('register')
@@ -88,12 +93,12 @@ export function GstReports() {
           <Table>
             <TableHeader><TableRow><TableHead>HSN</TableHead><TableHead>Class</TableHead><TableHead>Weight</TableHead><TableHead>Taxable</TableHead><TableHead>CGST</TableHead><TableHead>SGST</TableHead><TableHead>IGST</TableHead><TableHead>Total</TableHead></TableRow></TableHeader>
             <TableBody>
-              {hsn.data?.length ? hsn.data.map((h, i) => (
+              {hsn.isLoading ? skeletonRows(8) : hsn.data?.length ? hsn.data.map((h, i) => (
                 <TableRow key={i}>
                   <TableCell>{h.hsnCode}</TableCell><TableCell>{h.stockClass}</TableCell><TableCell>{h.weight}</TableCell>
                   <TableCell>{inr(h.taxable)}</TableCell><TableCell>{inr(h.cgst)}</TableCell><TableCell>{inr(h.sgst)}</TableCell><TableCell>{inr(h.igst)}</TableCell><TableCell>{inr(h.total)}</TableCell>
                 </TableRow>
-              )) : <TableRow><TableCell colSpan={8} className="h-16 text-center text-muted-foreground">{hsn.isLoading ? 'Loading…' : 'No data'}</TableCell></TableRow>}
+              )) : <TableRow><TableCell colSpan={8} className="h-16 text-center text-muted-foreground">No data for this range</TableCell></TableRow>}
             </TableBody>
           </Table>
         </div>
@@ -104,14 +109,14 @@ export function GstReports() {
           <Table>
             <TableHeader><TableRow><TableHead>Period</TableHead><TableHead>Sales taxable</TableHead><TableHead>Purchase taxable</TableHead><TableHead>Output GST</TableHead><TableHead>Input GST</TableHead><TableHead>Net payable</TableHead></TableRow></TableHeader>
             <TableBody>
-              {summary.data?.length ? summary.data.map((s, i) => (
+              {summary.isLoading ? skeletonRows(6) : summary.data?.length ? summary.data.map((s, i) => (
                 <TableRow key={i}>
                   <TableCell className="font-medium">{s.period}</TableCell>
                   <TableCell>{inr(s.salesTaxable)}</TableCell><TableCell>{inr(s.purchaseTaxable)}</TableCell>
                   <TableCell>{inr(s.outputGst)}</TableCell><TableCell>{inr(s.inputGst)}</TableCell>
                   <TableCell className="font-medium">{inr(s.netPayable)}</TableCell>
                 </TableRow>
-              )) : <TableRow><TableCell colSpan={6} className="h-16 text-center text-muted-foreground">{summary.isLoading ? 'Loading…' : 'No data'}</TableCell></TableRow>}
+              )) : <TableRow><TableCell colSpan={6} className="h-16 text-center text-muted-foreground">No data for this range</TableCell></TableRow>}
             </TableBody>
           </Table>
         </div>

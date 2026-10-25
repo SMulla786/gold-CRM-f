@@ -4,9 +4,9 @@ import { Link, useParams } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useSettings } from '@/lib/appQueries'
+import { useBusinessProfile, useSettings } from '@/lib/appQueries'
 import { useBill } from '@/lib/billingQueries'
-import { useAdminBusiness, useStates } from '@/lib/queries'
+import { useStates } from '@/lib/queries'
 import { useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 import { BillInvoice } from '@/pages/app/billing/BillInvoice'
@@ -16,7 +16,7 @@ export function BillView() {
   const { me } = useAuth()
   const { data: bill, isLoading } = useBill(Number(id))
   const { data: settings } = useSettings()
-  const { data: business } = useAdminBusiness() // owner/admin only; branch users fall back to the business name on `me`
+  const { data: business } = useBusinessProfile() // any tenant user; branch gstin/state override applied server-side
   const { data: states } = useStates()
   const [override, setOverride] = useState<string | null>(null)
 

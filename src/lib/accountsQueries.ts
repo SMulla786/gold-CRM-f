@@ -6,8 +6,8 @@ import { qs, useApiMutation } from '@/lib/queries'
 import type { DayBookDto, IncomeExpenseDto, LedgerPageDto, Paged } from '@/shared'
 
 // ───── Income / Expense ─────
-export const useIncomeExpense = (params: Record<string, string | number | undefined>) =>
-  useQuery({ queryKey: ['income-expense', params], queryFn: () => api.get<Paged<IncomeExpenseDto>>(`/app/income-expense${qs(params)}`) })
+export const useIncomeExpense = (params: Record<string, string | number | undefined>, enabled = true) =>
+  useQuery({ queryKey: ['income-expense', params], queryFn: () => api.get<Paged<IncomeExpenseDto>>(`/app/income-expense${qs(params)}`), enabled })
 export const useCreateIncomeExpense = () =>
   useApiMutation((body: Record<string, unknown>) => api.post('/app/income-expense', body), {
     invalidate: [['income-expense'], ['ledger'], ['day-book']],

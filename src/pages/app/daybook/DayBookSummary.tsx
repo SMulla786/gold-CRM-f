@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useDayBook } from '@/lib/accountsQueries'
 
@@ -28,7 +29,7 @@ export function DayBookSummary() {
       </div>
 
       {isLoading || !data ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <div className="space-y-3"><Skeleton className="h-40" /><Skeleton className="h-40" /></div>
       ) : (
         <>
           <Card>

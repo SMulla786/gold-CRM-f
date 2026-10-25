@@ -5,6 +5,7 @@ import { api } from '@/lib/api'
 import { qs, useApiMutation } from '@/lib/queries'
 import type {
   BankAccountDto,
+  BusinessProfileDto,
   CurrentRatesDto,
   HsnDto,
   KaratDto,
@@ -65,5 +66,7 @@ export const useSaveRateLimits = () =>
 
 // ───── Settings ─────
 export const useSettings = () => useQuery({ queryKey: ['settings'], queryFn: () => api.get<SettingsDto>('/app/settings') })
+/** Shop profile for any tenant user (bill header); branch gstin/state override the business ones server-side. */
+export const useBusinessProfile = () => useQuery({ queryKey: ['business-profile'], queryFn: () => api.get<BusinessProfileDto>('/app/business-profile') })
 export const useSaveSetting = () =>
   useApiMutation(({ key, value, mpin }: { key: string; value: unknown; mpin: string }) => api.put(`/app/settings/${key}`, { value }, { mpin }), { invalidate: [['settings']], success: 'Settings saved' })
