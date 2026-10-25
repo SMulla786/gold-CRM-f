@@ -8,6 +8,7 @@ import type {
   ItemGroupDto,
   ItemNameDto,
   JewelleryTypeDto,
+  LedgerPageDto,
   Paged,
   ShortageRowDto,
   StockEntryResultDto,
@@ -44,6 +45,24 @@ export const useStock = (params: Record<string, string | number | undefined>) =>
   useQuery({ queryKey: ['stock', params], queryFn: () => api.get<Paged<StockItemDto>>(`/app/stock${qs(params)}`) })
 export const useGroupStock = (params: Record<string, string | number | undefined>) =>
   useQuery({ queryKey: ['stock-groups', params], queryFn: () => api.get<GroupStockDto[]>(`/app/stock/groups${qs(params)}`) })
+
+/** One stock item's movement history (insert, edits, transfers). asset = the item's class. */
+export const useStockLedger = (item?: StockItemDto) =>
+  useQuery({
+    queryKey: ['stock-ledger', item?.id],
+    queryFn: () => api.get<LedgerPageDto>(`/app/ledgers${qs({ asset: item!.stockClass, stockItemId: item!.id, pageSize: 100 })}`),
+    enabled: !!item,
+  })
+
+/** Fetch every stock row matching the current filters, for CSV export (pageSize caps at 100, so loop). */
+export async function fetchAllStock(params: Record<string, string | number | undefined>): Promise<StockItemDto[]> {
+  const out: StockItemDto[] = []
+  for (let page = 1; ; page++) {
+    const res = await api.get<Paged<StockItemDto>>(`/app/stock${qs({ ...params, page, pageSize: 100 })}`)
+    out.push(...res.items)
+    if (res.items.length === 0 || out.length >= res.total) return out
+  }
+}
 export const useShortage = (params: Record<string, string | number | undefined>) =>
   useQuery({ queryKey: ['stock-shortage', params], queryFn: () => api.get<ShortageRowDto[]>(`/app/stock/shortage${qs(params)}`) })
 
