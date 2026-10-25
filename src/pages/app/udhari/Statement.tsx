@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { usePartyStatement } from '@/lib/udhariQueries'
+import { downloadPdf, shareOnWhatsApp } from '@/lib/share'
 import type { BalanceDto } from '@/shared'
 
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
@@ -23,7 +24,9 @@ export function Statement() {
         <Link to="/app/udhari/ledger" className="text-sm text-primary hover:underline">← Ledger</Link>
         <div className="space-y-1.5"><Label htmlFor="s-from">From</Label><Input id="s-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
         <div className="space-y-1.5"><Label htmlFor="s-to">To</Label><Input id="s-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
-        <Button variant="outline" className="ml-auto" onClick={() => window.print()}>Print</Button>
+        <Button variant="outline" className="ml-auto" disabled={!data} onClick={() => data && shareOnWhatsApp(data.party.mobile, `${data.party.name}\nAccount statement · closing balance ${triple(data.closing)}`)}>Share</Button>
+        <Button variant="outline" onClick={() => window.print()}>Print</Button>
+        <Button variant="outline" onClick={downloadPdf}>Download PDF</Button>
       </div>
 
       {isLoading || !data ? (

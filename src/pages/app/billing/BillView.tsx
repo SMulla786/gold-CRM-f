@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -8,12 +8,17 @@ import { useBusinessProfile, useSettings } from '@/lib/appQueries'
 import { useBill } from '@/lib/billingQueries'
 import { useStates } from '@/lib/queries'
 import { useAuth } from '@/lib/auth'
+import { downloadPdf, shareOnWhatsApp } from '@/lib/share'
 import { cn } from '@/lib/utils'
 import { BillInvoice } from '@/pages/app/billing/BillInvoice'
 
+const todayISO = () => new Date().toISOString().slice(0, 10)
+const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
+
 export function BillView() {
   const { id } = useParams()
-  const { me } = useAuth()
+  const navigate = useNavigate()
+  const { me, can } = useAuth()
   const { data: bill, isLoading } = useBill(Number(id))
   const { data: settings } = useSettings()
   const { data: business } = useBusinessProfile() // any tenant user; branch gstin/state override applied server-side
@@ -26,13 +31,18 @@ export function BillView() {
   const thermal = layout === 'THERMAL_80'
   const shopName = business?.name ?? me?.business?.name ?? 'Shop'
   const stateName = states?.find((s) => s.id === business?.stateId)?.name
+  const canEdit = can(bill.kind === 'SELL' ? 'billing.sell_bill' : 'billing.purchase_bill', 'edit')
+  const editable = bill.status === 'ACTIVE' && bill.billDate.slice(0, 10) === todayISO() && canEdit
+  const summary = `${shopName}\n${bill.kind === 'SELL' ? 'Bill' : 'Purchase'} ${bill.billNo} · ${new Date(bill.billDate).toLocaleDateString('en-IN')}\nTotal ${inr(bill.final)} · Paid ${inr(bill.paid)} · Balance ${inr(bill.balance)}`
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3 print:hidden">
         <Link to="/app/billing/list" className="text-sm text-primary hover:underline">← Bills</Link>
         {bill.status === 'DELETED' && <Badge variant="secondary">Deleted</Badge>}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {editable && <Button variant="outline" onClick={() => navigate(`/app/billing/edit/${bill.id}`)}>Edit</Button>}
+          <Button variant="outline" onClick={() => shareOnWhatsApp(bill.party.mobile, summary)}>Share</Button>
           <Select value={layout} onValueChange={setOverride}>
             <SelectTrigger className="w-40" aria-label="Print layout"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -42,6 +52,7 @@ export function BillView() {
             </SelectContent>
           </Select>
           <Button variant="outline" onClick={() => window.print()}>Print</Button>
+          <Button variant="outline" onClick={downloadPdf}>Download PDF</Button>
         </div>
       </div>
 

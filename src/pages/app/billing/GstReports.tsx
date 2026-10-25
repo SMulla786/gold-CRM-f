@@ -2,12 +2,15 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { useState } from 'react'
 
 import { DataTable } from '@/components/DataTable'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useGstHsn, useGstRegister, useGstSummary } from '@/lib/reportsQueries'
+import { downloadCsv } from '@/lib/csv'
+import { fetchAllPaged } from '@/lib/queries'
 import type { GstRegisterRowDto } from '@/shared'
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
@@ -24,7 +27,20 @@ export function GstReports() {
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [page, setPage] = useState(1)
+  const [exporting, setExporting] = useState(false)
   const r = { from: from || undefined, to: to || undefined }
+
+  const exportRegister = async () => {
+    setExporting(true)
+    try {
+      const all = await fetchAllPaged<GstRegisterRowDto>('/app/gst/register', { ...r, kind })
+      const header = ['Bill', 'Date', 'Party', 'GSTIN', 'HSN', 'Taxable', 'CGST', 'SGST', 'IGST', 'Total']
+      const body = all.map((x) => [x.billNo, date(x.billDate), x.party.name, x.party.gstin ?? '', x.hsnCodes.join(' '), x.taxable, x.cgst, x.sgst, x.igst, x.total])
+      downloadCsv(`gst-register-${kind.toLowerCase()}.csv`, [header, ...body])
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const register = useGstRegister({ ...r, kind, page })
   const hsn = useGstHsn(r)
@@ -76,6 +92,7 @@ export function GstReports() {
         )}
         <div className="space-y-1.5"><Label htmlFor="g-from">From</Label><Input id="g-from" type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1) }} /></div>
         <div className="space-y-1.5"><Label htmlFor="g-to">To</Label><Input id="g-to" type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1) }} /></div>
+        {mode === 'register' && <Button className="ml-auto" variant="outline" disabled={exporting} onClick={exportRegister}>{exporting ? 'Exporting…' : 'Export CSV'}</Button>}
       </div>
 
       {mode === 'register' && (

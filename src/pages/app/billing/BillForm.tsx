@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
+import { MpinDialog } from '@/components/MpinDialog'
 import { PartyPicker } from '@/components/PartyPicker'
 import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
 import { Button } from '@/components/ui/button'
@@ -13,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useBankAccounts, useKarats, useSettings } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { ApiException } from '@/lib/errors'
-import { lineRateUnitGrams, metalRateUnitGrams, useCreateBill, useNextBillNo, usePartyBalance } from '@/lib/billingQueries'
+import { lineRateUnitGrams, metalRateUnitGrams, useCreateBill, useNextBillNo, usePartyBalance, useUpdateBill } from '@/lib/billingQueries'
 import { useItemNames, useStock } from '@/lib/inventoryQueries'
 import {
   BILL_TYPES,
@@ -26,7 +27,10 @@ import {
   computeLine,
   metalToMoney,
   moneyToMetal,
+  type BillDto,
   type BillKind,
+  type BillLineDto,
+  type BillPaymentDto,
   type PartyRefDto,
   type StockItemDto,
 } from '@/shared'
@@ -85,33 +89,50 @@ interface PayRow {
 }
 const blankPay = (mode: string): PayRow => ({ key: nextKey(), mode, amount: '', bankAccountId: '', metal: 'GOLD', metalForm: 'BULLION', gross: '', less: '0', tunch: '', rate: '', remark: '' })
 
-export function BillForm({ kind }: { kind: BillKind }) {
+// ── edit-mode prefill: map a saved bill's lines/payments back into editable rows ──
+const rowFromLine = (it: BillLineDto): Row =>
+  blankRow({
+    stockItemId: it.stockItemId ?? undefined, itemNameId: it.itemNameId ?? undefined, description: it.description, stockClass: it.stockClass,
+    tagNo: it.tagNo ?? '', karatCode: it.karatCode ?? '', pcs: String(it.pcs), gross: it.gross, less: it.less, tunch: it.tunch, wastage: it.wastage,
+    stoneCharge: it.stoneCharge, rate: it.rate, labour: it.labour, labourUnit: it.labourUnit, other: it.other, discount: it.discount, discountUnit: it.discountUnit,
+    locked: !!it.stockItemId && !!it.tagNo, // TAG stock line → weights from the item
+  })
+const payFromDto = (p: BillPaymentDto): PayRow => ({
+  key: nextKey(), mode: p.mode, amount: p.mode === 'METAL' ? '' : p.amount, bankAccountId: p.bankAccount ? String(p.bankAccount.id) : '',
+  metal: p.metal ?? 'GOLD', metalForm: p.metalForm ?? 'BULLION',
+  gross: p.gross ?? '', less: p.gross && p.net ? String(Number(p.gross) - Number(p.net)) : '0', tunch: p.tunch ?? '', rate: p.rate ?? '', remark: p.remark ?? '',
+})
+
+export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDto }) {
   const navigate = useNavigate()
   const { activeBranch } = useAuth()
-  const branchReady = activeBranch !== '' && activeBranch !== 'all' // a bill posts to one branch (X-Branch-Id)
+  const branchReady = !!editBill || (activeBranch !== '' && activeBranch !== 'all') // a bill posts to one branch; edit keeps the bill's branch
   const { data: settings } = useSettings()
   const { data: banks } = useBankAccounts()
   const { data: karats } = useKarats()
   const create = useCreateBill()
+  const update = useUpdateBill()
 
   const [searchParams] = useSearchParams()
-  const [billType, setBillType] = useState(searchParams.get('type') === 'ROUGH' ? 'ROUGH' : 'GST') // seed from Quick Billing deep-link
-  const [party, setParty] = useState<PartyRefDto | null>(null)
-  const [billDate, setBillDate] = useState(today())
-  const [dueDate, setDueDate] = useState('')
-  const [rows, setRows] = useState<Row[]>([])
-  const [discount, setDiscount] = useState('0')
-  const [discountUnit, setDiscountUnit] = useState('FIXED')
-  const [gstPercent, setGstPercent] = useState('3')
-  const [pays, setPays] = useState<PayRow[]>([])
-  const [keepAs, setKeepAs] = useState('MONEY')
-  const [keepRate, setKeepRate] = useState('')
+  const [billType, setBillType] = useState<string>(editBill ? editBill.billType : searchParams.get('type') === 'ROUGH' ? 'ROUGH' : 'GST')
+  const [party, setParty] = useState<PartyRefDto | null>(editBill ? editBill.party : null)
+  const [billDate, setBillDate] = useState(editBill ? editBill.billDate.slice(0, 10) : today())
+  const [dueDate, setDueDate] = useState(editBill?.dueDate ? editBill.dueDate.slice(0, 10) : '')
+  const [rows, setRows] = useState<Row[]>(editBill ? editBill.items.map(rowFromLine) : [])
+  const [discount, setDiscount] = useState(editBill ? editBill.discount : '0')
+  const [discountUnit, setDiscountUnit] = useState<string>(editBill ? editBill.discountUnit : 'FIXED')
+  const [gstPercent, setGstPercent] = useState(editBill ? editBill.gstPercent : '3')
+  const [pays, setPays] = useState<PayRow[]>(editBill ? editBill.payments.filter((p) => p.isActive).map(payFromDto) : [])
+  const [keepAs, setKeepAs] = useState<string>(editBill ? editBill.keepBalanceAs : 'MONEY')
+  const [keepRate, setKeepRate] = useState(editBill?.keepRate ?? '')
   const [rateLimitLine, setRateLimitLine] = useState<number | null>(null)
   const [panOpen, setPanOpen] = useState(false)
   const [pan, setPan] = useState('')
+  const [mpinOpen, setMpinOpen] = useState(false) // edit requires X-MPIN
+  const [editMpin, setEditMpin] = useState('')
 
   const { data: balance } = usePartyBalance(party?.id)
-  const { data: nextNo } = useNextBillNo(kind, billType, branchReady)
+  const { data: nextNo } = useNextBillNo(kind, billType, !editBill && branchReady) // edit shows the saved number
 
   // ── SELL: stock search to add lines ──
   const [stockQ, setStockQ] = useState('')
@@ -177,7 +198,7 @@ export function BillForm({ kind }: { kind: BillKind }) {
 
   const valid = branchReady && !!party && rows.length > 0 && rows.every((r) => Number(r.gross) > 0 && (r.stockItemId || r.itemNameId || (r.description && r.stockClass)))
 
-  const submit = async (panValue?: string) => {
+  const submit = async (panValue?: string, mpinValue?: string) => {
     if (!party) return
     setRateLimitLine(null)
     const body: Record<string, unknown> = {
@@ -203,18 +224,23 @@ export function BillForm({ kind }: { kind: BillKind }) {
       pan: panValue || undefined,
     }
     try {
-      const saved = await create.mutateAsync(body)
-      toast.success('Bill saved')
+      const saved = editBill
+        ? await update.mutateAsync({ id: editBill.id, body, mpin: mpinValue ?? editMpin })
+        : await create.mutateAsync(body)
+      toast.success(editBill ? 'Bill updated' : 'Bill saved')
       navigate(`/app/billing/view/${saved.id}`)
     } catch (e) {
       if (e instanceof ApiException && e.code === 'VALIDATION') {
         const d = e.details as { code?: string; line?: number } | undefined
-        if (d?.code === 'PAN_REQUIRED') { setPanOpen(true); return }
+        if (d?.code === 'PAN_REQUIRED') { setPanOpen(true); return } // keeps editMpin for the resubmit
         if (d?.code === 'RATE_LIMIT') { setRateLimitLine(d.line ?? null); toast.error(`Line ${(d.line ?? 0) + 1}: rate outside the allowed limit`); return }
       }
-      toast.error(e instanceof ApiException ? e.message : 'Could not save bill')
+      toast.error(e instanceof ApiException ? e.message : `Could not ${editBill ? 'update' : 'save'} bill`)
     }
   }
+
+  const pending = create.isPending || update.isPending
+  const onSaveClick = () => (editBill ? setMpinOpen(true) : void submit())
 
   const metalRow = (r: Row) => r.stockClass === 'GOLD' || r.stockClass === 'SILVER'
 
@@ -236,14 +262,14 @@ export function BillForm({ kind }: { kind: BillKind }) {
         </div>
         <div className="space-y-1.5">
           <Label>Type</Label>
-          <Select value={billType} onValueChange={setBillType}>
+          <Select value={billType} onValueChange={setBillType} disabled={!!editBill}>
             <SelectTrigger aria-label="Bill type"><SelectValue /></SelectTrigger>
             <SelectContent>{BILL_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-1.5">
           <Label>Bill no.</Label>
-          <Input value={nextNo?.billNo ?? '—'} readOnly aria-label="Bill number" />
+          <Input value={editBill ? editBill.billNo : nextNo?.billNo ?? '—'} readOnly aria-label="Bill number" />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="bf-date">Bill date</Label>
@@ -472,8 +498,8 @@ export function BillForm({ kind }: { kind: BillKind }) {
           <Row2 label="Paid" value={inr(paid)} />
           <div className="flex justify-between font-medium"><span>Balance</span><span className={balanceDue < 0 ? 'text-green-600 dark:text-green-500' : ''}>{inr(balanceDue)}{balanceDue < 0 ? ' (advance)' : ''}</span></div>
           <p className="text-xs text-muted-foreground">Live preview — the server recomputes every line and total authoritatively on save (GST split uses the party's state).</p>
-          <Button className="hidden w-full lg:inline-flex" disabled={!valid || create.isPending} onClick={() => submit()}>
-            {create.isPending ? 'Saving…' : `Save ${kind === 'SELL' ? 'sell' : 'purchase'} bill`}
+          <Button className="hidden w-full lg:inline-flex" disabled={!valid || pending} onClick={onSaveClick}>
+            {pending ? 'Saving…' : editBill ? 'Update bill (MPIN)' : `Save ${kind === 'SELL' ? 'sell' : 'purchase'} bill`}
           </Button>
         </div>
       </div>
@@ -484,8 +510,8 @@ export function BillForm({ kind }: { kind: BillKind }) {
           <div className="font-semibold">{inr(bill.final)}</div>
           <div className="text-xs text-muted-foreground">Bal {inr(balanceDue)}</div>
         </div>
-        <Button className="ml-auto" disabled={!valid || create.isPending} onClick={() => submit()}>
-          {create.isPending ? 'Saving…' : 'Save bill'}
+        <Button className="ml-auto" disabled={!valid || pending} onClick={onSaveClick}>
+          {pending ? 'Saving…' : editBill ? 'Update (MPIN)' : 'Save bill'}
         </Button>
       </div>
 
@@ -495,10 +521,12 @@ export function BillForm({ kind }: { kind: BillKind }) {
           <p className="text-sm text-muted-foreground">Cash on this bill is at or above ₹2,00,000, so the customer's PAN is required. It will be saved to the party.</p>
           <Input value={pan} onChange={(e) => setPan(e.target.value.toUpperCase())} placeholder="ABCDE1234F" aria-label="PAN" />
           <DialogFooter>
-            <Button disabled={!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan) || create.isPending} onClick={() => { setPanOpen(false); void submit(pan) }}>Save with PAN</Button>
+            <Button disabled={!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan) || pending} onClick={() => { setPanOpen(false); void submit(pan, editBill ? editMpin : undefined) }}>Save with PAN</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <MpinDialog open={mpinOpen} title="Authenticate bill edit" onConfirm={async (mpin) => { setEditMpin(mpin); setMpinOpen(false); await submit(undefined, mpin) }} onClose={() => setMpinOpen(false)} />
     </div>
   )
 }

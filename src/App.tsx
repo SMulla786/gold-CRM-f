@@ -27,6 +27,7 @@ const BankAccounts = lazy(() => import('@/pages/app/settings/BankAccounts').then
 const Hsn = lazy(() => import('@/pages/app/settings/Hsn').then((m) => ({ default: m.Hsn })))
 const General = lazy(() => import('@/pages/app/settings/General').then((m) => ({ default: m.General })))
 const InvoiceSettings = lazy(() => import('@/pages/app/settings/InvoiceSettings').then((m) => ({ default: m.InvoiceSettings })))
+const OpeningBalances = lazy(() => import('@/pages/app/settings/OpeningBalances').then((m) => ({ default: m.OpeningBalances })))
 const Rates = lazy(() => import('@/pages/app/settings/Rates').then((m) => ({ default: m.Rates })))
 const InventoryLayout = lazy(() => import('@/pages/app/inventory/InventoryLayout').then((m) => ({ default: m.InventoryLayout })))
 const InventoryDashboard = lazy(() => import('@/pages/app/inventory/InventoryDashboard').then((m) => ({ default: m.InventoryDashboard })))
@@ -48,6 +49,7 @@ const SellBill = lazy(() => import('@/pages/app/billing/SellBill').then((m) => (
 const PurchaseBill = lazy(() => import('@/pages/app/billing/PurchaseBill').then((m) => ({ default: m.PurchaseBill })))
 const BillList = lazy(() => import('@/pages/app/billing/BillList').then((m) => ({ default: m.BillList })))
 const BillView = lazy(() => import('@/pages/app/billing/BillView').then((m) => ({ default: m.BillView })))
+const BillEdit = lazy(() => import('@/pages/app/billing/BillEdit').then((m) => ({ default: m.BillEdit })))
 const UdhariLayout = lazy(() => import('@/pages/app/udhari/UdhariLayout').then((m) => ({ default: m.UdhariLayout })))
 const NewUdhar = lazy(() => import('@/pages/app/udhari/NewUdhar').then((m) => ({ default: m.NewUdhar })))
 const UdharLedger = lazy(() => import('@/pages/app/udhari/UdharLedger').then((m) => ({ default: m.UdharLedger })))
@@ -108,6 +110,7 @@ export default function App() {
               <Route path="general" element={<General />} />
               <Route path="invoice" element={<InvoiceSettings />} />
               <Route path="rates" element={<Rates />} />
+              <Route path="opening" element={<OpeningBalances />} />
             </Route>
             <Route path="inventory" element={<InventoryLayout />}>
               <Route index element={<InventoryDashboard />} />
@@ -131,6 +134,7 @@ export default function App() {
               <Route path="purchase" element={<PurchaseBill />} />
               <Route path="list" element={<BillList />} />
               <Route path="gst" element={<GstReports />} />
+              <Route path="edit/:id" element={<BillEdit />} />
               <Route path="view/:id" element={<BillView />} />
             </Route>
             <Route path="udhari" element={<UdhariLayout />}>

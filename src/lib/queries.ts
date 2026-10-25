@@ -30,6 +30,16 @@ export const qs = (params: Record<string, string | number | undefined>) => {
   return s ? `?${s}` : ''
 }
 
+/** Fetch every page of a Paged endpoint (pageSize caps at 100), for client-side CSV export. */
+export async function fetchAllPaged<T>(path: string, params: Record<string, string | number | undefined>): Promise<T[]> {
+  const out: T[] = []
+  for (let page = 1; ; page++) {
+    const res = await api.get<Paged<T>>(`${path}${qs({ ...params, page, pageSize: 100 })}`)
+    out.push(...res.items)
+    if (res.items.length === 0 || out.length >= res.total) return out
+  }
+}
+
 /** Mutation helper: run, invalidate query prefixes, toast success/error. */
 export function useApiMutation<TArgs, TOut>(
   fn: (args: TArgs) => Promise<TOut>,

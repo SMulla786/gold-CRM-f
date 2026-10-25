@@ -11,6 +11,7 @@ const TABS = [
   { to: '/app/settings/general', label: 'General', key: 'settings.misc' },
   { to: '/app/settings/invoice', label: 'Invoice', key: 'settings.misc' },
   { to: '/app/settings/rates', label: 'Rates', key: 'settings.misc' },
+  { to: '/app/settings/opening', label: 'Opening', key: 'settings.misc' },
 ]
 
 export function SettingsLayout() {

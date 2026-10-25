@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useUdharLedger } from '@/lib/udhariQueries'
+import { downloadCsv } from '@/lib/csv'
+import { fetchAllPaged } from '@/lib/queries'
 import { PARTY_TYPES, type PartyBalanceRowDto } from '@/shared'
 
 // + = party owes shop (red), − = shop owes party (green)
@@ -21,7 +23,20 @@ export function UdharLedger() {
   const [nonZero, setNonZero] = useState('true')
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
+  const [exporting, setExporting] = useState(false)
   const { data, isLoading } = useUdharLedger({ type: type || undefined, nonZero, q: q || undefined, page })
+
+  const exportCsv = async () => {
+    setExporting(true)
+    try {
+      const all = await fetchAllPaged<PartyBalanceRowDto>('/app/udhar/ledger', { type: type || undefined, nonZero, q: q || undefined })
+      const header = ['Party', 'Mobile', 'Amount', 'Gold', 'Silver', 'Last txn']
+      const body = all.map((r) => [r.party.name, r.party.mobile, r.amount, r.gold, r.silver, r.lastTxnDate ? new Date(r.lastTxnDate).toLocaleDateString('en-IN') : ''])
+      downloadCsv('udhar-ledger.csv', [header, ...body])
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const columns: ColumnDef<PartyBalanceRowDto, unknown>[] = [
     { header: 'Party', cell: ({ row }) => <span className="font-medium">{row.original.party.name}</span> },
@@ -48,6 +63,7 @@ export function UdharLedger() {
           <SelectTrigger className="w-40" aria-label="Balance filter"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="true">With balance</SelectItem><SelectItem value="false">All parties</SelectItem></SelectContent>
         </Select>
+        <Button className="ml-auto" variant="outline" disabled={exporting} onClick={exportCsv}>{exporting ? 'Exporting…' : 'Export CSV'}</Button>
       </div>
 
       <DataTable

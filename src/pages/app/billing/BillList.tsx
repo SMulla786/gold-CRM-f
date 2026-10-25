@@ -1,6 +1,6 @@
 import type { ColumnDef } from '@tanstack/react-table'
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 import { DataTable } from '@/components/DataTable'
 import { Badge } from '@/components/ui/badge'
@@ -12,7 +12,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AddPaymentDialog } from '@/pages/app/billing/AddPaymentDialog'
 import { useBills, useDeleteBill } from '@/lib/billingQueries'
 import { useAuth } from '@/lib/auth'
+import { downloadCsv } from '@/lib/csv'
+import { fetchAllPaged } from '@/lib/queries'
+import { shareOnWhatsApp } from '@/lib/share'
 import { BILL_KINDS, type BillKind, type BillListItemDto } from '@/shared'
+
+const todayISO = () => new Date().toISOString().slice(0, 10)
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
@@ -57,16 +62,30 @@ function DeleteBillDialog({ bill, onClose }: { bill: BillListItemDto; onClose: (
 
 export function BillList() {
   const { can } = useAuth()
+  const navigate = useNavigate()
   const [kind, setKind] = useState<BillKind>('SELL')
   const [status, setStatus] = useState('ACTIVE')
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
+  const [exporting, setExporting] = useState(false)
   const permKey = kind === 'SELL' ? 'billing.sell_bill' : 'billing.purchase_bill'
   const canEdit = can(permKey, 'edit')
   const canDelete = can(permKey, 'delete')
   const { data, isLoading } = useBills({ kind, status, q: q || undefined, page })
   const [paying, setPaying] = useState<BillListItemDto | null>(null)
   const [deleting, setDeleting] = useState<BillListItemDto | null>(null)
+
+  const exportCsv = async () => {
+    setExporting(true)
+    try {
+      const all = await fetchAllPaged<BillListItemDto>('/app/bills', { kind, status, q: q || undefined })
+      const header = ['Bill', 'Date', 'Party', 'Mobile', 'Type', 'Items', 'Final', 'Paid', 'Balance', 'Status']
+      const body = all.map((b) => [b.billNo, date(b.billDate), b.party.name, b.party.mobile, b.billType, b.itemCount, b.final, b.paid, b.balance, b.status])
+      downloadCsv(`bills-${kind.toLowerCase()}-${status.toLowerCase()}.csv`, [header, ...body])
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const columns: ColumnDef<BillListItemDto, unknown>[] = [
     { header: 'Bill', cell: ({ row }) => <Link to={`/app/billing/view/${row.original.id}`} className="font-medium text-primary hover:underline">{row.original.billNo}</Link> },
@@ -81,8 +100,10 @@ export function BillList() {
       id: 'actions', header: '',
       cell: ({ row }) =>
         row.original.status === 'ACTIVE' ? (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {canEdit && row.original.billDate.slice(0, 10) === todayISO() && <Button variant="outline" size="sm" onClick={() => navigate(`/app/billing/edit/${row.original.id}`)}>Edit</Button>}
             {canEdit && Number(row.original.balance) !== 0 && <Button variant="outline" size="sm" onClick={() => setPaying(row.original)}>Add payment</Button>}
+            <Button variant="ghost" size="sm" onClick={() => shareOnWhatsApp(row.original.party.mobile, `${row.original.kind === 'SELL' ? 'Bill' : 'Purchase'} ${row.original.billNo} · Total ${inr(row.original.final)} · Balance ${inr(row.original.balance)}`)}>Share</Button>
             {canDelete && <Button variant="ghost" size="sm" onClick={() => setDeleting(row.original)}>Delete</Button>}
           </div>
         ) : <Badge variant="secondary">Deleted</Badge>,
@@ -101,6 +122,7 @@ export function BillList() {
           <SelectContent><SelectItem value="ACTIVE">Active</SelectItem><SelectItem value="DELETED">Deleted</SelectItem></SelectContent>
         </Select>
         <Input className="max-w-xs" placeholder="Search bill / party / mobile…" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
+        <Button className="ml-auto" variant="outline" disabled={exporting} onClick={exportCsv}>{exporting ? 'Exporting…' : 'Export CSV'}</Button>
       </div>
 
       <DataTable

@@ -27,6 +27,15 @@ export function useCreateBill() {
   })
 }
 
+// edit = PATCH; like create it can answer PAN_REQUIRED / RATE_LIMIT, so keep it raw (caller handles errors).
+export function useUpdateBill() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body, mpin }: { id: number; body: Record<string, unknown>; mpin: string }) => api.patch<BillDto>(`/app/bills/${id}`, body, { mpin }),
+    onSuccess: () => BILL_KEYS.forEach((key) => qc.invalidateQueries({ queryKey: key })),
+  })
+}
+
 export const useAddBillPayments = () =>
   useApiMutation(({ id, body }: { id: number; body: Record<string, unknown> }) => api.post<BillDto>(`/app/bills/${id}/payments`, body), { invalidate: BILL_KEYS, success: 'Payment added' })
 
