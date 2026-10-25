@@ -34,13 +34,16 @@ interface Props {
   open: boolean
   onClose: () => void
   defaultType?: PartyType
+  /** Seed a new party's name/mobile (e.g. billing a walk-in showroom draft). */
+  defaultName?: string
+  defaultMobile?: string
   /** When set, edit this party instead of creating. */
   party?: PartyDto
   /** Called with the saved party (for pickers that want to auto-select it). */
   onSaved?: (p: PartyDto) => void
 }
 
-export function NewPartyDialog({ open, onClose, defaultType = 'CUSTOMER', party, onSaved }: Props) {
+export function NewPartyDialog({ open, onClose, defaultType = 'CUSTOMER', defaultName, defaultMobile, party, onSaved }: Props) {
   const create = useCreateParty()
   const update = useUpdateParty()
   const { data: states } = useStates()
@@ -54,7 +57,7 @@ export function NewPartyDialog({ open, onClose, defaultType = 'CUSTOMER', party,
     formState: { errors },
   } = useForm<PartyIn, unknown, PartyOut>({
     resolver: zodResolver(partyBody),
-    defaultValues: { type: defaultType, countryCode: '+91' },
+    defaultValues: { type: defaultType, countryCode: '+91', name: defaultName, mobile: defaultMobile },
   })
 
   const type = watch('type') as PartyType

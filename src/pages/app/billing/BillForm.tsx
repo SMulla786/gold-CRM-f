@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { MpinDialog } from '@/components/MpinDialog'
+import { NewPartyDialog } from '@/components/NewPartyDialog'
 import { PartyPicker } from '@/components/PartyPicker'
 import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
 import { Button } from '@/components/ui/button'
@@ -134,6 +135,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
   const [editMpin, setEditMpin] = useState('')
   const [draftId, setDraftId] = useState<number | null>(null) // set when billing from an approved showroom draft
   const [draftNo, setDraftNo] = useState('')
+  const [walkInDraft, setWalkInDraft] = useState<{ name: string; mobile: string } | null>(null) // walk-in draft needs a party before billing
 
   const retrieveDraft = async () => {
     const no = Number(draftNo)
@@ -142,10 +144,16 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
       const draft = await fetchDraftByNo(no)
       const items = await Promise.all(draft.items.map((it) => api.get<StockItemDto>(`/app/stock/${it.stockItemId}`)))
       setRows(items.map(rowFromStock))
-      if (draft.party) setParty(draft.party)
       if (draft.approvedDiscount != null) { setDiscount(draft.approvedDiscount); setDiscountUnit(draft.approvedDiscountUnit ?? 'FIXED') }
       setDraftId(draft.id)
-      toast.success(`Draft #${draft.draftNo} loaded`)
+      if (draft.party) {
+        setParty(draft.party)
+        toast.success(`Draft #${draft.draftNo} loaded`)
+      } else {
+        // walk-in draft: a sell bill needs a party — offer to create one from the draft's name/mobile (or pick via the picker)
+        setWalkInDraft({ name: draft.customerName, mobile: draft.mobile ?? '' })
+        toast.info(`Draft #${draft.draftNo} loaded — add or pick a customer to bill it`)
+      }
     } catch (e) {
       toast.error(e instanceof ApiException ? e.message : 'Could not load that draft')
     }
@@ -557,6 +565,17 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
       </Dialog>
 
       <MpinDialog open={mpinOpen} title="Authenticate bill edit" onConfirm={async (mpin) => { setEditMpin(mpin); setMpinOpen(false); await submit(undefined, mpin) }} onClose={() => setMpinOpen(false)} />
+
+      {walkInDraft && (
+        <NewPartyDialog
+          open
+          defaultType="CUSTOMER"
+          defaultName={walkInDraft.name}
+          defaultMobile={walkInDraft.mobile}
+          onSaved={(p) => { setParty(p); setWalkInDraft(null) }}
+          onClose={() => setWalkInDraft(null)}
+        />
+      )}
     </div>
   )
 }

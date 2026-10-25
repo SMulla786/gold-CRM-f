@@ -43,6 +43,7 @@ export function CheckoutDraftDialog({ stockItemIds, onClose, onDone }: { stockIt
             </Select>
           </div>
           <div className="space-y-1.5"><Label htmlFor="cd-note">Internal note</Label><Input id="cd-note" value={note} onChange={(e) => setNote(e.target.value)} /></div>
+          <p className="text-xs text-muted-foreground">A walk-in is fine for the draft; billing it later will ask the cashier to add or pick a customer.</p>
         </div>
         <DialogFooter>
           <Button
