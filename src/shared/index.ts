@@ -12,4 +12,5 @@ export * from './contracts/accounts';
 export * from './contracts/billing';
 export * from './contracts/udhari';
 export * from './contracts/reports';
+export * from './contracts/opening';
 export * from './calc';
