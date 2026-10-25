@@ -42,6 +42,11 @@ const IncomeExpense = lazy(() => import('@/pages/app/IncomeExpense').then((m) =>
 const DayBookLayout = lazy(() => import('@/pages/app/daybook/DayBookLayout').then((m) => ({ default: m.DayBookLayout })))
 const DayBookSummary = lazy(() => import('@/pages/app/daybook/DayBookSummary').then((m) => ({ default: m.DayBookSummary })))
 const AssetLedger = lazy(() => import('@/pages/app/daybook/AssetLedger').then((m) => ({ default: m.AssetLedger })))
+const BillingLayout = lazy(() => import('@/pages/app/billing/BillingLayout').then((m) => ({ default: m.BillingLayout })))
+const SellBill = lazy(() => import('@/pages/app/billing/SellBill').then((m) => ({ default: m.SellBill })))
+const PurchaseBill = lazy(() => import('@/pages/app/billing/PurchaseBill').then((m) => ({ default: m.PurchaseBill })))
+const BillList = lazy(() => import('@/pages/app/billing/BillList').then((m) => ({ default: m.BillList })))
+const BillView = lazy(() => import('@/pages/app/billing/BillView').then((m) => ({ default: m.BillView })))
 
 function HomeRedirect() {
   const { me } = useAuth()
@@ -109,6 +114,12 @@ export default function App() {
             <Route path="daybook" element={<DayBookLayout />}>
               <Route index element={<DayBookSummary />} />
               <Route path=":asset" element={<AssetLedger />} />
+            </Route>
+            <Route path="billing" element={<BillingLayout />}>
+              <Route index element={<SellBill />} />
+              <Route path="purchase" element={<PurchaseBill />} />
+              <Route path="list" element={<BillList />} />
+              <Route path="view/:id" element={<BillView />} />
             </Route>
             <Route path=":moduleKey" element={<ModulePlaceholder />} />
           </Route>
