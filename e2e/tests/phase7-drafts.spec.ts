@@ -97,6 +97,67 @@ test('draft: cart → approve with discount → cashier bills it → BILLED; re-
   expect(reuse.status, JSON.stringify(reuse.body)).toBe(409); // draft already BILLED
 });
 
+test('walk-in draft: Retrieve opens a prefilled New-party dialog → create party → bill → BILLED (BUG-9)', async ({ page, request }) => {
+  test.setTimeout(90_000);
+  const token = await apiToken(request, 'demo.owner');
+  const { branch, item } = await newTagItem(request, token);
+  const who = `WalkDraft ${Date.now()}`;
+  const mobile = '9' + String(Date.now()).slice(-9);
+
+  // 1) cart with a walk-in name + mobile only (no party)
+  await login(page, 'demo.owner');
+  await page.waitForURL(/\/admin/);
+  await page.goto('/app/inventory/stock');
+  await page.getByRole('combobox', { name: 'Active branch' }).selectOption({ label: branch.name });
+  await page.getByRole('checkbox', { name: `Select ${item.tagNo}` }).check();
+  await page.getByRole('button', { name: 'Add to cart' }).click();
+  await page.getByRole('textbox', { name: 'Walk-in name', exact: true }).fill(who);
+  await page.getByRole('textbox', { name: 'Walk-in mobile', exact: true }).fill(mobile);
+  await Promise.all([
+    page.waitForResponse((r) => r.url().endsWith('/app/drafts') && r.request().method() === 'POST' && r.status() === 201),
+    page.getByRole('button', { name: 'Send for approval' }).click(),
+  ]);
+  const draft = ((await apiJson(request, token, '/app/drafts?page=1&pageSize=50')).body.items as any[]).find((d) => d.customerName === who);
+  expect(draft?.status).toBe('PENDING');
+  expect(draft.party).toBeNull(); // genuinely walk-in
+
+  // 2) approve (keep the requested discount)
+  await page.goto('/app/billing/approvals');
+  await page.waitForResponse((r) => r.url().includes('/app/drafts') && r.url().includes('status=PENDING'));
+  const card = page.locator('div').filter({ has: page.getByText(`Draft #${draft.draftNo} ·`) }).filter({ has: page.getByRole('button', { name: 'Approve' }) }).first();
+  await card.getByRole('button', { name: 'Approve' }).click();
+  await Promise.all([
+    page.waitForResponse((r) => rx(`/app/drafts/${draft.id}/decision`).test(r.url()) && r.request().method() === 'POST'),
+    page.getByRole('dialog').getByRole('button', { name: 'Approve' }).click(),
+  ]);
+
+  // 3) cashier retrieves → New-party dialog opens prefilled with the walk-in name/mobile
+  await page.goto('/app/billing');
+  await page.getByRole('combobox', { name: 'Active branch' }).selectOption({ label: branch.name });
+  await page.waitForResponse((r) => r.url().includes('/app/bills/next-no') && r.status() === 200);
+  await page.getByRole('textbox', { name: 'Draft number' }).fill(String(draft.draftNo));
+  await Promise.all([
+    page.waitForResponse((r) => r.url().includes(`/app/drafts/by-no/${draft.draftNo}`) && r.status() === 200),
+    page.getByRole('button', { name: 'Retrieve draft' }).click(),
+  ]);
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByLabel('Full name')).toHaveValue(who);   // prefilled from the draft
+  await expect(dialog.getByLabel('Mobile')).toHaveValue(mobile);
+  await Promise.all([
+    page.waitForResponse((r) => r.url().endsWith('/app/parties') && r.request().method() === 'POST' && r.status() === 201),
+    dialog.getByRole('button', { name: 'Create party' }).click(),
+  ]);
+
+  // 4) party now set → the bill saves and the draft is BILLED
+  await page.getByRole('spinbutton', { name: 'Rate' }).first().fill('165000');
+  const [sold] = await Promise.all([
+    page.waitForResponse((r) => r.url().endsWith('/app/bills') && r.request().method() === 'POST'),
+    page.getByRole('button', { name: 'Save sell bill' }).click(),
+  ]);
+  expect(sold.status(), JSON.stringify(await sold.json().catch(() => ''))).toBe(201);
+  expect((await apiJson(request, token, `/app/drafts/${draft.id}`)).body.status).toBe('BILLED');
+});
+
 test('draft: reject records the reason', async ({ page, request }) => {
   test.setTimeout(60_000);
   const token = await apiToken(request, 'demo.owner');
