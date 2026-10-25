@@ -161,6 +161,50 @@ test('purchase bill → a new stock item appears in stock', async ({ page, reque
   expect(Number(created.gross)).toBe(10); // the 10g line we entered
 });
 
+test('edit a saved sell bill today → MPIN, totals update, same bill no, item stays SOLD', async ({ page, request }) => {
+  test.setTimeout(60_000);
+  const { token, item } = await startSell(page, request);
+  await request.post('/api/auth/mpin', { headers: { Authorization: `Bearer ${token}` }, data: { password: PW, mpin: '1234' } });
+  await page.getByRole('button', { name: '+ Cash' }).click();
+  await page.getByRole('spinbutton', { name: 'Amount' }).fill('100');
+  const [created] = await Promise.all([
+    page.waitForResponse((r) => r.url().endsWith('/app/bills') && r.request().method() === 'POST'),
+    page.getByRole('button', { name: 'Save sell bill' }).click(),
+  ]);
+  const savedId = (await created.json()).id as number;
+  const before = (await apiJson(request, token, `/app/bills/${savedId}`)).body;
+
+  await page.goto(`/app/billing/edit/${savedId}`);
+  await expect(page.getByRole('textbox', { name: 'Bill number' })).toHaveValue(before.billNo); // form prefilled with the saved bill
+  await page.getByRole('spinbutton', { name: 'Rate' }).first().fill('170000'); // raise the line rate → higher final
+  await page.getByRole('button', { name: 'Update bill (MPIN)' }).click();
+  await page.getByLabel('MPIN').fill('1234');
+  const [patched] = await Promise.all([
+    page.waitForResponse((r) => /\/app\/bills\/\d+$/.test(r.url()) && r.request().method() === 'PATCH'),
+    page.getByRole('button', { name: 'Confirm' }).click(),
+  ]);
+  expect(patched.status(), JSON.stringify(await patched.json().catch(() => ''))).toBe(200);
+  const after = (await apiJson(request, token, `/app/bills/${savedId}`)).body;
+  expect(after.billNo).toBe(before.billNo); // same Bill row + number (edit, not re-create)
+  expect(Number(after.final)).toBeGreaterThan(Number(before.final)); // recomputed from the higher rate
+  expect((await apiJson(request, token, `/app/stock/${item.id}`)).body.status).toBe('SOLD'); // same TAG item, still sold
+});
+
+test('a bill not dated today shows no Edit button', async ({ page, request }) => {
+  test.setTimeout(60_000);
+  const token = await apiToken(request, 'demo.owner');
+  const today = new Date().toISOString().slice(0, 10);
+  const bills = (await apiJson(request, token, '/app/bills?kind=SELL&page=1&pageSize=100')).body.items as Array<{ id: number; billNo: string; status: string; billDate: string }>;
+  const past = bills.find((b) => b.status === 'ACTIVE' && b.billDate.slice(0, 10) !== today);
+  test.skip(!past, 'demo data has no past-dated active sell bill to check');
+
+  await login(page, 'demo.owner');
+  await page.waitForURL(/\/admin/);
+  await page.goto(`/app/billing/view/${past!.id}`);
+  await expect(page.getByText(past!.billNo).first()).toBeVisible(); // view loaded
+  await expect(page.getByRole('button', { name: 'Edit' })).toHaveCount(0); // edit gated to today only
+});
+
 test('rate outside the allowed limit → line error, bill not saved', async ({ page, request }) => {
   test.setTimeout(60_000);
   await startSell(page, request);
