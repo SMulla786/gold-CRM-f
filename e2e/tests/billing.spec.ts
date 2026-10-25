@@ -129,7 +129,6 @@ test('purchase bill → a new stock item appears in stock', async ({ page, reque
   expect(itemName, 'demo data must have a GOLD item name').toBeTruthy();
   const party = (await apiJson(request, token, '/app/parties?page=1&pageSize=1')).body.items[0];
   const branchName = 'Demo HQ';
-  const countBefore = (await apiJson(request, token, `/app/stock?status=AVAILABLE&itemNameId=${itemName.id}&page=1&pageSize=1`)).body.total as number;
 
   await login(page, 'demo.owner');
   await page.waitForURL(/\/admin/);
@@ -151,9 +150,15 @@ test('purchase bill → a new stock item appears in stock', async ({ page, reque
     page.waitForResponse((r) => r.url().endsWith('/app/bills') && r.request().method() === 'POST'),
     page.getByRole('button', { name: 'Save purchase bill' }).click(),
   ]);
-  expect(resp.status(), JSON.stringify(await resp.json().catch(() => ''))).toBe(201);
-  const countAfter = (await apiJson(request, token, `/app/stock?status=AVAILABLE&itemNameId=${itemName.id}&page=1&pageSize=1`)).body.total as number;
-  expect(countAfter).toBe(countBefore + 1);
+  const bill = await resp.json();
+  expect(resp.status(), JSON.stringify(bill)).toBe(201);
+  // assert on the bill's OWN created stock item(s), not a shared per-itemName AVAILABLE total (racy with other specs)
+  const stockIds = (bill.items as Array<{ stockItemId: number | null }>).map((i) => i.stockItemId).filter((id): id is number => id != null);
+  expect(stockIds.length, 'purchase line created a stock item').toBe(1);
+  const created = (await apiJson(request, token, `/app/stock/${stockIds[0]}`)).body;
+  expect(created.status).toBe('AVAILABLE');
+  expect(created.itemName.id).toBe(itemName.id);
+  expect(Number(created.gross)).toBe(10); // the 10g line we entered
 });
 
 test('rate outside the allowed limit → line error, bill not saved', async ({ page, request }) => {
