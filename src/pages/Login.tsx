@@ -12,7 +12,7 @@ import { ApiException } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { loginBody, type LoginBody } from '@/shared'
 
-const MOCK = import.meta.env.VITE_USE_MOCK !== 'false'
+const MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
 export function Login() {
   const { me, login } = useAuth()

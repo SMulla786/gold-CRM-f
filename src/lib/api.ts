@@ -2,8 +2,9 @@ import { HEADERS, type ApiError } from '@/shared'
 import { ApiException } from '@/lib/errors'
 import { mockHandle, mockSupports } from '@/mocks/api'
 
-// Mock is on unless explicitly disabled (flip VITE_USE_MOCK=false once backend auth lands).
-const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false'
+// Mock is OPT-IN: set VITE_USE_MOCK=true (e.g. .env.local) to run the UI without a backend.
+// Any real build (no var) talks to the real API, so we never ship the mock demo app by accident.
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
 export { ApiException }
 

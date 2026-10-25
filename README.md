@@ -1,4 +1,12 @@
-# React + TypeScript + Vite
+# Just Udhari — web
+
+## Running without a backend (mock mode)
+
+The app talks to the real API by default. To run the UI standalone (no backend), opt in to the in-browser
+mock: create `.env.local` with `VITE_USE_MOCK=true`. Without that var, every build — including production —
+uses the real API, so the mock demo app is never shipped by accident. Auth always hits the real backend.
+
+---
 
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
