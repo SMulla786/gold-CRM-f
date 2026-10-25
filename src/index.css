@@ -99,4 +99,10 @@
     inset: 0;
     padding: 1rem;
   }
+  /* 80 mm thermal receipt: constrain content width (shortcut: @page size stays auto, not switched per layout). */
+  .print-area.print-thermal {
+    width: 80mm;
+    padding: 2mm;
+    font-size: 11px;
+  }
 }
