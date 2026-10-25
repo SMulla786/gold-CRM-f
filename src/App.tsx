@@ -74,6 +74,15 @@ const BuySellLayout = lazy(() => import('@/pages/app/trade/BuySellLayout').then(
 const NewBuySell = lazy(() => import('@/pages/app/trade/NewBuySell').then((m) => ({ default: m.NewBuySell })))
 const BuySellList = lazy(() => import('@/pages/app/trade/BuySellList').then((m) => ({ default: m.BuySellList })))
 const BhavBookings = lazy(() => import('@/pages/app/trade/BhavBookings').then((m) => ({ default: m.BhavBookings })))
+const SchemesLayout = lazy(() => import('@/pages/app/schemes/SchemesLayout').then((m) => ({ default: m.SchemesLayout })))
+const SchemeList = lazy(() => import('@/pages/app/schemes/SchemeList').then((m) => ({ default: m.SchemeList })))
+const SchemeGroups = lazy(() => import('@/pages/app/schemes/SchemeGroups').then((m) => ({ default: m.SchemeGroups })))
+const EnrollMember = lazy(() => import('@/pages/app/schemes/EnrollMember').then((m) => ({ default: m.EnrollMember })))
+const MemberList = lazy(() => import('@/pages/app/schemes/MemberList').then((m) => ({ default: m.MemberList })))
+const MemberDetail = lazy(() => import('@/pages/app/schemes/MemberDetail').then((m) => ({ default: m.MemberDetail })))
+const SchemeDues = lazy(() => import('@/pages/app/schemes/SchemeDues').then((m) => ({ default: m.SchemeDues })))
+const SchemeTransactions = lazy(() => import('@/pages/app/schemes/SchemeTransactions').then((m) => ({ default: m.SchemeTransactions })))
+const SchemeDayBook = lazy(() => import('@/pages/app/schemes/SchemeDayBook').then((m) => ({ default: m.SchemeDayBook })))
 const UdhariLayout = lazy(() => import('@/pages/app/udhari/UdhariLayout').then((m) => ({ default: m.UdhariLayout })))
 const NewUdhar = lazy(() => import('@/pages/app/udhari/NewUdhar').then((m) => ({ default: m.NewUdhar })))
 const UdharLedger = lazy(() => import('@/pages/app/udhari/UdharLedger').then((m) => ({ default: m.UdharLedger })))
@@ -183,6 +192,17 @@ export default function App() {
               <Route index element={<BuySellList />} />
               <Route path="new" element={<NewBuySell />} />
               <Route path="bhav" element={<BhavBookings />} />
+            </Route>
+            <Route path="schemes" element={<SchemesLayout />}>
+              <Route index element={<SchemeList />} />
+              <Route path="groups" element={<SchemeGroups />} />
+              <Route path="enroll" element={<EnrollMember />} />
+              <Route path="members" element={<MemberList />} />
+              <Route path="members/:id" element={<MemberDetail />} />
+              <Route path="dues" element={<SchemeDues />} />
+              <Route path="transactions" element={<SchemeTransactions />} />
+              <Route path="day-book" element={<SchemeDayBook />} />
+              <Route path="anjuman" element={<SchemeList kind="ANJUMAN" />} />
             </Route>
             <Route path="girvi" element={<GirviLayout />}>
               <Route index element={<GirviList />} />
