@@ -1,11 +1,13 @@
 import { useState } from 'react'
 
 import { PartyPicker } from '@/components/PartyPicker'
+import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useBankAccounts } from '@/lib/appQueries'
+import { useAuth } from '@/lib/auth'
 import { usePartyBalance } from '@/lib/billingQueries'
 import { useCreateUdhar, usePendingBills } from '@/lib/udhariQueries'
 import { METALS, moneyToMetal, type PartyRefDto } from '@/shared'
@@ -26,6 +28,8 @@ function NumField({ id, label, value, onChange, step = '0.01' }: { id: string; l
 
 export function NewUdhar() {
   const create = useCreateUdhar()
+  const { activeBranch } = useAuth()
+  const branchReady = activeBranch !== '' && activeBranch !== 'all' // udhar posts to one branch
   const { data: banks } = useBankAccounts()
   const [party, setParty] = useState<PartyRefDto | null>(null)
   const { data: balance } = usePartyBalance(party?.id)
@@ -56,7 +60,7 @@ export function NewUdhar() {
   const bhavValid = !bhavOn || (n(bhav.amount) > 0 && n(bhav.rate) > 0)
   const banksOk = (n(f.onlineOut) === 0 || f.outBankId) && (n(f.onlineIn) === 0 || f.inBankId)
   const settleOk = !settleBillId || n(f.cashIn) + n(f.onlineIn) > 0
-  const valid = !!party && (movements > 0 || bhavOn) && bhavValid && banksOk && settleOk
+  const valid = branchReady && !!party && (movements > 0 || bhavOn) && bhavValid && banksOk && settleOk
 
   const submit = async () => {
     if (!party) return
@@ -82,6 +86,8 @@ export function NewUdhar() {
 
   return (
     <div className="max-w-3xl space-y-5">
+      {!branchReady && <SelectBranchForTxn note="Udhar posts to one branch. Select a branch for this entry." />}
+
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label>Party</Label>

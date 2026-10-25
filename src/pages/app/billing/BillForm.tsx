@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { PartyPicker } from '@/components/PartyPicker'
+import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -10,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useBankAccounts, useKarats, useSettings } from '@/lib/appQueries'
+import { useAuth } from '@/lib/auth'
 import { ApiException } from '@/lib/errors'
 import { lineRateUnitGrams, metalRateUnitGrams, useCreateBill, useNextBillNo, usePartyBalance } from '@/lib/billingQueries'
 import { useItemNames, useStock } from '@/lib/inventoryQueries'
@@ -85,6 +87,8 @@ const blankPay = (mode: string): PayRow => ({ key: nextKey(), mode, amount: '', 
 
 export function BillForm({ kind }: { kind: BillKind }) {
   const navigate = useNavigate()
+  const { activeBranch } = useAuth()
+  const branchReady = activeBranch !== '' && activeBranch !== 'all' // a bill posts to one branch (X-Branch-Id)
   const { data: settings } = useSettings()
   const { data: banks } = useBankAccounts()
   const { data: karats } = useKarats()
@@ -107,7 +111,7 @@ export function BillForm({ kind }: { kind: BillKind }) {
   const [pan, setPan] = useState('')
 
   const { data: balance } = usePartyBalance(party?.id)
-  const { data: nextNo } = useNextBillNo(kind, billType)
+  const { data: nextNo } = useNextBillNo(kind, billType, branchReady)
 
   // ── SELL: stock search to add lines ──
   const [stockQ, setStockQ] = useState('')
@@ -171,7 +175,7 @@ export function BillForm({ kind }: { kind: BillKind }) {
     setRows((rs) => [...rs, blankRow({ itemNameId: n.id, description: n.name, stockClass: buyClass })])
   }
 
-  const valid = !!party && rows.length > 0 && rows.every((r) => Number(r.gross) > 0 && (r.stockItemId || r.itemNameId || (r.description && r.stockClass)))
+  const valid = branchReady && !!party && rows.length > 0 && rows.every((r) => Number(r.gross) > 0 && (r.stockItemId || r.itemNameId || (r.description && r.stockClass)))
 
   const submit = async (panValue?: string) => {
     if (!party) return
@@ -216,6 +220,8 @@ export function BillForm({ kind }: { kind: BillKind }) {
 
   return (
     <div className="space-y-5">
+      {!branchReady && <SelectBranchForTxn note="This bill posts to one branch. Select a branch to bill from." />}
+
       {/* Header */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="space-y-1.5 lg:col-span-2">

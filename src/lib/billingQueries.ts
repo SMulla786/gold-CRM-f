@@ -7,8 +7,8 @@ import { qs, useApiMutation } from '@/lib/queries'
 import { RATE_UNIT_GRAMS } from '@/shared'
 import type { BalanceDto, BillDto, BillListItemDto, Paged, SettingsDto } from '@/shared'
 
-export const useNextBillNo = (kind: string, billType: string) =>
-  useQuery({ queryKey: ['bill-next-no', kind, billType], queryFn: () => api.get<{ billNo: string }>(`/app/bills/next-no${qs({ kind, billType })}`) })
+export const useNextBillNo = (kind: string, billType: string, enabled = true) =>
+  useQuery({ queryKey: ['bill-next-no', kind, billType], queryFn: () => api.get<{ billNo: string }>(`/app/bills/next-no${qs({ kind, billType })}`), enabled })
 
 export const useBills = (params: Record<string, string | number | undefined>) =>
   useQuery({ queryKey: ['bills', params], queryFn: () => api.get<Paged<BillListItemDto>>(`/app/bills${qs(params)}`) })
