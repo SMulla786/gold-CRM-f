@@ -7,9 +7,11 @@ import { NewPartyDialog } from '@/components/NewPartyDialog'
 import { PartyPicker } from '@/components/PartyPicker'
 import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { api } from '@/lib/api'
@@ -20,7 +22,7 @@ import { fetchDraftByNo } from '@/lib/draftsQueries'
 import { ApiException } from '@/lib/errors'
 import { lineRateUnitGrams, metalRateUnitGrams, useCreateBill, useNextBillNo, usePartyBalance, useUpdateBill } from '@/lib/billingQueries'
 import { useItemNames, useStock } from '@/lib/inventoryQueries'
-import { useOrder } from '@/lib/ordersQueries'
+import { useOrder, useOrders } from '@/lib/ordersQueries'
 import {
   BILL_TYPES,
   CHARGE_UNITS,
@@ -36,6 +38,7 @@ import {
   type BillKind,
   type BillLineDto,
   type BillPaymentDto,
+  type OrderDto,
   type PartyRefDto,
   type StockItemDto,
 } from '@/shared'
@@ -44,6 +47,21 @@ let uid = 0
 const nextKey = () => `k${uid++}`
 const today = () => new Date().toISOString().slice(0, 10)
 const inr = (s: string | number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
+
+// TASK-86 bill-grid column customizer. Item/Gross/Total/actions stay fixed (needed for a valid bill);
+// the rest are show/hide, remembered per browser. Default all-on → grid is unchanged out of the box.
+const OPTIONAL_COLS = [
+  { key: 'karat', label: 'Karat' }, { key: 'pcs', label: 'Pcs' }, { key: 'less', label: 'Less' },
+  { key: 'tunch', label: 'Tunch' }, { key: 'wastage', label: 'Wst%' }, { key: 'net', label: 'Net' },
+  { key: 'fine', label: 'Fine' }, { key: 'stone', label: 'Stone' }, { key: 'rate', label: 'Rate' },
+  { key: 'labour', label: 'Labour' }, { key: 'unit', label: 'Unit' }, { key: 'other', label: 'Other' },
+  { key: 'disc', label: 'Disc' },
+] as const
+const COLS_LS = 'ju.billcols'
+const loadCols = (): Record<string, boolean> => {
+  try { const s = localStorage.getItem(COLS_LS); if (s) return { ...Object.fromEntries(OPTIONAL_COLS.map((c) => [c.key, true])), ...JSON.parse(s) } } catch { /* ignore */ }
+  return Object.fromEntries(OPTIONAL_COLS.map((c) => [c.key, true]))
+}
 
 interface Row {
   key: string
@@ -142,16 +160,25 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
   const [orderLoaded, setOrderLoaded] = useState(false)
   const orderIdParam = searchParams.get('orderId')
   const { data: orderData } = useOrder(!editBill && orderIdParam ? Number(orderIdParam) : undefined)
+  const [orderSearch, setOrderSearch] = useState(false) // TASK-86: inline "bill a ready order" picker
+  // shortcut: lists first 50 READY orders (orders list API has no free-text q); add server-side search when a shop outgrows one page
+  const { data: readyOrders } = useOrders({ status: 'READY', page: 1, pageSize: 50 }, kind === 'SELL' && !editBill && orderSearch)
+  const [cols, setCols] = useState<Record<string, boolean>>(loadCols)
+  const toggleCol = (k: string) => setCols((v) => { const n = { ...v, [k]: !v[k] }; try { localStorage.setItem(COLS_LS, JSON.stringify(n)) } catch { /* ignore */ } return n })
 
   // Billing a READY order: prefill its party + reserved finished pieces as lines, carry orderId on the bill.
+  const applyOrder = (order: OrderDto) => {
+    setParty(order.party)
+    setOrderId(order.id)
+    void Promise.all(order.items.filter((it) => it.stockItemId).map((it) => api.get<StockItemDto>(`/app/stock/${it.stockItemId}`)))
+      .then((items) => setRows(items.map(rowFromStock)))
+      .catch(() => toast.error('Could not load the order items'))
+  }
   useEffect(() => {
     if (!orderData || orderLoaded) return
     setOrderLoaded(true)
-    setParty(orderData.party)
-    setOrderId(orderData.id)
-    void Promise.all(orderData.items.filter((it) => it.stockItemId).map((it) => api.get<StockItemDto>(`/app/stock/${it.stockItemId}`)))
-      .then((items) => setRows(items.map(rowFromStock)))
-      .catch(() => toast.error('Could not load the order items'))
+    applyOrder(orderData)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderData, orderLoaded])
   const [walkInDraft, setWalkInDraft] = useState<{ name: string; mobile: string } | null>(null) // walk-in draft needs a party before billing
 
@@ -356,6 +383,22 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
             )}
           </div>
           {draftId && <p className="text-xs text-muted-foreground">Billing from showroom draft — approved discount pre-filled.</p>}
+          {!editBill && (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Checkbox id="bf-ordersearch" checked={orderSearch} onCheckedChange={(v) => setOrderSearch(!!v)} />
+              <Label htmlFor="bf-ordersearch" className="font-normal">Bill a ready order</Label>
+              {orderSearch && (
+                <Select value={orderId ? String(orderId) : ''} onValueChange={(v) => { const o = readyOrders?.items.find((x) => String(x.id) === v); if (o) applyOrder(o) }}>
+                  <SelectTrigger className="w-64" aria-label="Ready order"><SelectValue placeholder="Select a ready order" /></SelectTrigger>
+                  <SelectContent>
+                    {readyOrders?.items.length
+                      ? readyOrders.items.map((o) => <SelectItem key={o.id} value={String(o.id)}>#{o.orderNo} · {o.party.name}</SelectItem>)
+                      : <div className="px-3 py-2 text-sm text-muted-foreground">No ready orders</div>}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
         </div>
       ) : (
         <div className="flex flex-wrap items-end gap-3">
@@ -378,32 +421,44 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
       )}
 
       {/* Item grid */}
+      <div className="flex justify-end">
+        <Popover>
+          <PopoverTrigger asChild><Button type="button" variant="outline" size="sm">Columns</Button></PopoverTrigger>
+          <PopoverContent align="end" className="w-44 space-y-2">
+            {OPTIONAL_COLS.map((c) => (
+              <label key={c.key} className="flex items-center gap-2 text-sm">
+                <Checkbox checked={cols[c.key]} onCheckedChange={() => toggleCol(c.key)} aria-label={c.label} /> {c.label}
+              </label>
+            ))}
+          </PopoverContent>
+        </Popover>
+      </div>
       <div className="overflow-x-auto rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="min-w-44">Item</TableHead>
-              <TableHead>Karat</TableHead>
-              <TableHead>Pcs</TableHead>
+              {cols.karat && <TableHead>Karat</TableHead>}
+              {cols.pcs && <TableHead>Pcs</TableHead>}
               <TableHead>Gross</TableHead>
-              <TableHead>Less</TableHead>
-              <TableHead>Tunch</TableHead>
-              <TableHead>Wst%</TableHead>
-              <TableHead>Net</TableHead>
-              <TableHead>Fine</TableHead>
-              <TableHead>Stone</TableHead>
-              <TableHead>Rate</TableHead>
-              <TableHead>Labour</TableHead>
-              <TableHead>Unit</TableHead>
-              <TableHead>Other</TableHead>
-              <TableHead>Disc</TableHead>
+              {cols.less && <TableHead>Less</TableHead>}
+              {cols.tunch && <TableHead>Tunch</TableHead>}
+              {cols.wastage && <TableHead>Wst%</TableHead>}
+              {cols.net && <TableHead>Net</TableHead>}
+              {cols.fine && <TableHead>Fine</TableHead>}
+              {cols.stone && <TableHead>Stone</TableHead>}
+              {cols.rate && <TableHead>Rate</TableHead>}
+              {cols.labour && <TableHead>Labour</TableHead>}
+              {cols.unit && <TableHead>Unit</TableHead>}
+              {cols.other && <TableHead>Other</TableHead>}
+              {cols.disc && <TableHead>Disc</TableHead>}
               <TableHead>Total</TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.length === 0 && (
-              <TableRow><TableCell colSpan={17} className="h-20 text-center text-muted-foreground">{t('bill.no_items')}</TableCell></TableRow>
+              <TableRow><TableCell colSpan={4 + OPTIONAL_COLS.filter((c) => cols[c.key]).length} className="h-20 text-center text-muted-foreground">{t('bill.no_items')}</TableCell></TableRow>
             )}
             {rows.map((r, i) => {
               const lr = lineOf(r)
@@ -427,32 +482,32 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
                       </div>
                     )}
                   </TableCell>
-                  <TableCell>
+                  {cols.karat && <TableCell>
                     {metalRow(r) ? (
                       <Select value={r.karatCode} onValueChange={(v) => setRow(i, 'karatCode', v)} disabled={fixedRO}>
                         <SelectTrigger className="w-20" aria-label="Karat"><SelectValue placeholder="—" /></SelectTrigger>
                         <SelectContent>{karats?.map((k) => <SelectItem key={k.id} value={k.code}>{k.title}</SelectItem>)}</SelectContent>
                       </Select>
                     ) : '—'}
-                  </TableCell>
-                  <TableCell><Input className="w-14" type="number" value={r.pcs} disabled={weightRO} onChange={(e) => setRow(i, 'pcs', e.target.value)} /></TableCell>
+                  </TableCell>}
+                  {cols.pcs && <TableCell><Input className="w-14" type="number" value={r.pcs} disabled={weightRO} onChange={(e) => setRow(i, 'pcs', e.target.value)} /></TableCell>}
                   <TableCell><Input className="w-20" type="number" step="0.001" value={r.gross} disabled={weightRO} onChange={(e) => setRow(i, 'gross', e.target.value)} /></TableCell>
-                  <TableCell><Input className="w-16" type="number" step="0.001" value={r.less} disabled={weightRO} onChange={(e) => setRow(i, 'less', e.target.value)} /></TableCell>
-                  <TableCell><Input className="w-16" type="number" step="0.01" value={r.tunch} disabled={fixedRO} onChange={(e) => setRow(i, 'tunch', e.target.value)} /></TableCell>
-                  <TableCell><Input className="w-14" type="number" step="0.01" value={r.wastage} disabled={fixedRO} onChange={(e) => setRow(i, 'wastage', e.target.value)} /></TableCell>
-                  <TableCell className="whitespace-nowrap text-muted-foreground">{lr.net}</TableCell>
-                  <TableCell className="whitespace-nowrap text-muted-foreground">{lr.fine}</TableCell>
-                  <TableCell><Input className="w-20" type="number" aria-label="Stone charge" value={r.stoneCharge} onChange={(e) => setRow(i, 'stoneCharge', e.target.value)} /></TableCell>
-                  <TableCell><Input className="w-24" type="number" aria-label="Rate" value={r.rate} onChange={(e) => setRow(i, 'rate', e.target.value)} /></TableCell>
-                  <TableCell><Input className="w-20" type="number" aria-label="Labour" value={r.labour} onChange={(e) => setRow(i, 'labour', e.target.value)} /></TableCell>
-                  <TableCell>
+                  {cols.less && <TableCell><Input className="w-16" type="number" step="0.001" value={r.less} disabled={weightRO} onChange={(e) => setRow(i, 'less', e.target.value)} /></TableCell>}
+                  {cols.tunch && <TableCell><Input className="w-16" type="number" step="0.01" value={r.tunch} disabled={fixedRO} onChange={(e) => setRow(i, 'tunch', e.target.value)} /></TableCell>}
+                  {cols.wastage && <TableCell><Input className="w-14" type="number" step="0.01" value={r.wastage} disabled={fixedRO} onChange={(e) => setRow(i, 'wastage', e.target.value)} /></TableCell>}
+                  {cols.net && <TableCell className="whitespace-nowrap text-muted-foreground">{lr.net}</TableCell>}
+                  {cols.fine && <TableCell className="whitespace-nowrap text-muted-foreground">{lr.fine}</TableCell>}
+                  {cols.stone && <TableCell><Input className="w-20" type="number" aria-label="Stone charge" value={r.stoneCharge} onChange={(e) => setRow(i, 'stoneCharge', e.target.value)} /></TableCell>}
+                  {cols.rate && <TableCell><Input className="w-24" type="number" aria-label="Rate" value={r.rate} onChange={(e) => setRow(i, 'rate', e.target.value)} /></TableCell>}
+                  {cols.labour && <TableCell><Input className="w-20" type="number" aria-label="Labour" value={r.labour} onChange={(e) => setRow(i, 'labour', e.target.value)} /></TableCell>}
+                  {cols.unit && <TableCell>
                     <Select value={r.labourUnit} onValueChange={(v) => setRow(i, 'labourUnit', v)}>
                       <SelectTrigger className="w-28" aria-label="Labour unit"><SelectValue /></SelectTrigger>
                       <SelectContent>{CHARGE_UNITS.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
                     </Select>
-                  </TableCell>
-                  <TableCell><Input className="w-20" type="number" aria-label="Other" value={r.other} onChange={(e) => setRow(i, 'other', e.target.value)} /></TableCell>
-                  <TableCell>
+                  </TableCell>}
+                  {cols.other && <TableCell><Input className="w-20" type="number" aria-label="Other" value={r.other} onChange={(e) => setRow(i, 'other', e.target.value)} /></TableCell>}
+                  {cols.disc && <TableCell>
                     <div className="flex gap-1">
                       <Input className="w-16" type="number" aria-label="Discount" value={r.discount} onChange={(e) => setRow(i, 'discount', e.target.value)} />
                       <Select value={r.discountUnit} onValueChange={(v) => setRow(i, 'discountUnit', v)}>
@@ -460,7 +515,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
                         <SelectContent>{DISCOUNT_UNITS.map((u) => <SelectItem key={u} value={u}>{u === 'FIXED' ? '₹' : '%'}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
-                  </TableCell>
+                  </TableCell>}
                   <TableCell className="whitespace-nowrap font-medium">{lr.total}</TableCell>
                   <TableCell><Button variant="ghost" size="sm" aria-label="Remove line" onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} title="Remove">✕</Button></TableCell>
                 </TableRow>

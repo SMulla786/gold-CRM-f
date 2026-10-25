@@ -7,8 +7,8 @@ import type { KarigarIssueDto, OrderDto, Paged } from '@/shared'
 
 const ORDER_KEYS = [['orders'], ['order'], ['karigar-issues'], ['stock'], ['ledger'], ['day-book'], ['party-balance'], ['dashboard']]
 
-export const useOrders = (params: Record<string, string | number | undefined>) =>
-  useQuery({ queryKey: ['orders', params], queryFn: () => api.get<Paged<OrderDto>>(`/app/orders${qs(params)}`) })
+export const useOrders = (params: Record<string, string | number | undefined>, enabled = true) =>
+  useQuery({ queryKey: ['orders', params], queryFn: () => api.get<Paged<OrderDto>>(`/app/orders${qs(params)}`), enabled })
 export const useOrder = (id?: number) =>
   useQuery({ queryKey: ['order', id], queryFn: () => api.get<OrderDto>(`/app/orders/${id}`), enabled: !!id })
 export const useCreateOrder = () =>
