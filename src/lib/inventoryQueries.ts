@@ -81,6 +81,12 @@ export const useBulkEditStock = () =>
   useApiMutation(({ ids, patch }: { ids: number[]; patch: Record<string, unknown> }) => api.patch('/app/stock/bulk', { ids, patch }), { invalidate: STOCK_KEYS, success: 'Items updated' })
 export const useBulkDeleteStock = () =>
   useApiMutation(({ ids, mpin }: { ids: number[]; mpin: string }) => api.post('/app/stock/bulk-delete', { ids }, { mpin }), { invalidate: STOCK_KEYS, success: 'Items deleted' })
+export const useUploadStockPhoto = () =>
+  useApiMutation(({ id, file }: { id: number; file: File }) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return api.post<{ url: string; path: string }>(`/app/stock/${id}/photo`, fd)
+  }, { invalidate: [['stock']], success: 'Photo uploaded' })
 
 // ───── Stock transfer ─────
 export const useStockTransfers = (params: Record<string, string | number | undefined>) =>

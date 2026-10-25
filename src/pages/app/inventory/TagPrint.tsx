@@ -1,5 +1,6 @@
 import JsBarcode from 'jsbarcode'
 import { useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -18,7 +19,9 @@ function Barcode({ value }: { value: string }) {
 export function TagPrint() {
   const { data } = useAllStock({ status: 'AVAILABLE', method: 'TAG' })
   const items = (data ?? []).filter((i) => i.tagNo)
-  const [picked, setPicked] = useState<Set<number>>(new Set())
+  // "Save & print" from New Stock lands here with the new items preselected (router state).
+  const preIds = (useLocation().state as { ids?: number[] } | null)?.ids
+  const [picked, setPicked] = useState<Set<number>>(() => new Set(preIds ?? []))
   const toggle = (id: number) => setPicked((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
   const selected: StockItemDto[] = items.filter((i) => picked.has(i.id))
 

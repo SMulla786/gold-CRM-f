@@ -1,7 +1,8 @@
 import type { ColumnDef } from '@tanstack/react-table'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
+import { api } from '@/lib/api'
 import { DataTable } from '@/components/DataTable'
 import { MpinDialog } from '@/components/MpinDialog'
 import { Badge } from '@/components/ui/badge'
@@ -12,7 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { fetchAllStock, useBulkDeleteStock, useBulkEditStock, useDeleteStock, useStock, useStockLedger, useUpdateStock } from '@/lib/inventoryQueries'
+import { fetchAllStock, useBulkDeleteStock, useBulkEditStock, useDeleteStock, useStock, useStockLedger, useUpdateStock, useUploadStockPhoto } from '@/lib/inventoryQueries'
 import { useAuth } from '@/lib/auth'
 import { downloadCsv } from '@/lib/csv'
 import { useT } from '@/lib/i18n'
@@ -21,6 +22,19 @@ import { CheckoutDraftDialog } from '@/pages/app/billing/CheckoutDraftDialog'
 import { CHARGE_UNITS, STOCK_CLASSES, STOCK_STATUSES, type StockItemDto } from '@/shared'
 
 const CLASS_LABEL: Record<string, string> = { GOLD: 'Gold', SILVER: 'Silver', STONE: 'Stone', ARTIFICIAL: 'Artificial', FRANCHISE: 'Franchise' }
+
+// Photos sit behind requirePermission, so <img src> can't load them — blob-fetch to an object URL.
+// `ver` busts the cache after a re-upload (same path); bumped on upload success.
+function AuthedImage({ path, ver = 0, alt, className }: { path: string; ver?: number; alt: string; className?: string }) {
+  const [url, setUrl] = useState<string | null>(null)
+  useEffect(() => {
+    let active = true
+    let obj: string | null = null
+    api.blob(ver ? `${path}?v=${ver}` : path).then((b) => { if (active) { obj = URL.createObjectURL(b); setUrl(obj) } }).catch(() => {})
+    return () => { active = false; if (obj) URL.revokeObjectURL(obj) }
+  }, [path, ver])
+  return url ? <img src={url} alt={alt} className={className} /> : null
+}
 
 // Editable numeric/charge fields shared by single + bulk edit (empty = unchanged in bulk).
 const NUM_FIELDS = ['pcs', 'gross', 'less', 'tunch', 'wastage', 'stoneCharge', 'other', 'labour', 'rate', 'purchaseCost'] as const
@@ -37,6 +51,9 @@ function toBody(form: Record<string, string>, labourUnit: string) {
 
 function StockEditDialog({ item, onClose }: { item: StockItemDto; onClose: () => void }) {
   const update = useUpdateStock()
+  const uploadPhoto = useUploadStockPhoto()
+  const [photoVer, setPhotoVer] = useState(0)
+  const hasPhoto = !!item.photoUrl || photoVer > 0
   const [form, setForm] = useState<Record<string, string>>({
     pcs: String(item.pcs), gross: item.gross, less: item.less, tunch: item.tunch, wastage: item.wastage,
     stoneCharge: item.stoneCharge, other: item.other, labour: item.labour, rate: item.rate ?? '', purchaseCost: item.purchaseCost ?? '', remarks: item.remarks ?? '',
@@ -67,6 +84,14 @@ function StockEditDialog({ item, onClose }: { item: StockItemDto; onClose: () =>
                 ))}
               </SelectContent>
             </Select>
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="e-photo">Photo</Label>
+          <div className="flex items-center gap-3">
+            {hasPhoto && <AuthedImage path={`/app/files/stock/${item.id}/photo`} ver={photoVer} alt={item.itemName.name} className="h-16 w-16 rounded-md border object-cover" />}
+            <Input id="e-photo" type="file" accept="image/jpeg,image/png,image/webp" disabled={uploadPhoto.isPending}
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPhoto.mutate({ id: item.id, file: f }, { onSuccess: () => setPhotoVer((v) => v + 1) }) }} />
           </div>
         </div>
         <DialogFooter>
@@ -140,7 +165,7 @@ function StockDetailSheet({ item, onClose }: { item: StockItemDto; onClose: () =
           <SheetTitle>{item.tagNo ?? item.itemName.name}</SheetTitle>
         </SheetHeader>
         <div className="space-y-6 px-4 pb-6">
-          {item.photoUrl && <img src={item.photoUrl} alt={item.itemName.name} className="max-h-48 rounded-md border object-contain" />}
+          {item.photoUrl && <AuthedImage path={`/app/files/stock/${item.id}/photo`} alt={item.itemName.name} className="max-h-48 rounded-md border object-contain" />}
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
             {DETAIL_FIELDS.map(([label, get]) => (
               <div key={label}>

@@ -92,8 +92,24 @@ export async function request<T>(method: string, path: string, body?: unknown, o
   }
 }
 
+// Authed binary GET (e.g. stock/party photos served behind requirePermission) → Blob for an object URL.
+// Browser <img> can't send the bearer token, so fetch it here with one silent refresh+retry on 401.
+export async function fetchBlob(path: string): Promise<Blob> {
+  const once = () => {
+    const headers: Record<string, string> = {}
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`
+    if (activeBranch) headers[HEADERS.BRANCH] = activeBranch
+    return fetch(`/api${path}`, { headers, credentials: 'include' })
+  }
+  let res = await once()
+  if (res.status === 401 && (await refreshAccessToken())) res = await once()
+  if (!res.ok) throw new ApiException(res.status, 'INTERNAL', res.statusText)
+  return res.blob()
+}
+
 export const api = {
   get: <T>(path: string, opts?: RequestOpts) => request<T>('GET', path, undefined, opts),
+  blob: fetchBlob,
   post: <T>(path: string, body?: unknown, opts?: RequestOpts) => request<T>('POST', path, body, opts),
   patch: <T>(path: string, body?: unknown, opts?: RequestOpts) => request<T>('PATCH', path, body, opts),
   put: <T>(path: string, body?: unknown, opts?: RequestOpts) => request<T>('PUT', path, body, opts),

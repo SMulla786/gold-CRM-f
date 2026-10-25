@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,6 +16,7 @@ const CLASS_LABEL: Record<string, string> = { GOLD: 'Gold', SILVER: 'Silver', ST
 interface Row {
   itemNameId: string
   tagNo: string
+  huid: string
   karatCode: string
   pcs: string
   gross: string
@@ -29,12 +31,14 @@ interface Row {
   purchaseCost: string
   remarks: string
 }
-const blank = (): Row => ({ itemNameId: '', tagNo: '', karatCode: '', pcs: '1', gross: '', less: '0', tunch: '', wastage: '0', stoneCharge: '0', other: '0', labour: '0', labourUnit: 'PER_GRAM', rate: '', purchaseCost: '', remarks: '' })
+const blank = (): Row => ({ itemNameId: '', tagNo: '', huid: '', karatCode: '', pcs: '1', gross: '', less: '0', tunch: '', wastage: '0', stoneCharge: '0', other: '0', labour: '0', labourUnit: 'PER_GRAM', rate: '', purchaseCost: '', remarks: '' })
 
 export function NewStock() {
+  const navigate = useNavigate()
   const [stockClass, setStockClass] = useState('GOLD')
   const [method, setMethod] = useState('LOOSE')
   const [rows, setRows] = useState<Row[]>([blank()])
+  const [repeat, setRepeat] = useState('1') // Item Repeat (Many): duplicate the last row N times
   const { data: names } = useItemNames({ stockClass, page: 1 })
   const { data: karats } = useKarats()
   const create = useCreateStockEntry()
@@ -52,29 +56,38 @@ export function NewStock() {
 
   const valid = rows.every((r) => r.itemNameId && Number(r.gross) > 0)
 
+  const payload = () => ({
+    stockClass,
+    method,
+    rows: rows.map((r) => ({
+      itemNameId: Number(r.itemNameId),
+      tagNo: method === 'TAG' && r.tagNo ? r.tagNo : undefined,
+      huid: r.huid || undefined,
+      karatCode: r.karatCode || undefined,
+      pcs: Number(r.pcs) || 1,
+      gross: Number(r.gross),
+      less: Number(r.less) || 0,
+      tunch: r.tunch ? Number(r.tunch) : undefined,
+      wastage: Number(r.wastage) || 0,
+      stoneCharge: Number(r.stoneCharge) || 0,
+      other: Number(r.other) || 0,
+      labour: Number(r.labour) || 0,
+      labourUnit: r.labourUnit,
+      rate: r.rate ? Number(r.rate) : undefined,
+      purchaseCost: r.purchaseCost ? Number(r.purchaseCost) : undefined,
+      remarks: r.remarks || undefined,
+    })),
+  })
+
   const submit = async () => {
-    await create.mutateAsync({
-      stockClass,
-      method,
-      rows: rows.map((r) => ({
-        itemNameId: Number(r.itemNameId),
-        tagNo: method === 'TAG' && r.tagNo ? r.tagNo : undefined,
-        karatCode: r.karatCode || undefined,
-        pcs: Number(r.pcs) || 1,
-        gross: Number(r.gross),
-        less: Number(r.less) || 0,
-        tunch: r.tunch ? Number(r.tunch) : undefined,
-        wastage: Number(r.wastage) || 0,
-        stoneCharge: Number(r.stoneCharge) || 0,
-        other: Number(r.other) || 0,
-        labour: Number(r.labour) || 0,
-        labourUnit: r.labourUnit,
-        rate: r.rate ? Number(r.rate) : undefined,
-        purchaseCost: r.purchaseCost ? Number(r.purchaseCost) : undefined,
-        remarks: r.remarks || undefined,
-      })),
-    })
+    await create.mutateAsync(payload())
     setRows([blank()])
+  }
+  // Save & Print (TAG only): save, then jump to Tags with the new items preselected for label printing.
+  const saveAndPrint = async () => {
+    const res = await create.mutateAsync(payload())
+    setRows([blank()])
+    navigate('/app/inventory/tags', { state: { ids: res.items.map((i) => i.id) } })
   }
 
   return (
@@ -115,6 +128,7 @@ export function NewStock() {
             <TableRow>
               <TableHead className="min-w-40">Item</TableHead>
               {method === 'TAG' && <TableHead>Tag</TableHead>}
+              <TableHead>HUID</TableHead>
               <TableHead>Karat</TableHead>
               <TableHead>Pcs</TableHead>
               <TableHead>Gross</TableHead>
@@ -129,6 +143,7 @@ export function NewStock() {
               <TableHead>Unit</TableHead>
               <TableHead>Rate</TableHead>
               <TableHead>Cost</TableHead>
+              <TableHead>Remark</TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
@@ -156,6 +171,7 @@ export function NewStock() {
                       <Input className="w-24" placeholder="auto" value={r.tagNo} onChange={(e) => set(i, 'tagNo', e.target.value.toUpperCase())} />
                     </TableCell>
                   )}
+                  <TableCell><Input className="w-24" placeholder="6 chars" aria-label="HUID" value={r.huid} maxLength={6} onChange={(e) => set(i, 'huid', e.target.value.toUpperCase())} /></TableCell>
                   <TableCell>
                     <Select value={r.karatCode} onValueChange={(v) => set(i, 'karatCode', v)}>
                       <SelectTrigger className="w-24" aria-label="Karat">
@@ -196,6 +212,7 @@ export function NewStock() {
                   </TableCell>
                   <TableCell><Input className="w-24" type="number" value={r.rate} onChange={(e) => set(i, 'rate', e.target.value)} /></TableCell>
                   <TableCell><Input className="w-24" type="number" value={r.purchaseCost} onChange={(e) => set(i, 'purchaseCost', e.target.value)} /></TableCell>
+                  <TableCell><Input className="w-28" aria-label="Remark" value={r.remarks} onChange={(e) => set(i, 'remarks', e.target.value)} /></TableCell>
                   <TableCell className="whitespace-nowrap">
                     <Button variant="ghost" size="sm" aria-label="Duplicate row" onClick={() => setRows((rs) => [...rs.slice(0, i + 1), { ...r }, ...rs.slice(i + 1)])} title="Duplicate (same)">⧉</Button>
                     <Button variant="ghost" size="sm" aria-label="Remove row" disabled={rows.length === 1} onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} title="Remove">✕</Button>
@@ -207,13 +224,26 @@ export function NewStock() {
         </Table>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Button variant="outline" onClick={() => setRows((rs) => [...rs, blank()])}>
           + Add row
         </Button>
-        <Button className="ml-auto" disabled={!valid || create.isPending} onClick={submit}>
-          {create.isPending ? 'Saving…' : `Save ${plural(rows.length, 'item')}`}
-        </Button>
+        <div className="flex items-center gap-1">
+          <Input className="w-16" type="number" min={1} aria-label="Repeat count" value={repeat} onChange={(e) => setRepeat(e.target.value)} />
+          <Button variant="outline" onClick={() => setRows((rs) => [...rs, ...Array.from({ length: Math.max(1, Number(repeat) || 1) }, () => ({ ...rs[rs.length - 1]! }))])} title="Duplicate the last row N times">
+            Repeat last
+          </Button>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          {method === 'TAG' && (
+            <Button variant="outline" disabled={!valid || create.isPending} onClick={saveAndPrint}>
+              {create.isPending ? 'Saving…' : 'Save & print'}
+            </Button>
+          )}
+          <Button disabled={!valid || create.isPending} onClick={submit}>
+            {create.isPending ? 'Saving…' : `Save ${plural(rows.length, 'item')}`}
+          </Button>
+        </div>
       </div>
       <p className="text-xs text-muted-foreground">Net/Fine shown live; the server recomputes authoritatively on save.</p>
     </div>
