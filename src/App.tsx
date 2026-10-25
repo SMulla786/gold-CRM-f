@@ -66,6 +66,10 @@ const NewGirvi = lazy(() => import('@/pages/app/girvi/NewGirvi').then((m) => ({ 
 const GirviList = lazy(() => import('@/pages/app/girvi/GirviList').then((m) => ({ default: m.GirviList })))
 const GirviDetail = lazy(() => import('@/pages/app/girvi/GirviDetail').then((m) => ({ default: m.GirviDetail })))
 const GirviDefaults = lazy(() => import('@/pages/app/settings/GirviDefaults').then((m) => ({ default: m.GirviDefaults })))
+const ExchangeLayout = lazy(() => import('@/pages/app/trade/ExchangeLayout').then((m) => ({ default: m.ExchangeLayout })))
+const NewExchange = lazy(() => import('@/pages/app/trade/NewExchange').then((m) => ({ default: m.NewExchange })))
+const ExchangeList = lazy(() => import('@/pages/app/trade/ExchangeList').then((m) => ({ default: m.ExchangeList })))
+const KachaPool = lazy(() => import('@/pages/app/trade/KachaPool').then((m) => ({ default: m.KachaPool })))
 const UdhariLayout = lazy(() => import('@/pages/app/udhari/UdhariLayout').then((m) => ({ default: m.UdhariLayout })))
 const NewUdhar = lazy(() => import('@/pages/app/udhari/NewUdhar').then((m) => ({ default: m.NewUdhar })))
 const UdharLedger = lazy(() => import('@/pages/app/udhari/UdharLedger').then((m) => ({ default: m.UdharLedger })))
@@ -166,6 +170,11 @@ export default function App() {
               <Route path=":id" element={<OrderDetail />} />
             </Route>
             <Route path="repair" element={<RepairBoard />} />
+            <Route path="exchange" element={<ExchangeLayout />}>
+              <Route index element={<ExchangeList />} />
+              <Route path="new" element={<NewExchange />} />
+              <Route path="kacha" element={<KachaPool />} />
+            </Route>
             <Route path="girvi" element={<GirviLayout />}>
               <Route index element={<GirviList />} />
               <Route path="new" element={<NewGirvi />} />
