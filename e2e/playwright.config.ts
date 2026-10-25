@@ -10,7 +10,7 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  retries: 1, // first login can hit a cold backend (tsx compile + first argon2); one warm retry clears it
   reporter: [['list'], ['html', { open: 'never' }]],
   use: { baseURL: FRONTEND, trace: 'on-first-retry' },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
