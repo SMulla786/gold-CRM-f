@@ -38,6 +38,10 @@ const Shortage = lazy(() => import('@/pages/app/inventory/Shortage').then((m) =>
 const StockTransfers = lazy(() => import('@/pages/app/inventory/StockTransfers').then((m) => ({ default: m.StockTransfers })))
 const TagPrint = lazy(() => import('@/pages/app/inventory/TagPrint').then((m) => ({ default: m.TagPrint })))
 const ScanMatch = lazy(() => import('@/pages/app/inventory/ScanMatch').then((m) => ({ default: m.ScanMatch })))
+const IncomeExpense = lazy(() => import('@/pages/app/IncomeExpense').then((m) => ({ default: m.IncomeExpense })))
+const DayBookLayout = lazy(() => import('@/pages/app/daybook/DayBookLayout').then((m) => ({ default: m.DayBookLayout })))
+const DayBookSummary = lazy(() => import('@/pages/app/daybook/DayBookSummary').then((m) => ({ default: m.DayBookSummary })))
+const AssetLedger = lazy(() => import('@/pages/app/daybook/AssetLedger').then((m) => ({ default: m.AssetLedger })))
 
 function HomeRedirect() {
   const { me } = useAuth()
@@ -100,6 +104,11 @@ export default function App() {
               <Route path="transfers" element={<StockTransfers />} />
               <Route path="tags" element={<TagPrint />} />
               <Route path="scan" element={<ScanMatch />} />
+            </Route>
+            <Route path="income_expense" element={<IncomeExpense />} />
+            <Route path="daybook" element={<DayBookLayout />}>
+              <Route index element={<DayBookSummary />} />
+              <Route path=":asset" element={<AssetLedger />} />
             </Route>
             <Route path=":moduleKey" element={<ModulePlaceholder />} />
           </Route>
