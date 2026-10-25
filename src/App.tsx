@@ -70,6 +70,10 @@ const ExchangeLayout = lazy(() => import('@/pages/app/trade/ExchangeLayout').the
 const NewExchange = lazy(() => import('@/pages/app/trade/NewExchange').then((m) => ({ default: m.NewExchange })))
 const ExchangeList = lazy(() => import('@/pages/app/trade/ExchangeList').then((m) => ({ default: m.ExchangeList })))
 const KachaPool = lazy(() => import('@/pages/app/trade/KachaPool').then((m) => ({ default: m.KachaPool })))
+const BuySellLayout = lazy(() => import('@/pages/app/trade/BuySellLayout').then((m) => ({ default: m.BuySellLayout })))
+const NewBuySell = lazy(() => import('@/pages/app/trade/NewBuySell').then((m) => ({ default: m.NewBuySell })))
+const BuySellList = lazy(() => import('@/pages/app/trade/BuySellList').then((m) => ({ default: m.BuySellList })))
+const BhavBookings = lazy(() => import('@/pages/app/trade/BhavBookings').then((m) => ({ default: m.BhavBookings })))
 const UdhariLayout = lazy(() => import('@/pages/app/udhari/UdhariLayout').then((m) => ({ default: m.UdhariLayout })))
 const NewUdhar = lazy(() => import('@/pages/app/udhari/NewUdhar').then((m) => ({ default: m.NewUdhar })))
 const UdharLedger = lazy(() => import('@/pages/app/udhari/UdharLedger').then((m) => ({ default: m.UdharLedger })))
@@ -174,6 +178,11 @@ export default function App() {
               <Route index element={<ExchangeList />} />
               <Route path="new" element={<NewExchange />} />
               <Route path="kacha" element={<KachaPool />} />
+            </Route>
+            <Route path="buy_sell" element={<BuySellLayout />}>
+              <Route index element={<BuySellList />} />
+              <Route path="new" element={<NewBuySell />} />
+              <Route path="bhav" element={<BhavBookings />} />
             </Route>
             <Route path="girvi" element={<GirviLayout />}>
               <Route index element={<GirviList />} />
