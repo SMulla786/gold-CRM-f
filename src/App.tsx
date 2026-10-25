@@ -16,6 +16,8 @@ const BusinessDetail = lazy(() => import('@/pages/platform/BusinessDetail').then
 const Plans = lazy(() => import('@/pages/platform/Plans').then((m) => ({ default: m.Plans })))
 const Payments = lazy(() => import('@/pages/platform/Payments').then((m) => ({ default: m.Payments })))
 const AdminDashboard = lazy(() => import('@/pages/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard })))
+const PermissionEnquiries = lazy(() => import('@/pages/admin/PermissionEnquiries').then((m) => ({ default: m.PermissionEnquiries })))
+const AccessRequests = lazy(() => import('@/pages/app/AccessRequests').then((m) => ({ default: m.AccessRequests })))
 const Branches = lazy(() => import('@/pages/admin/Branches').then((m) => ({ default: m.Branches })))
 const Users = lazy(() => import('@/pages/admin/Users').then((m) => ({ default: m.Users })))
 const Roles = lazy(() => import('@/pages/admin/Roles').then((m) => ({ default: m.Roles })))
@@ -127,6 +129,7 @@ export default function App() {
             <Route path="branches" element={<Branches />} />
             <Route path="users" element={<Users />} />
             <Route path="roles" element={<Roles />} />
+            <Route path="permission-enquiries" element={<PermissionEnquiries />} />
             <Route path="business" element={<BusinessProfile />} />
             <Route path="subscription" element={<SubscriptionView />} />
           </Route>
@@ -136,6 +139,7 @@ export default function App() {
           <Route path="/app" element={<AppLayout />}>
             <Route index element={<OwnerDashboard />} />
             <Route path="dashboard" element={<OwnerDashboard />} />
+            <Route path="access-requests" element={<AccessRequests />} />
             <Route path="settings" element={<SettingsLayout />}>
               <Route index element={<Navigate to="/app/settings/parties" replace />} />
               <Route path="parties" element={<Parties />} />

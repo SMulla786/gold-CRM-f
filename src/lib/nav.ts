@@ -22,6 +22,7 @@ export function useAdminNav(): NavItem[] {
     { to: '/admin/branches', label: 'Branches' },
     { to: '/admin/users', label: 'Users' },
     { to: '/admin/roles', label: 'Roles & Permissions' },
+    { to: '/admin/permission-enquiries', label: 'Permission Requests' },
   ]
   if (me?.isOwner) {
     items.push({ to: '/admin/business', label: 'Business Settings' })
@@ -33,7 +34,10 @@ export function useAdminNav(): NavItem[] {
 /** Store menu built from MODULES, filtered by enabled modules + view permission. */
 export function useAppNav(): NavItem[] {
   const { can, hasModule } = useAuth()
-  return MODULES.filter(
+  const items = MODULES.filter(
     (m) => hasModule(m.key, m.core) && m.pages.some((pg) => can(pg.key, 'view')),
   ).map((m) => ({ to: `/app/${m.key}`, label: m.label }))
+  // Self-service: any store user can ask for access they don't have (TASK-87).
+  items.push({ to: '/app/access-requests', label: 'Access requests' })
+  return items
 }

@@ -14,6 +14,7 @@ import type {
   ModuleDef,
   Paged,
   PaymentDto,
+  PermissionEnquiryDto,
   PlanDto,
   RoleDto,
   SignupRequestDto,
@@ -175,5 +176,17 @@ export const useUpdateAdminBusiness = () =>
   useApiMutation((body: Record<string, unknown>) => api.patch<BusinessProfileDto>('/admin/business', body), { invalidate: [['admin-business']], success: 'Business updated' })
 export const useAdminSubscription = () =>
   useQuery({ queryKey: ['admin-subscription'], queryFn: () => api.get<SubscriptionViewDto>('/admin/subscription') })
+
+// TASK-87 permission enquiries — staff (/app) request + mine; admin (/admin) inbox + approve/reject.
+export const useMyEnquiries = () =>
+  useQuery({ queryKey: ['my-enquiries'], queryFn: () => api.get<PermissionEnquiryDto[]>('/app/permission-enquiries/mine') })
+export const useCreateEnquiry = () =>
+  useApiMutation((body: Record<string, unknown>) => api.post<PermissionEnquiryDto>('/app/permission-enquiries', body), { invalidate: [['my-enquiries']], success: 'Request sent' })
+export const useEnquiries = (params: { page?: number; status?: string }) =>
+  useQuery({ queryKey: ['enquiries', params], queryFn: () => api.get<Paged<PermissionEnquiryDto>>(`/admin/permission-enquiries${qs(params)}`) })
+export const useApproveEnquiry = () =>
+  useApiMutation((id: number) => api.post(`/admin/permission-enquiries/${id}/approve`), { invalidate: [['enquiries'], ['users'], ['user-permissions']], success: 'Approved' })
+export const useRejectEnquiry = () =>
+  useApiMutation(({ id, note }: { id: number; note?: string }) => api.post(`/admin/permission-enquiries/${id}/reject`, { note }), { invalidate: [['enquiries']], success: 'Rejected' })
 
 export type { MeDto }
