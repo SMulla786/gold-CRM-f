@@ -47,6 +47,12 @@ const SellBill = lazy(() => import('@/pages/app/billing/SellBill').then((m) => (
 const PurchaseBill = lazy(() => import('@/pages/app/billing/PurchaseBill').then((m) => ({ default: m.PurchaseBill })))
 const BillList = lazy(() => import('@/pages/app/billing/BillList').then((m) => ({ default: m.BillList })))
 const BillView = lazy(() => import('@/pages/app/billing/BillView').then((m) => ({ default: m.BillView })))
+const UdhariLayout = lazy(() => import('@/pages/app/udhari/UdhariLayout').then((m) => ({ default: m.UdhariLayout })))
+const NewUdhar = lazy(() => import('@/pages/app/udhari/NewUdhar').then((m) => ({ default: m.NewUdhar })))
+const UdharLedger = lazy(() => import('@/pages/app/udhari/UdharLedger').then((m) => ({ default: m.UdharLedger })))
+const UdharList = lazy(() => import('@/pages/app/udhari/UdharList').then((m) => ({ default: m.UdharList })))
+const UdharPendingBills = lazy(() => import('@/pages/app/udhari/PendingBills').then((m) => ({ default: m.PendingBills })))
+const UdharStatement = lazy(() => import('@/pages/app/udhari/Statement').then((m) => ({ default: m.Statement })))
 
 function HomeRedirect() {
   const { me } = useAuth()
@@ -120,6 +126,13 @@ export default function App() {
               <Route path="purchase" element={<PurchaseBill />} />
               <Route path="list" element={<BillList />} />
               <Route path="view/:id" element={<BillView />} />
+            </Route>
+            <Route path="udhari" element={<UdhariLayout />}>
+              <Route index element={<NewUdhar />} />
+              <Route path="ledger" element={<UdharLedger />} />
+              <Route path="list" element={<UdharList />} />
+              <Route path="pending" element={<UdharPendingBills />} />
+              <Route path="statement/:partyId" element={<UdharStatement />} />
             </Route>
             <Route path=":moduleKey" element={<ModulePlaceholder />} />
           </Route>
