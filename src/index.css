@@ -1,7 +1,6 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
-/* Inter for dense UI + numerals; Fraunces (optical serif) for the wordmark & page titles only. */
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap');
+/* Inter (UI/numerals) + Fraunces (wordmark & page titles) are self-hosted via @fontsource in main.tsx. */
 
 @custom-variant dark (&:is(.dark *));
 
@@ -56,7 +55,7 @@
 }
 
 @theme inline {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-serif: 'Fraunces', Georgia, 'Times New Roman', serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -104,6 +103,36 @@
   /* Money & weight read best with figures that line up; harmless for text cells. */
   table {
     font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Mobile platform layer ── */
+  html {
+    -webkit-tap-highlight-color: transparent; /* no gray flash on tap */
+    -webkit-text-size-adjust: 100%; /* no font inflation in landscape */
+    overscroll-behavior: none; /* no page rubber-band / pull-to-refresh */
+  }
+  button,
+  a,
+  [role='button'] {
+    touch-action: manipulation; /* drop the 300ms tap delay */
+  }
+  button,
+  [role='button'] {
+    -webkit-user-select: none;
+    user-select: none; /* long-press shouldn't select a control's label */
+  }
+  /* Soft keyboards zoom inputs under 16px; bump only on touch so desktop density stays. */
+  @media (pointer: coarse) {
+    input,
+    textarea,
+    select {
+      font-size: 16px;
+    }
+  }
+  /* Momentum + contained horizontal scroll for the wide data tables. */
+  [data-slot='table-container'] {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
   }
 }
 

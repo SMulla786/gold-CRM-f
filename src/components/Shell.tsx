@@ -32,7 +32,7 @@ export function Shell({ area, nav, showBranch }: ShellProps) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-dvh flex-col">
       {me?.impersonatedBy && (
         <div className="flex items-center justify-center gap-3 bg-amber-500 px-4 py-1.5 text-center text-sm font-medium text-black">
           Viewing as {me.name}

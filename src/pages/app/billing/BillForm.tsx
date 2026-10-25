@@ -479,7 +479,7 @@ export function BillForm({ kind }: { kind: BillKind }) {
       </div>
 
       {/* Mobile sticky totals + Save bar (desktop uses the Save in the summary card). */}
-      <div className="sticky bottom-0 z-10 -mx-6 flex items-center gap-3 border-t bg-background/95 px-6 py-3 tabular-nums backdrop-blur lg:hidden">
+      <div className="sticky bottom-0 z-10 -mx-6 flex items-center gap-3 border-t bg-background/95 px-6 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] tabular-nums backdrop-blur lg:hidden">
         <div className="text-sm">
           <div className="font-semibold">{inr(bill.final)}</div>
           <div className="text-xs text-muted-foreground">Bal {inr(balanceDue)}</div>

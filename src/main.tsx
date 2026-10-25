@@ -7,6 +7,10 @@ import App from '@/App'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from '@/components/ui/sonner'
 import { AuthProvider } from '@/lib/auth'
+// Self-hosted fonts (no runtime fetch to Google — works on a flaky shop connection).
+import '@fontsource-variable/inter'
+import '@fontsource/fraunces/500.css'
+import '@fontsource/fraunces/600.css'
 import './index.css'
 
 const queryClient = new QueryClient({
