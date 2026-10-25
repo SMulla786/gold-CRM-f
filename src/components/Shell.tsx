@@ -1,8 +1,11 @@
 import { LogOut } from 'lucide-react'
-import { Suspense } from 'react'
+import { Suspense, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 
 import { BranchSwitcher } from '@/components/BranchSwitcher'
+import { CommandPalette } from '@/components/CommandPalette'
+import { NewPartyDialog } from '@/components/NewPartyDialog'
+import { QuickBilling } from '@/components/QuickBilling'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth'
 import type { NavItem } from '@/lib/nav'
@@ -16,8 +19,12 @@ interface ShellProps {
 }
 
 export function Shell({ area, nav, showBranch }: ShellProps) {
-  const { me, logout, readOnly, endImpersonation } = useAuth()
+  const { me, can, logout, readOnly, endImpersonation } = useAuth()
   const navigate = useNavigate()
+  const [newParty, setNewParty] = useState(false)
+  const isStore = area === 'Store'
+  const canBill = can('billing.sell_bill', 'view') || can('billing.purchase_bill', 'view')
+  const canAddParty = can('settings.parties', 'edit')
 
   const onEndImpersonation = async () => {
     await endImpersonation()
@@ -40,6 +47,9 @@ export function Shell({ area, nav, showBranch }: ShellProps) {
         <span className="font-semibold">Just Udhari</span>
         <span className="rounded bg-secondary px-2 py-0.5 text-xs text-secondary-foreground">{area}</span>
         <div className="ml-auto flex items-center gap-3">
+          {area !== 'Platform' && <CommandPalette nav={nav} />}
+          {isStore && canBill && <QuickBilling />}
+          {isStore && canAddParty && <Button variant="outline" size="sm" onClick={() => setNewParty(true)}>+ New Party</Button>}
           {showBranch && <BranchSwitcher />}
           <span className="text-sm text-muted-foreground">{me?.name}</span>
           <Button variant="ghost" size="icon" onClick={() => void logout()} aria-label="Log out">
@@ -47,6 +57,8 @@ export function Shell({ area, nav, showBranch }: ShellProps) {
           </Button>
         </div>
       </header>
+
+      {newParty && <NewPartyDialog open onClose={() => setNewParty(false)} onSaved={() => setNewParty(false)} />}
 
       {readOnly && (
         <div className="bg-destructive px-4 py-1.5 text-center text-sm font-medium text-destructive-foreground">

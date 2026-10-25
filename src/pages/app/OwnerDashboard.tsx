@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { ShopRateCard } from '@/pages/app/ShopRateCard'
 import { useActivity, useDashboard } from '@/lib/reportsQueries'
 import { ACTIVITY_ACTIONS, MODULES } from '@/shared'
 
@@ -124,6 +125,8 @@ export function OwnerDashboard() {
         <Stat label="Customers" value={String(data.parties.customers)} sub={`${data.parties.customersNewThisMonth} new this month`} />
         <Stat label="Suppliers" value={String(data.parties.suppliers)} />
       </div>
+
+      <ShopRateCard />
 
       <Card>
         <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Stock on hand</CardTitle></CardHeader>

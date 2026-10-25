@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { PartyPicker } from '@/components/PartyPicker'
@@ -90,7 +90,8 @@ export function BillForm({ kind }: { kind: BillKind }) {
   const { data: karats } = useKarats()
   const create = useCreateBill()
 
-  const [billType, setBillType] = useState('GST')
+  const [searchParams] = useSearchParams()
+  const [billType, setBillType] = useState(searchParams.get('type') === 'ROUGH' ? 'ROUGH' : 'GST') // seed from Quick Billing deep-link
   const [party, setParty] = useState<PartyRefDto | null>(null)
   const [billDate, setBillDate] = useState(today())
   const [dueDate, setDueDate] = useState('')
