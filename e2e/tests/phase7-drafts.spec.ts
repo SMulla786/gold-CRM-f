@@ -61,7 +61,7 @@ test('draft: cart → approve with discount → cashier bills it → BILLED; re-
   // 2) manager approves with an adjusted discount
   await page.goto('/app/billing/approvals');
   await page.waitForResponse((r) => r.url().includes('/app/drafts') && r.url().includes('status=PENDING'));
-  const card = page.locator('div').filter({ has: page.getByText(`Draft #${draft.draftNo} ·`) }).filter({ has: page.getByRole('button', { name: 'Approve' }) }).first();
+  const card = page.locator('div').filter({ has: page.getByText(`Draft #${draft.draftNo} ·`) }).filter({ has: page.getByRole('button', { name: 'Approve' }) }).last();
   await card.getByRole('button', { name: 'Approve' }).click();
   await page.locator('#ap-disc').fill('1000');
   await Promise.all([
@@ -124,7 +124,7 @@ test('walk-in draft: Retrieve opens a prefilled New-party dialog → create part
   // 2) approve (keep the requested discount)
   await page.goto('/app/billing/approvals');
   await page.waitForResponse((r) => r.url().includes('/app/drafts') && r.url().includes('status=PENDING'));
-  const card = page.locator('div').filter({ has: page.getByText(`Draft #${draft.draftNo} ·`) }).filter({ has: page.getByRole('button', { name: 'Approve' }) }).first();
+  const card = page.locator('div').filter({ has: page.getByText(`Draft #${draft.draftNo} ·`) }).filter({ has: page.getByRole('button', { name: 'Approve' }) }).last();
   await card.getByRole('button', { name: 'Approve' }).click();
   await Promise.all([
     page.waitForResponse((r) => rx(`/app/drafts/${draft.id}/decision`).test(r.url()) && r.request().method() === 'POST'),
@@ -172,7 +172,7 @@ test('draft: reject records the reason', async ({ page, request }) => {
   await page.waitForURL(/\/admin/);
   await page.goto('/app/billing/approvals');
   await page.waitForResponse((r) => r.url().includes('/app/drafts') && r.url().includes('status=PENDING'));
-  const card = page.locator('div').filter({ has: page.getByText(`Draft #${draftNo} ·`) }).filter({ has: page.getByRole('button', { name: 'Reject' }) }).first();
+  const card = page.locator('div').filter({ has: page.getByText(`Draft #${draftNo} ·`) }).filter({ has: page.getByRole('button', { name: 'Reject' }) }).last();
   await card.getByRole('button', { name: 'Reject' }).click();
   await page.locator('#rj-reason').fill('Discount too high for this margin');
   await Promise.all([
