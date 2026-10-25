@@ -18,8 +18,8 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
     <Card>
       <CardHeader className="pb-1"><CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle></CardHeader>
       <CardContent>
-        <div className="text-2xl font-semibold">{value}</div>
-        {sub && <div className="text-xs text-muted-foreground">{sub}</div>}
+        <div className="text-2xl font-semibold break-words">{value}</div>
+        {sub && <div className="text-xs text-muted-foreground break-words">{sub}</div>}
       </CardContent>
     </Card>
   )

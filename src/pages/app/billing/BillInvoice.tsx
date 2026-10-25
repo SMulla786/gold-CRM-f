@@ -63,7 +63,7 @@ export function BillInvoice({ bill, shopName, business, stateName, terms, therma
           <thead><tr className="border-b border-dashed text-left"><th>Item</th><th className="text-right">Net</th><th className="text-right">Amt</th></tr></thead>
           <tbody>
             {bill.items.map((it) => (
-              <tr key={it.id}><td>{it.tagNo ?? it.description}</td><td className="text-right">{it.net}</td><td className="text-right">{Number(it.total).toFixed(0)}</td></tr>
+              <tr key={it.id}><td className="break-words">{it.tagNo ?? it.description}</td><td className="text-right">{it.net}</td><td className="text-right">{Number(it.total).toFixed(0)}</td></tr>
             ))}
           </tbody>
         </table>
@@ -90,7 +90,7 @@ export function BillInvoice({ bill, shopName, business, stateName, terms, therma
         <tbody>
           {bill.items.map((it) => (
             <tr key={it.id} className="border-b">
-              <td className="py-1">{it.tagNo ? `${it.tagNo} · ` : ''}{it.description}</td>
+              <td className="py-1 break-words">{it.tagNo ? `${it.tagNo} · ` : ''}{it.description}</td>
               <td>{it.hsnCode ?? '—'}</td><td>{it.karatCode ?? '—'}</td><td className="text-right">{it.pcs}</td>
               <td className="text-right">{it.gross}</td><td className="text-right">{it.net}</td><td className="text-right">{it.fine}</td>
               <td className="text-right">{it.rate}</td><td className="text-right">{inr(it.total)}</td>

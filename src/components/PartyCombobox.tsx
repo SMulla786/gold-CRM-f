@@ -36,8 +36,10 @@ export function PartyCombobox({ value, onChange, type, placeholder = 'Search par
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button variant="outline" role="combobox" id={id} aria-label={ariaLabel} aria-expanded={open} className="w-full justify-between font-normal">
-          {value ? `${value.name} · ${value.mobile}` : <span className="text-muted-foreground">{placeholder}</span>}
-          <ChevronsUpDown className="opacity-50" />
+          <span className={`min-w-0 flex-1 truncate text-left ${value ? '' : 'text-muted-foreground'}`}>
+            {value ? `${value.name} · ${value.mobile}` : placeholder}
+          </span>
+          <ChevronsUpDown className="shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
