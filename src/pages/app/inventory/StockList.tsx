@@ -16,6 +16,7 @@ import { fetchAllStock, useBulkDeleteStock, useBulkEditStock, useDeleteStock, us
 import { useAuth } from '@/lib/auth'
 import { downloadCsv } from '@/lib/csv'
 import { plural } from '@/lib/plural'
+import { CheckoutDraftDialog } from '@/pages/app/billing/CheckoutDraftDialog'
 import { CHARGE_UNITS, STOCK_CLASSES, STOCK_STATUSES, type StockItemDto } from '@/shared'
 
 const CLASS_LABEL: Record<string, string> = { GOLD: 'Gold', SILVER: 'Silver', STONE: 'Stone', ARTIFICIAL: 'Artificial', FRANCHISE: 'Franchise' }
@@ -204,6 +205,8 @@ export function StockList() {
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [viewing, setViewing] = useState<StockItemDto | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [checkout, setCheckout] = useState(false)
+  const canCheckout = can('billing.showroom_drafts', 'edit')
 
   const exportCsv = async () => {
     setExporting(true)
@@ -229,7 +232,7 @@ export function StockList() {
   const ids = [...selected]
 
   const columns: ColumnDef<StockItemDto, unknown>[] = [
-    ...(canEdit || canDelete
+    ...(canEdit || canDelete || canCheckout
       ? [{
           id: 'select',
           header: () => (
@@ -300,6 +303,7 @@ export function StockList() {
       {ids.length > 0 && (
         <div className="flex items-center gap-3 rounded-md border bg-muted/40 px-3 py-2 text-sm">
           <span>{ids.length} selected</span>
+          {canCheckout && <Button size="sm" onClick={() => setCheckout(true)}>Add to cart</Button>}
           {canEdit && <Button size="sm" variant="outline" onClick={() => setBulkEditing(true)}>Edit selected</Button>}
           {canDelete && <Button size="sm" variant="ghost" onClick={() => setBulkDeleting(true)}>Delete selected</Button>}
           <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>Clear</Button>
@@ -314,6 +318,7 @@ export function StockList() {
         pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined}
       />
 
+      {checkout && <CheckoutDraftDialog stockItemIds={ids} onClose={() => setCheckout(false)} onDone={() => { setCheckout(false); setSelected(new Set()) }} />}
       {viewing && <StockDetailSheet item={viewing} onClose={() => setViewing(null)} />}
       {editing && <StockEditDialog item={editing} onClose={() => setEditing(null)} />}
       {bulkEditing && <BulkEditDialog ids={ids} onClose={() => { setBulkEditing(false); setSelected(new Set()) }} />}

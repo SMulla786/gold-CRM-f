@@ -6,7 +6,11 @@ import { cn } from '@/lib/utils'
 const TABS = [
   { to: '/app/billing', label: 'Sell Bill', key: 'billing.sell_bill', end: true },
   { to: '/app/billing/purchase', label: 'Purchase Bill', key: 'billing.purchase_bill' },
+  { to: '/app/billing/just', label: 'Just Bill', key: 'billing.just_bill', end: true },
   { to: '/app/billing/list', label: 'Bills', key: 'billing.sell_bill' },
+  { to: '/app/billing/just/list', label: 'Just Bills', key: 'billing.just_bill' },
+  { to: '/app/billing/drafts', label: 'Drafts', key: 'billing.showroom_drafts' },
+  { to: '/app/billing/approvals', label: 'Approvals', key: 'billing.draft_approvals' },
   { to: '/app/billing/gst', label: 'GST Reports', key: 'billing.gst_report' },
 ]
 

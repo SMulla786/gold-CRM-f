@@ -11,8 +11,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { api } from '@/lib/api'
 import { useBankAccounts, useKarats, useSettings } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
+import { fetchDraftByNo } from '@/lib/draftsQueries'
 import { ApiException } from '@/lib/errors'
 import { lineRateUnitGrams, metalRateUnitGrams, useCreateBill, useNextBillNo, usePartyBalance, useUpdateBill } from '@/lib/billingQueries'
 import { useItemNames, useStock } from '@/lib/inventoryQueries'
@@ -130,6 +132,24 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
   const [pan, setPan] = useState('')
   const [mpinOpen, setMpinOpen] = useState(false) // edit requires X-MPIN
   const [editMpin, setEditMpin] = useState('')
+  const [draftId, setDraftId] = useState<number | null>(null) // set when billing from an approved showroom draft
+  const [draftNo, setDraftNo] = useState('')
+
+  const retrieveDraft = async () => {
+    const no = Number(draftNo)
+    if (!no) return
+    try {
+      const draft = await fetchDraftByNo(no)
+      const items = await Promise.all(draft.items.map((it) => api.get<StockItemDto>(`/app/stock/${it.stockItemId}`)))
+      setRows(items.map(rowFromStock))
+      if (draft.party) setParty(draft.party)
+      if (draft.approvedDiscount != null) { setDiscount(draft.approvedDiscount); setDiscountUnit(draft.approvedDiscountUnit ?? 'FIXED') }
+      setDraftId(draft.id)
+      toast.success(`Draft #${draft.draftNo} loaded`)
+    } catch (e) {
+      toast.error(e instanceof ApiException ? e.message : 'Could not load that draft')
+    }
+  }
 
   const { data: balance } = usePartyBalance(party?.id)
   const { data: nextNo } = useNextBillNo(kind, billType, !editBill && branchReady) // edit shows the saved number
@@ -222,6 +242,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
       ),
       keepBalanceAs: keepAs, keepRate: keepAs === 'MONEY' ? undefined : Number(keepRate) || undefined,
       pan: panValue || undefined,
+      draftId: !editBill && kind === 'SELL' ? draftId ?? undefined : undefined,
     }
     try {
       const saved = editBill
@@ -298,7 +319,16 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
               ))}
             </ul>
           ) : null}
-          <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => setRows((rs) => [...rs, blankRow({})])}>+ Direct line</Button>
+          <div className="mt-2 flex items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => setRows((rs) => [...rs, blankRow({})])}>+ Direct line</Button>
+            {!editBill && (
+              <>
+                <Input className="w-32" placeholder="Draft #" aria-label="Draft number" value={draftNo} onChange={(e) => setDraftNo(e.target.value)} />
+                <Button type="button" variant="outline" size="sm" onClick={() => void retrieveDraft()}>Retrieve draft</Button>
+              </>
+            )}
+          </div>
+          {draftId && <p className="text-xs text-muted-foreground">Billing from showroom draft — approved discount pre-filled.</p>}
         </div>
       ) : (
         <div className="flex flex-wrap items-end gap-3">

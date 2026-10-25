@@ -50,6 +50,11 @@ const PurchaseBill = lazy(() => import('@/pages/app/billing/PurchaseBill').then(
 const BillList = lazy(() => import('@/pages/app/billing/BillList').then((m) => ({ default: m.BillList })))
 const BillView = lazy(() => import('@/pages/app/billing/BillView').then((m) => ({ default: m.BillView })))
 const BillEdit = lazy(() => import('@/pages/app/billing/BillEdit').then((m) => ({ default: m.BillEdit })))
+const JustBill = lazy(() => import('@/pages/app/billing/JustBill').then((m) => ({ default: m.JustBill })))
+const JustBillList = lazy(() => import('@/pages/app/billing/JustBillList').then((m) => ({ default: m.JustBillList })))
+const JustBillView = lazy(() => import('@/pages/app/billing/JustBillView').then((m) => ({ default: m.JustBillView })))
+const Drafts = lazy(() => import('@/pages/app/billing/Drafts').then((m) => ({ default: m.Drafts })))
+const DraftApprovals = lazy(() => import('@/pages/app/billing/DraftApprovals').then((m) => ({ default: m.DraftApprovals })))
 const UdhariLayout = lazy(() => import('@/pages/app/udhari/UdhariLayout').then((m) => ({ default: m.UdhariLayout })))
 const NewUdhar = lazy(() => import('@/pages/app/udhari/NewUdhar').then((m) => ({ default: m.NewUdhar })))
 const UdharLedger = lazy(() => import('@/pages/app/udhari/UdharLedger').then((m) => ({ default: m.UdharLedger })))
@@ -134,6 +139,11 @@ export default function App() {
               <Route path="purchase" element={<PurchaseBill />} />
               <Route path="list" element={<BillList />} />
               <Route path="gst" element={<GstReports />} />
+              <Route path="just" element={<JustBill />} />
+              <Route path="just/list" element={<JustBillList />} />
+              <Route path="just/view/:id" element={<JustBillView />} />
+              <Route path="drafts" element={<Drafts />} />
+              <Route path="approvals" element={<DraftApprovals />} />
               <Route path="edit/:id" element={<BillEdit />} />
               <Route path="view/:id" element={<BillView />} />
             </Route>
