@@ -12,10 +12,11 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useBankAccounts } from '@/lib/appQueries'
-import { useCreateIncomeExpense, useDeleteIncomeExpense, useIncomeExpense, useUpdateIncomeExpense } from '@/lib/accountsQueries'
+import { useCreateIncomeExpense, useDeleteIncomeExpense, useIncomeExpense, useIncomeExpenseSummary, useUpdateIncomeExpense } from '@/lib/accountsQueries'
 import { useAuth } from '@/lib/auth'
-import { incomeExpenseBody, type IncomeExpenseDto } from '@/shared'
+import { IE_SOURCE_TYPES, incomeExpenseBody, type IncomeExpenseDto } from '@/shared'
 
 type IEIn = z.input<typeof incomeExpenseBody>
 type IEOut = z.output<typeof incomeExpenseBody>
@@ -142,7 +143,13 @@ export function IncomeExpense() {
   const canList = can('income_expense.list', 'view')
   const [page, setPage] = useState(1)
   const [type, setType] = useState('')
-  const { data, isLoading } = useIncomeExpense({ page, type: type || undefined }, canList)
+  const [sourceType, setSourceType] = useState('')
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const [summaryView, setSummaryView] = useState(false)
+  const filters = { type: type || undefined, sourceType: sourceType || undefined, from: from || undefined, to: to || undefined }
+  const { data, isLoading } = useIncomeExpense({ page, ...filters }, canList && !summaryView)
+  const { data: summary, isLoading: summaryLoading } = useIncomeExpenseSummary(filters, canList && summaryView)
   const del = useDeleteIncomeExpense()
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<IncomeExpenseDto | null>(null)
@@ -180,16 +187,30 @@ export function IncomeExpense() {
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold">Income / Expense</h1>
         {canList && (
-          <Select value={type || 'all'} onValueChange={(v) => { setType(v === 'all' ? '' : v); setPage(1) }}>
-            <SelectTrigger className="w-36" aria-label="Filter by type">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="INCOME">Income</SelectItem>
-              <SelectItem value="EXPENSE">Expense</SelectItem>
-            </SelectContent>
-          </Select>
+          <>
+            <Select value={type || 'all'} onValueChange={(v) => { setType(v === 'all' ? '' : v); setPage(1) }}>
+              <SelectTrigger className="w-36" aria-label="Filter by type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="INCOME">Income</SelectItem>
+                <SelectItem value="EXPENSE">Expense</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={sourceType || 'all'} onValueChange={(v) => { setSourceType(v === 'all' ? '' : v); setPage(1) }}>
+              <SelectTrigger className="w-40" aria-label="Filter by source">
+                <SelectValue placeholder="All sources" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All sources</SelectItem>
+                {IE_SOURCE_TYPES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Input className="w-40" type="date" aria-label="From" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1) }} />
+            <Input className="w-40" type="date" aria-label="To" value={to} onChange={(e) => { setTo(e.target.value); setPage(1) }} />
+            <Button variant="outline" onClick={() => setSummaryView((v) => !v)}>{summaryView ? 'Entries' : 'Daily summary'}</Button>
+          </>
         )}
         {canEdit && (
           <Button className="ml-auto" onClick={() => setCreating(true)}>
@@ -198,7 +219,37 @@ export function IncomeExpense() {
         )}
       </div>
 
-      {canList ? (
+      {!canList ? (
+        <p className="text-sm text-muted-foreground">You can add entries; viewing the list needs the Income / Expense List permission.</p>
+      ) : summaryView ? (
+        <div className="overflow-x-auto rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead className="text-right">Cash in</TableHead>
+                <TableHead className="text-right">Cash out</TableHead>
+                <TableHead className="text-right">Profit</TableHead>
+                <TableHead className="text-right">Gold net</TableHead>
+                <TableHead className="text-right">Silver net</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {summaryLoading ? <TableRow><TableCell colSpan={6} className="h-16 text-center text-muted-foreground">Loading…</TableCell></TableRow>
+                : summary?.length ? summary.map((d) => (
+                  <TableRow key={d.date}>
+                    <TableCell className="font-medium">{date(d.date)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{inr(d.cashIn)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{inr(d.cashOut)}</TableCell>
+                    <TableCell className={`text-right tabular-nums font-medium ${Number(d.profit) < 0 ? 'text-destructive' : ''}`}>{inr(d.profit)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{Number(d.goldNet) ? `${d.goldNet}g` : '—'}</TableCell>
+                    <TableCell className="text-right tabular-nums">{Number(d.silverNet) ? `${d.silverNet}g` : '—'}</TableCell>
+                  </TableRow>
+                )) : <TableRow><TableCell colSpan={6} className="h-16 text-center text-muted-foreground">No activity</TableCell></TableRow>}
+            </TableBody>
+          </Table>
+        </div>
+      ) : (
         <DataTable
           columns={columns}
           data={data?.items ?? []}
@@ -206,8 +257,6 @@ export function IncomeExpense() {
           emptyText="No entries yet."
           pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined}
         />
-      ) : (
-        <p className="text-sm text-muted-foreground">You can add entries; viewing the list needs the Income / Expense List permission.</p>
       )}
 
       {creating && <IEDialog onClose={() => setCreating(false)} />}

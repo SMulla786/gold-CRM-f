@@ -24,9 +24,14 @@ export function UdharLedger() {
   const [type, setType] = useState('')
   const [nonZero, setNonZero] = useState('true')
   const [q, setQ] = useState('')
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const [unit, setUnit] = useState<'amount' | 'gold' | 'silver'>('amount')
   const [page, setPage] = useState(1)
   const [exporting, setExporting] = useState(false)
-  const { data, isLoading } = useUdharLedger({ type: type || undefined, nonZero, q: q || undefined, page })
+  const period = !!(from || to) // when a period is set the server fills old/in/out/final
+  const unitSuffix = unit === 'amount' ? '' : 'g'
+  const { data, isLoading } = useUdharLedger({ type: type || undefined, nonZero, q: q || undefined, from: from || undefined, to: to || undefined, page })
 
   const exportCsv = async () => {
     setExporting(true)
@@ -43,6 +48,15 @@ export function UdharLedger() {
   const columns: ColumnDef<PartyBalanceRowDto, unknown>[] = [
     { header: t('udhari.col_party'), cell: ({ row }) => <span className="font-medium">{row.original.party.name}</span> },
     { header: t('udhari.col_mobile'), cell: ({ row }) => row.original.party.mobile },
+    // Period Old/In/Out/Final (from/to set) for the chosen unit — the breakdown carries all three units.
+    ...(period
+      ? [
+          { header: 'Old', cell: ({ row }: { row: { original: PartyBalanceRowDto } }) => signed(row.original.old?.[unit] ?? '0', unitSuffix) },
+          { header: 'In', cell: ({ row }: { row: { original: PartyBalanceRowDto } }) => signed(row.original.in?.[unit] ?? '0', unitSuffix) },
+          { header: 'Out', cell: ({ row }: { row: { original: PartyBalanceRowDto } }) => signed(row.original.out?.[unit] ?? '0', unitSuffix) },
+          { header: 'Final', cell: ({ row }: { row: { original: PartyBalanceRowDto } }) => signed(row.original.final?.[unit] ?? '0', unitSuffix) },
+        ]
+      : []),
     { header: t('udhari.col_amount'), cell: ({ row }) => signed(row.original.amount, '') },
     { header: t('udhari.col_gold'), cell: ({ row }) => signed(row.original.gold, 'g') },
     { header: t('udhari.col_silver'), cell: ({ row }) => signed(row.original.silver, 'g') },
@@ -65,6 +79,18 @@ export function UdharLedger() {
           <SelectTrigger className="w-40" aria-label="Balance filter"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="true">{t('udhari.with_balance')}</SelectItem><SelectItem value="false">{t('udhari.all_parties')}</SelectItem></SelectContent>
         </Select>
+        <Input className="w-40" type="date" aria-label="Period from" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1) }} />
+        <Input className="w-40" type="date" aria-label="Period to" value={to} onChange={(e) => { setTo(e.target.value); setPage(1) }} />
+        {period && (
+          <Select value={unit} onValueChange={(v) => setUnit(v as 'amount' | 'gold' | 'silver')}>
+            <SelectTrigger className="w-32" aria-label="Balance unit"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="amount">₹ Amount</SelectItem>
+              <SelectItem value="gold">Gold</SelectItem>
+              <SelectItem value="silver">Silver</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
         <Button className="ml-auto" variant="outline" disabled={exporting} onClick={exportCsv}>{exporting ? 'Exporting…' : t('common.export_csv')}</Button>
       </div>
 

@@ -4,9 +4,8 @@ import { useState } from 'react'
 import { DataTable } from '@/components/DataTable'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useUdharEntries } from '@/lib/udhariQueries'
-import type { UdharEntryRowDto } from '@/shared'
+import { LEDGER_SOURCES, type UdharEntryRowDto } from '@/shared'
 
-const SOURCES = ['UDHAR', 'BHAV_CUT', 'SELL_BILL', 'PURCHASE_BILL']
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
 
 export function UdharList() {
@@ -31,7 +30,7 @@ export function UdharList() {
         <SelectTrigger className="w-48" aria-label="Source"><SelectValue /></SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All sources</SelectItem>
-          {SOURCES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+          {LEDGER_SOURCES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
         </SelectContent>
       </Select>
 

@@ -1,19 +1,29 @@
 import { useState } from 'react'
 
+import { MpinDialog } from '@/components/MpinDialog'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { useDayBook } from '@/lib/accountsQueries'
+import { useCloseDay, useDayBook, useOpenDay } from '@/lib/accountsQueries'
+import { useAuth } from '@/lib/auth'
 
 const today = () => new Date().toISOString().slice(0, 10)
 const unit = (asset: string) => (asset === 'MONEY' ? '₹' : asset === 'GOLD' || asset === 'SILVER' ? 'g' : 'pcs')
 
 export function DayBookSummary() {
+  const { can } = useAuth()
+  const canManageDay = can('daybook.all_in_one', 'edit')
   const [from, setFrom] = useState(today())
   const [to, setTo] = useState(today())
   const { data, isLoading } = useDayBook({ from, to })
+  const openDay = useOpenDay()
+  const closeDay = useCloseDay()
+  const [confirm, setConfirm] = useState<'open' | 'close' | null>(null)
+  const singleDay = from === to // status + open/close only make sense for one day
 
   return (
     <div className="space-y-6">
@@ -26,7 +36,22 @@ export function DayBookSummary() {
           <Label htmlFor="db-to">To</Label>
           <Input id="db-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
         </div>
+        {singleDay && data?.status && (
+          <div className="flex items-center gap-2">
+            <Badge variant={data.status === 'OPEN' ? 'default' : 'destructive'}>{data.status}</Badge>
+            {canManageDay && (data.status === 'OPEN'
+              ? <Button variant="outline" size="sm" onClick={() => setConfirm('close')}>Close day</Button>
+              : <Button variant="outline" size="sm" onClick={() => setConfirm('open')}>Reopen day</Button>)}
+          </div>
+        )}
       </div>
+
+      <MpinDialog
+        open={!!confirm}
+        title={confirm === 'close' ? `Close ${from}` : `Reopen ${from}`}
+        onConfirm={(mpin) => (confirm === 'close' ? closeDay : openDay).mutateAsync({ date: from, mpin })}
+        onClose={() => setConfirm(null)}
+      />
 
       {isLoading || !data ? (
         <div className="space-y-3"><Skeleton className="h-40" /><Skeleton className="h-40" /></div>

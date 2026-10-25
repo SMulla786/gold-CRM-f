@@ -25,6 +25,7 @@ export function PendingBills() {
     { header: 'Bill', cell: ({ row }) => <Link to={`/app/billing/view/${row.original.id}`} className="font-medium text-primary hover:underline">{row.original.billNo}</Link> },
     { header: 'Kind', cell: ({ row }) => <Badge variant="secondary">{row.original.kind}</Badge> },
     { header: 'Party', cell: ({ row }) => row.original.party.name },
+    { header: 'Items', cell: ({ row }) => <span className="text-sm text-muted-foreground">{row.original.itemsSummary ?? '—'}</span> },
     { header: 'Final', cell: ({ row }) => inr(row.original.final) },
     { header: 'Balance', cell: ({ row }) => <span className={Number(row.original.balance) < 0 ? 'text-green-600 dark:text-green-500' : 'text-destructive'}>{inr(row.original.balance)}</span> },
     {
