@@ -4,7 +4,7 @@ import {
   PiggyBank, ReceiptText, Settings, ShieldCheck, Store, UserPlus, Users, Wrench,
 } from 'lucide-react'
 import { Suspense, useState, type ComponentType } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
 import { BranchSwitcher } from '@/components/BranchSwitcher'
 import { CommandPalette } from '@/components/CommandPalette'
@@ -53,6 +53,7 @@ export function Shell({ area, nav, showBranch }: ShellProps) {
   const { me, can, logout, readOnly, endImpersonation } = useAuth()
   const t = useT()
   const navigate = useNavigate()
+  const { pathname } = useLocation()
   const [newParty, setNewParty] = useState(false)
   const isStore = area === 'Store'
   const canBill = can('billing.sell_bill', 'view') || can('billing.purchase_bill', 'view')
@@ -137,7 +138,9 @@ export function Shell({ area, nav, showBranch }: ShellProps) {
         </nav>
         <main className="flex-1 p-6">
           <Suspense fallback={<p className="text-sm text-muted-foreground">{t('common.loading')}</p>}>
-            <Outlet />
+            <div key={pathname} className="animate-page-in">
+              <Outlet />
+            </div>
           </Suspense>
         </main>
       </div>
