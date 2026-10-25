@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useShortage, useUpdateItemGroup, useUpdateItemName } from '@/lib/inventoryQueries'
 import { useAuth } from '@/lib/auth'
+import { plural } from '@/lib/plural'
 import { STOCK_CLASSES, type ShortageRowDto } from '@/shared'
 
 function LimitsDialog({ row, onClose }: { row: ShortageRowDto; onClose: () => void }) {
@@ -109,7 +110,7 @@ export function Shortage() {
                   <TableCell className="text-muted-foreground">{r.level}</TableCell>
                   <TableCell className="font-medium">{r.name}</TableCell>
                   <TableCell>{CLASS_LABEL[r.stockClass]}</TableCell>
-                  <TableCell>{r.currentWeight} g · {r.currentPcs} pcs</TableCell>
+                  <TableCell>{r.currentWeight} g · {plural(r.currentPcs, 'pc')}</TableCell>
                   <TableCell className="text-muted-foreground">{r.minWeight ?? '—'} / {r.maxWeight ?? '—'}</TableCell>
                   <TableCell><Badge variant={badge(r.status)}>{r.status}</Badge></TableCell>
                   <TableCell>{canEdit && <Button variant="ghost" size="sm" onClick={() => setEditing(r)}>Edit limits</Button>}</TableCell>

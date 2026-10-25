@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useCreateStockTransfer, useStock, useStockTransfer, useStockTransfers } from '@/lib/inventoryQueries'
 import { useAuth } from '@/lib/auth'
+import { plural } from '@/lib/plural'
 import type { BranchRef, StockTransferDto } from '@/shared'
 
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
@@ -100,7 +101,7 @@ function NewTransferDialog({ branches, onClose }: { branches: BranchRef[]; onClo
             disabled={!fromBranchId || !toBranchId || picked.size === 0 || create.isPending}
             onClick={async () => { await create.mutateAsync({ fromBranchId: Number(fromBranchId), toBranchId: Number(toBranchId), stockItemIds: [...picked], remarks: remarks || undefined }); onClose() }}
           >
-            Transfer {picked.size || ''} items
+            Transfer {picked.size ? plural(picked.size, 'item') : 'items'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -120,7 +121,7 @@ function DetailDialog({ id, onClose }: { id: number; onClose: () => void }) {
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : (
           <div className="space-y-3 text-sm">
-            <div>{data.fromBranch.name} → {data.toBranch.name} · {date(data.txnDate)} · {data.itemCount} items</div>
+            <div>{data.fromBranch.name} → {data.toBranch.name} · {date(data.txnDate)} · {plural(data.itemCount, 'item')}</div>
             <Table>
               <TableHeader>
                 <TableRow>

@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useShortage, useStockSummary } from '@/lib/inventoryQueries'
 import { useAuth } from '@/lib/auth'
+import { plural } from '@/lib/plural'
 
 const CLASS_LABEL: Record<string, string> = { GOLD: 'Gold', SILVER: 'Silver', STONE: 'Stone', ARTIFICIAL: 'Artificial', FRANCHISE: 'Franchise' }
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Number(s))
@@ -36,7 +37,7 @@ export function InventoryDashboard() {
               </CardHeader>
               <CardContent className="space-y-1 text-sm">
                 <div className="text-2xl font-semibold">{s.net} g <span className="text-sm font-normal text-muted-foreground">net</span></div>
-                <div className="text-muted-foreground">Fine {s.fine} g · {s.pcs} pcs · {s.items} items</div>
+                <div className="text-muted-foreground">Fine {s.fine} g · {plural(s.pcs, 'pc')} · {plural(s.items, 'item')}</div>
                 <div className="text-muted-foreground">Value {inr(s.value)}</div>
               </CardContent>
             </Card>

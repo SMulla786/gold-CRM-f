@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useAllStock } from '@/lib/inventoryQueries'
+import { plural } from '@/lib/plural'
 import type { StockItemDto } from '@/shared'
 
 function Barcode({ value }: { value: string }) {
@@ -27,7 +28,7 @@ export function TagPrint() {
         <Checkbox aria-label="Select all" checked={items.length > 0 && picked.size === items.length} onCheckedChange={(v) => setPicked(v ? new Set(items.map((i) => i.id)) : new Set())} />
         <span className="text-sm">Select all ({items.length})</span>
         <Button className="ml-auto" disabled={selected.length === 0} onClick={() => window.print()}>
-          Print {selected.length || ''} labels
+          Print {selected.length ? plural(selected.length, 'label') : 'labels'}
         </Button>
       </div>
 

@@ -15,6 +15,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { fetchAllStock, useBulkDeleteStock, useBulkEditStock, useDeleteStock, useStock, useStockLedger, useUpdateStock } from '@/lib/inventoryQueries'
 import { useAuth } from '@/lib/auth'
 import { downloadCsv } from '@/lib/csv'
+import { plural } from '@/lib/plural'
 import { CHARGE_UNITS, STOCK_CLASSES, STOCK_STATUSES, type StockItemDto } from '@/shared'
 
 const CLASS_LABEL: Record<string, string> = { GOLD: 'Gold', SILVER: 'Silver', STONE: 'Stone', ARTIFICIAL: 'Artificial', FRANCHISE: 'Franchise' }
@@ -84,7 +85,7 @@ function BulkEditDialog({ ids, onClose }: { ids: number[]; onClose: () => void }
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Edit {ids.length} items</DialogTitle>
+          <DialogTitle>Edit {plural(ids.length, 'item')}</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">Only the fields you fill are applied to every selected item.</p>
         <div className="grid grid-cols-3 gap-3">
@@ -317,7 +318,7 @@ export function StockList() {
       {editing && <StockEditDialog item={editing} onClose={() => setEditing(null)} />}
       {bulkEditing && <BulkEditDialog ids={ids} onClose={() => { setBulkEditing(false); setSelected(new Set()) }} />}
       <MpinDialog open={!!deleting} title={`Delete ${deleting?.tagNo ?? deleting?.itemName.name ?? ''}`} onConfirm={(mpin) => del.mutateAsync({ id: deleting!.id, mpin })} onClose={() => setDeleting(null)} />
-      <MpinDialog open={bulkDeleting} title={`Delete ${ids.length} items`} onConfirm={async (mpin) => { await bulkDelete.mutateAsync({ ids, mpin }); setSelected(new Set()) }} onClose={() => setBulkDeleting(false)} />
+      <MpinDialog open={bulkDeleting} title={`Delete ${plural(ids.length, 'item')}`} onConfirm={async (mpin) => { await bulkDelete.mutateAsync({ ids, mpin }); setSelected(new Set()) }} onClose={() => setBulkDeleting(false)} />
     </div>
   )
 }

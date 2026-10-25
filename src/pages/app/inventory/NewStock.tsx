@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useKarats } from '@/lib/appQueries'
 import { useCreateStockEntry, useItemNames } from '@/lib/inventoryQueries'
+import { plural } from '@/lib/plural'
 import { CHARGE_UNITS, STOCK_CLASSES, computeLine } from '@/shared'
 
 const CLASS_LABEL: Record<string, string> = { GOLD: 'Gold', SILVER: 'Silver', STONE: 'Stone', ARTIFICIAL: 'Artificial', FRANCHISE: 'Franchise' }
@@ -211,7 +212,7 @@ export function NewStock() {
           + Add row
         </Button>
         <Button className="ml-auto" disabled={!valid || create.isPending} onClick={submit}>
-          {create.isPending ? 'Saving…' : `Save ${rows.length} item${rows.length === 1 ? '' : 's'}`}
+          {create.isPending ? 'Saving…' : `Save ${plural(rows.length, 'item')}`}
         </Button>
       </div>
       <p className="text-xs text-muted-foreground">Net/Fine shown live; the server recomputes authoritatively on save.</p>

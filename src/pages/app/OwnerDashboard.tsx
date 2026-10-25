@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ShopRateCard } from '@/pages/app/ShopRateCard'
+import { plural } from '@/lib/plural'
 import { useActivity, useDashboard } from '@/lib/reportsQueries'
 import { ACTIVITY_ACTIONS, MODULES } from '@/shared'
 
@@ -116,7 +117,7 @@ export function OwnerDashboard() {
   return (
     <div className="space-y-6 tabular-nums">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Sales today" value={inr(data.sales.todayTotal)} sub={`${data.sales.todayCount} bills · received ${inr(data.sales.todayReceived)}`} />
+        <Stat label="Sales today" value={inr(data.sales.todayTotal)} sub={`${plural(data.sales.todayCount, 'bill')} · received ${inr(data.sales.todayReceived)}`} />
         <Stat label="Sales this month" value={inr(data.sales.monthTotal)} sub={`Year ${inr(data.sales.yearTotal)}`} />
         <Stat label="Pending (receivable)" value={inr(data.sales.pendingBalance)} />
         <Stat label="Purchases this month" value={inr(data.purchases.monthTotal)} />
@@ -135,7 +136,7 @@ export function OwnerDashboard() {
             <div key={s.stockClass}>
               <div className="text-sm text-muted-foreground">{CLASS_LABEL[s.stockClass] ?? s.stockClass}</div>
               <div className="font-semibold">{s.net} g</div>
-              <div className="text-xs text-muted-foreground">{s.pcs} pcs · {inr(s.value)}</div>
+              <div className="text-xs text-muted-foreground">{plural(s.pcs, 'pc')} · {inr(s.value)}</div>
             </div>
           ))}
           {data.stock.length === 0 && <p className="text-sm text-muted-foreground">No stock yet.</p>}
