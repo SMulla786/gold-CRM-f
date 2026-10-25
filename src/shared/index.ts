@@ -19,3 +19,4 @@ export * from './contracts/girvi';
 export * from './contracts/trade';
 export * from './contracts/schemes';
 export * from './calc';
+export * from './date';
