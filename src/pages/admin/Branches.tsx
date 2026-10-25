@@ -92,7 +92,7 @@ function MoveDialog({ node, all, onClose }: { node: BranchNodeDto; all: BranchNo
         <div className="space-y-1.5">
           <Label>New parent branch</Label>
           <Select value={parentId} onValueChange={setParentId}>
-            <SelectTrigger>
+            <SelectTrigger aria-label="New parent branch">
               <SelectValue placeholder="Select parent" />
             </SelectTrigger>
             <SelectContent>

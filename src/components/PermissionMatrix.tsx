@@ -58,13 +58,13 @@ export function PermissionMatrix({ catalog, value, onChange, overriddenKeys = []
                     {overridden.has(pg.key) && <span className="size-1.5 rounded-full bg-amber-500" title="Overrides role default" />}
                   </span>
                   <span className="text-center">
-                    <Checkbox checked={row.view} disabled={disabled} onCheckedChange={(v) => set(pg.key, { view: Boolean(v) })} />
+                    <Checkbox aria-label={`${pg.label} — View`} checked={row.view} disabled={disabled} onCheckedChange={(v) => set(pg.key, { view: Boolean(v) })} />
                   </span>
                   <span className="text-center">
-                    {pg.actions ? <Checkbox checked={row.edit} disabled={disabled} onCheckedChange={(v) => set(pg.key, { edit: Boolean(v) })} /> : <span className="text-muted-foreground">—</span>}
+                    {pg.actions ? <Checkbox aria-label={`${pg.label} — Edit`} checked={row.edit} disabled={disabled} onCheckedChange={(v) => set(pg.key, { edit: Boolean(v) })} /> : <span className="text-muted-foreground">—</span>}
                   </span>
                   <span className="text-center">
-                    {pg.actions ? <Checkbox checked={row.delete} disabled={disabled} onCheckedChange={(v) => set(pg.key, { delete: Boolean(v) })} /> : <span className="text-muted-foreground">—</span>}
+                    {pg.actions ? <Checkbox aria-label={`${pg.label} — Delete`} checked={row.delete} disabled={disabled} onCheckedChange={(v) => set(pg.key, { delete: Boolean(v) })} /> : <span className="text-muted-foreground">—</span>}
                   </span>
                 </div>
               )

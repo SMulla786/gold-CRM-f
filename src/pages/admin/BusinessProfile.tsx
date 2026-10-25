@@ -1,5 +1,7 @@
+import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
+import { z } from 'zod'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -7,14 +9,15 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAdminBusiness, useStates, useUpdateAdminBusiness } from '@/lib/queries'
+import { updateBusinessBody } from '@/shared'
 
-type ProfileForm = { name: string; mobile: string; email?: string; gstin?: string; address?: string; stateId?: number }
+type ProfileForm = z.input<typeof updateBusinessBody>
 
 export function BusinessProfile() {
   const { data, isLoading } = useAdminBusiness()
   const { data: states } = useStates()
   const update = useUpdateAdminBusiness()
-  const { register, handleSubmit, reset, watch, setValue } = useForm<ProfileForm>()
+  const { register, handleSubmit, reset, watch, setValue } = useForm<ProfileForm>({ resolver: zodResolver(updateBusinessBody) })
 
   useEffect(() => {
     if (data) reset({ name: data.name, mobile: data.mobile, email: data.email ?? undefined, gstin: data.gstin ?? undefined, address: data.address ?? undefined, stateId: data.stateId ?? undefined })
@@ -23,7 +26,7 @@ export function BusinessProfile() {
   if (isLoading || !data) return <p className="text-sm text-muted-foreground">Loading…</p>
 
   const onSubmit = handleSubmit(async (v) => {
-    await update.mutateAsync({ name: v.name, mobile: v.mobile, email: v.email || undefined, gstin: v.gstin || undefined, address: v.address || undefined, stateId: v.stateId ? Number(v.stateId) : undefined })
+    await update.mutateAsync(v as Record<string, unknown>)
   })
 
   return (
@@ -57,7 +60,7 @@ export function BusinessProfile() {
               <div className="space-y-1.5">
                 <Label>State</Label>
                 <Select value={watch('stateId') ? String(watch('stateId')) : ''} onValueChange={(v) => setValue('stateId', Number(v))}>
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="State">
                     <SelectValue placeholder="Select state" />
                   </SelectTrigger>
                   <SelectContent>

@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { ColumnDef } from '@tanstack/react-table'
-import { useState } from 'react'
+import { cloneElement, isValidElement, useId, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useNavigate } from 'react-router-dom'
 
@@ -76,7 +76,7 @@ function CreateWizard() {
               </Field>
               <Field label="State">
                 <Select value={watch('stateId') ? String(watch('stateId')) : ''} onValueChange={(v) => setValue('stateId', Number(v))}>
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="State">
                     <SelectValue placeholder="Select state" />
                   </SelectTrigger>
                   <SelectContent>
@@ -110,7 +110,7 @@ function CreateWizard() {
           {step === 3 && (
             <Field label="Plan" error={formState.errors.planId?.message}>
               <Select value={watch('planId') ? String(watch('planId')) : ''} onValueChange={(v) => setValue('planId', Number(v), { shouldValidate: true })}>
-                <SelectTrigger>
+                <SelectTrigger aria-label="Plan">
                   <SelectValue placeholder="Select a plan" />
                 </SelectTrigger>
                 <SelectContent>
@@ -149,10 +149,11 @@ function CreateWizard() {
 }
 
 function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
+  const id = useId()
   return (
     <div className="space-y-1.5">
-      <Label>{label}</Label>
-      {children}
+      <Label htmlFor={id}>{label}</Label>
+      {isValidElement(children) ? cloneElement(children as React.ReactElement<{ id?: string }>, { id }) : children}
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   )
@@ -178,7 +179,7 @@ export function Businesses() {
         <h1 className="text-2xl font-semibold">Businesses</h1>
         <div className="flex items-center gap-3">
           <Select value={status || 'all'} onValueChange={(v) => setStatus(v === 'all' ? '' : v)}>
-            <SelectTrigger className="w-40">
+            <SelectTrigger className="w-40" aria-label="Filter by status">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

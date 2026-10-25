@@ -41,7 +41,7 @@ function ApproveDialog({ signup, onClose }: { signup: SignupRequestDto; onClose:
           <div className="space-y-1.5">
             <Label>Plan</Label>
             <Select value={planId} onValueChange={setPlanId}>
-              <SelectTrigger>
+              <SelectTrigger aria-label="Plan">
                 <SelectValue placeholder="Select a plan" />
               </SelectTrigger>
               <SelectContent>
@@ -142,7 +142,7 @@ export function Signups() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Sign-up Requests</h1>
         <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className="w-40">
+          <SelectTrigger className="w-40" aria-label="Filter by status">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

@@ -1,6 +1,7 @@
+import { zodResolver } from '@hookform/resolvers/zod'
 import type { ColumnDef } from '@tanstack/react-table'
 import { useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 
 import { DataTable } from '@/components/DataTable'
 import { PermissionMatrix, grantsToMap, mapToGrants, type GrantMap } from '@/components/PermissionMatrix'
@@ -11,6 +12,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useAuth } from '@/lib/auth'
+import { createUserBody, updateUserBody } from '@/shared'
 import {
   useBranches,
   useCreateUser,
@@ -44,6 +47,8 @@ type UserForm = {
 }
 
 function UserDialog({ user, onClose }: { user?: UserDto; onClose: () => void }) {
+  const { me } = useAuth()
+  const selfEdit = !!user && user.id === me?.id // can't change your own level/branch (API rejects it)
   const { data: root } = useBranches()
   const { data: roles } = useRoles()
   const create = useCreateUser()
@@ -51,6 +56,8 @@ function UserDialog({ user, onClose }: { user?: UserDto; onClose: () => void }) 
   const branches = root ? flatten(root) : []
 
   const { register, handleSubmit, watch, setValue, formState } = useForm<UserForm>({
+    // runtime schema differs by mode (create needs username/password); cast bridges the two typed resolvers.
+    resolver: zodResolver(user ? updateUserBody : createUserBody) as Resolver<UserForm>,
     defaultValues: user
       ? { name: user.name, email: user.email ?? undefined, mobile: user.mobile ?? undefined, level: user.level, branchId: user.branch.id, roleId: user.role?.id, viewDaysLimit: user.viewDaysLimit }
       : { level: 'BRANCH_USER', viewDaysLimit: null },
@@ -82,17 +89,20 @@ function UserDialog({ user, onClose }: { user?: UserDto; onClose: () => void }) 
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="u-name">Full name</Label>
-            <Input id="u-name" {...register('name', { required: true })} />
+            <Input id="u-name" {...register('name')} />
+            {formState.errors.name && <p className="text-xs text-destructive">{formState.errors.name.message}</p>}
           </div>
           {!user && (
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="u-user">Username</Label>
-                <Input id="u-user" {...register('username', { required: true })} />
+                <Input id="u-user" {...register('username')} />
+                {formState.errors.username && <p className="text-xs text-destructive">{formState.errors.username.message}</p>}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="u-pass">Password</Label>
-                <Input id="u-pass" type="text" {...register('password', { required: true, minLength: 8 })} />
+                <Input id="u-pass" type="text" {...register('password')} />
+                {formState.errors.password && <p className="text-xs text-destructive">{formState.errors.password.message}</p>}
               </div>
             </div>
           )}
@@ -109,8 +119,8 @@ function UserDialog({ user, onClose }: { user?: UserDto; onClose: () => void }) 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Branch</Label>
-              <Select value={watch('branchId') ? String(watch('branchId')) : ''} onValueChange={(v) => setValue('branchId', Number(v), { shouldValidate: true })}>
-                <SelectTrigger>
+              <Select value={watch('branchId') ? String(watch('branchId')) : ''} onValueChange={(v) => setValue('branchId', Number(v), { shouldValidate: true })} disabled={selfEdit}>
+                <SelectTrigger aria-label="Branch">
                   <SelectValue placeholder="Select branch" />
                 </SelectTrigger>
                 <SelectContent>
@@ -125,8 +135,8 @@ function UserDialog({ user, onClose }: { user?: UserDto; onClose: () => void }) 
             </div>
             <div className="space-y-1.5">
               <Label>Level</Label>
-              <Select value={watch('level')} onValueChange={(v) => setValue('level', v as UserForm['level'])}>
-                <SelectTrigger>
+              <Select value={watch('level')} onValueChange={(v) => setValue('level', v as UserForm['level'])} disabled={selfEdit}>
+                <SelectTrigger aria-label="Level">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -142,7 +152,7 @@ function UserDialog({ user, onClose }: { user?: UserDto; onClose: () => void }) 
             <div className="space-y-1.5">
               <Label>Role</Label>
               <Select value={watch('roleId') ? String(watch('roleId')) : ''} onValueChange={(v) => setValue('roleId', Number(v))}>
-                <SelectTrigger>
+                <SelectTrigger aria-label="Role">
                   <SelectValue placeholder="No role" />
                 </SelectTrigger>
                 <SelectContent>
@@ -156,7 +166,7 @@ function UserDialog({ user, onClose }: { user?: UserDto; onClose: () => void }) 
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="u-days">View-days limit</Label>
-              <Input id="u-days" type="number" placeholder="Unlimited" {...register('viewDaysLimit')} />
+              <Input id="u-days" type="number" placeholder="Unlimited" {...register('viewDaysLimit', { setValueAs: (v) => (v === '' || v == null ? null : Number(v)) })} />
             </div>
           </div>
           <DialogFooter>
@@ -240,6 +250,7 @@ function PermissionsDialog({ user, onClose }: { user: UserDto; onClose: () => vo
 const statusVariant = (s: UserDto['status']) => (s === 'ACTIVE' ? 'default' : s === 'BLOCKED' ? 'destructive' : 'secondary')
 
 export function Users() {
+  const { me } = useAuth()
   const [page, setPage] = useState(1)
   const { data, isLoading } = useUsers({ page })
   const setStatus = useSetUserStatus()
@@ -260,16 +271,19 @@ export function Users() {
       header: '',
       cell: ({ row }) => {
         const u = row.original
+        // Only the business owner may manage the owner row; nobody may block themselves.
+        const canManage = !u.isOwner || me?.isOwner
+        const canBlock = !u.isOwner && u.id !== me?.id
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm">Actions</Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setEditing(u)}>Edit</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setPermsFor(u)}>Permissions</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setResetting(u)}>Reset password</DropdownMenuItem>
-              {!u.isOwner &&
+              {canManage && <DropdownMenuItem onClick={() => setEditing(u)}>Edit</DropdownMenuItem>}
+              {canManage && <DropdownMenuItem onClick={() => setPermsFor(u)}>Permissions</DropdownMenuItem>}
+              {canManage && <DropdownMenuItem onClick={() => setResetting(u)}>Reset password</DropdownMenuItem>}
+              {canBlock &&
                 (u.status === 'BLOCKED' ? (
                   <DropdownMenuItem onClick={() => setStatus.mutate({ id: u.id, action: 'unblock' })}>Unblock</DropdownMenuItem>
                 ) : (

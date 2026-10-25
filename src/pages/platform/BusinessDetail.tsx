@@ -39,7 +39,7 @@ function AssignSubDialog({ businessId, onClose }: { businessId: number; onClose:
           <div className="space-y-1.5">
             <Label>Plan</Label>
             <Select value={planId} onValueChange={setPlanId}>
-              <SelectTrigger>
+              <SelectTrigger aria-label="Plan">
                 <SelectValue placeholder="Select a plan" />
               </SelectTrigger>
               <SelectContent>
@@ -93,7 +93,7 @@ function RecordPaymentDialog({ businessId, onClose }: { businessId: number; onCl
           <div className="space-y-1.5">
             <Label>Method</Label>
             <Select value={watch('method')} onValueChange={(v) => setValue('method', v)}>
-              <SelectTrigger>
+              <SelectTrigger aria-label="Payment method">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

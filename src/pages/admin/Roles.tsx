@@ -96,11 +96,11 @@ export function Roles() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Roles & Permissions</h1>
-        <Button onClick={() => setCreating(true)}>New role</Button>
+        {canManage && <Button onClick={() => setCreating(true)}>New role</Button>}
       </div>
       <DataTable columns={columns} data={data ?? []} isLoading={isLoading} />
       {creating && <CreateRoleDialog onClose={() => setCreating(false)} />}
-      {editing && <RolePermissionsDialog role={editing} onClose={() => setEditing(null)} />}
+      {editing && <RolePermissionsDialog role={editing} canManage={canManage} onClose={() => setEditing(null)} />}
     </div>
   )
 }
