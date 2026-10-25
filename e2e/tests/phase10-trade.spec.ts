@@ -22,8 +22,18 @@ async function pickParty(scope: Page | Locator, page: Page, name: string) {
   await page.getByRole('option', { name: rx(name) }).first().click()
 }
 async function radix(scope: Page | Locator, page: Page, name: string, option: RegExp) {
-  await scope.getByRole('combobox', { name }).click()
-  await page.getByRole('option', { name: option }).click()
+  const trigger = scope.getByRole('combobox', { name })
+  const opt = page.getByRole('option', { name: option }).first()
+  await trigger.click()
+  // Radix Select sometimes swallows the opening click during a dialog/route animation; the option
+  // then never renders and the later click hung the whole test (BUG-14). Bound the wait, reopen once.
+  try {
+    await opt.waitFor({ state: 'visible', timeout: 5_000 })
+  } catch {
+    await trigger.click()
+    await opt.waitFor({ state: 'visible', timeout: 5_000 })
+  }
+  await opt.click()
 }
 
 test('exchange BUY at a rate → kacha card shows it → melt (MPIN) moves it to bullion', async ({ page, request }) => {
@@ -101,8 +111,7 @@ test('bhav SELL booking + advance → buy-sell SELL at the booking rate → DELI
   await expect(page.getByRole('combobox', { name: 'Side' })).toBeVisible()
   await radix(page, page, 'Side', /Sell/)
   await pickParty(page, page, party.name)
-  await page.getByRole('combobox', { name: 'Bhav booking' }).click()
-  await page.getByRole('option', { name: rx(`#${booking.bookingNo} `) }).first().click() // trailing space + first(): avoid #1 matching #10
+  await radix(page, page, 'Bhav booking', rx(`#${booking.bookingNo} `)) // trailing space + first(): avoid #1 matching #10
   await page.getByRole('spinbutton', { name: 'Weight' }).first().fill('10') // rate auto-filled & locked to the booking
   await page.locator('#bs-cash').fill('55000')
   await Promise.all([
