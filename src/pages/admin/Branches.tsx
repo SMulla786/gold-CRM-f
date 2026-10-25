@@ -11,7 +11,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAuth } from '@/lib/auth'
-import { useAddBranch, useBranches, useMoveBranch, useUpdateBranch } from '@/lib/queries'
+import { useAddBranch, useAdminOverview, useBranches, useMoveBranch, useUpdateBranch } from '@/lib/queries'
+import { BranchOverviewTable } from '@/pages/admin/AdminDashboard'
 import type { BranchNodeDto } from '@/shared'
 
 const flatten = (n: BranchNodeDto, out: BranchNodeDto[] = []): BranchNodeDto[] => {
@@ -192,6 +193,8 @@ function TreeRow({ node, all, collapsed, toggle }: { node: BranchNodeDto; all: B
 
 export function Branches() {
   const { data: root, isLoading } = useBranches()
+  const [showOverview, setShowOverview] = useState(false)
+  const { data: overview } = useAdminOverview()
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set())
   const toggle = (id: number) =>
     setCollapsed((s) => {
@@ -206,7 +209,13 @@ export function Branches() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Branches</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Branches</h1>
+        <Button variant="outline" size="sm" onClick={() => setShowOverview((v) => !v)}>
+          {showOverview ? 'Hide overview' : 'Branch overview'}
+        </Button>
+      </div>
+      {showOverview && overview && <BranchOverviewTable rows={overview.branches} />}
       <div className="rounded-md border">
         <TreeRow node={root} all={all} collapsed={collapsed} toggle={toggle} />
       </div>

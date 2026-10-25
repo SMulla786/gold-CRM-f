@@ -1,7 +1,8 @@
 // Phase 11 — saving schemes + Anjuman. Routes under /app/schemes. Balances live on the enrollment; no udhar until redeem.
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 
 import { api } from '@/lib/api'
+import { ApiException } from '@/lib/errors'
 import { qs, useApiMutation } from '@/lib/queries'
 import type {
   EnrollmentDetailDto, EnrollmentDto, Paged, SchemeDayBookDto, SchemeDto,
@@ -33,6 +34,18 @@ export const useEnrollment = (id: number) =>
   useQuery({ queryKey: ['enrollment', id], queryFn: () => api.get<EnrollmentDetailDto>(`/app/schemes/enrollments/${id}`), enabled: !!id })
 export const useEnroll = () =>
   useApiMutation((body: Record<string, unknown>) => api.post<EnrollmentDto>('/app/schemes/enrollments', body), { invalidate: KEYS, success: 'Member enrolled' })
+/** Bulk enrol: one independent POST per member (no bulk endpoint needed); each succeeds or fails on its own. */
+export interface BulkEnrollResult { ok: boolean; error?: string }
+export const useBulkEnroll = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (bodies: Record<string, unknown>[]): Promise<BulkEnrollResult[]> => {
+      const settled = await Promise.allSettled(bodies.map((b) => api.post<EnrollmentDto>('/app/schemes/enrollments', b)))
+      return settled.map((r) => (r.status === 'fulfilled' ? { ok: true } : { ok: false, error: r.reason instanceof ApiException ? r.reason.message : 'Failed' }))
+    },
+    onSettled: () => KEYS.forEach((k) => qc.invalidateQueries({ queryKey: k })),
+  })
+}
 export const useMarkWon = () =>
   useApiMutation(({ id, mpin, remark }: { id: number; mpin: string; remark?: string }) => api.post(`/app/schemes/enrollments/${id}/won`, { remark }, { mpin }), { invalidate: KEYS, success: 'Marked as won' })
 export const useRedeem = () =>

@@ -7,6 +7,7 @@ const TABS = [
   { to: '/app/schemes', label: 'All Schemes', key: 'schemes.all', end: true },
   { to: '/app/schemes/groups', label: 'Groups', key: 'schemes.groups' },
   { to: '/app/schemes/enroll', label: 'Enrol', key: 'schemes.enroll' },
+  { to: '/app/schemes/bulk-enroll', label: 'Bulk Enrol', key: 'schemes.enroll' },
   { to: '/app/schemes/members', label: 'Members', key: 'schemes.all' },
   { to: '/app/schemes/dues', label: 'Dues', key: 'schemes.due_list' },
   { to: '/app/schemes/transactions', label: 'Transactions', key: 'schemes.transactions' },

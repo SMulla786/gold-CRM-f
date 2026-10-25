@@ -8,7 +8,6 @@ import { PLATFORM_NAV, useAdminNav, useAppNav } from '@/lib/nav'
 import { Login } from '@/pages/Login'
 
 // Route-level code splitting: each page is its own chunk, loaded on navigation.
-const Dashboard = lazy(() => import('@/pages/Dashboard').then((m) => ({ default: m.Dashboard })))
 const ModulePlaceholder = lazy(() => import('@/pages/Placeholder').then((m) => ({ default: m.ModulePlaceholder })))
 const PlatformDashboard = lazy(() => import('@/pages/platform/PlatformDashboard').then((m) => ({ default: m.PlatformDashboard })))
 const Signups = lazy(() => import('@/pages/platform/Signups').then((m) => ({ default: m.Signups })))
@@ -16,6 +15,7 @@ const Businesses = lazy(() => import('@/pages/platform/Businesses').then((m) => 
 const BusinessDetail = lazy(() => import('@/pages/platform/BusinessDetail').then((m) => ({ default: m.BusinessDetail })))
 const Plans = lazy(() => import('@/pages/platform/Plans').then((m) => ({ default: m.Plans })))
 const Payments = lazy(() => import('@/pages/platform/Payments').then((m) => ({ default: m.Payments })))
+const AdminDashboard = lazy(() => import('@/pages/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard })))
 const Branches = lazy(() => import('@/pages/admin/Branches').then((m) => ({ default: m.Branches })))
 const Users = lazy(() => import('@/pages/admin/Users').then((m) => ({ default: m.Users })))
 const Roles = lazy(() => import('@/pages/admin/Roles').then((m) => ({ default: m.Roles })))
@@ -78,6 +78,7 @@ const SchemesLayout = lazy(() => import('@/pages/app/schemes/SchemesLayout').the
 const SchemeList = lazy(() => import('@/pages/app/schemes/SchemeList').then((m) => ({ default: m.SchemeList })))
 const SchemeGroups = lazy(() => import('@/pages/app/schemes/SchemeGroups').then((m) => ({ default: m.SchemeGroups })))
 const EnrollMember = lazy(() => import('@/pages/app/schemes/EnrollMember').then((m) => ({ default: m.EnrollMember })))
+const BulkEnroll = lazy(() => import('@/pages/app/schemes/BulkEnroll').then((m) => ({ default: m.BulkEnroll })))
 const MemberList = lazy(() => import('@/pages/app/schemes/MemberList').then((m) => ({ default: m.MemberList })))
 const MemberDetail = lazy(() => import('@/pages/app/schemes/MemberDetail').then((m) => ({ default: m.MemberDetail })))
 const SchemeDues = lazy(() => import('@/pages/app/schemes/SchemeDues').then((m) => ({ default: m.SchemeDues })))
@@ -122,7 +123,7 @@ export default function App() {
 
         <Route element={<RequireLevel levels={['ADMIN']} />}>
           <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<Dashboard title="Admin Dashboard" />} />
+            <Route index element={<AdminDashboard />} />
             <Route path="branches" element={<Branches />} />
             <Route path="users" element={<Users />} />
             <Route path="roles" element={<Roles />} />
@@ -197,6 +198,7 @@ export default function App() {
               <Route index element={<SchemeList />} />
               <Route path="groups" element={<SchemeGroups />} />
               <Route path="enroll" element={<EnrollMember />} />
+              <Route path="bulk-enroll" element={<BulkEnroll />} />
               <Route path="members" element={<MemberList />} />
               <Route path="members/:id" element={<MemberDetail />} />
               <Route path="dues" element={<SchemeDues />} />

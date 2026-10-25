@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { ApiException } from '@/lib/errors'
 import type {
+  AdminOverviewDto,
   BranchNodeDto,
   BusinessDetailDto,
   BusinessListItemDto,
@@ -134,6 +135,7 @@ export const usePayments = (page?: number) =>
 
 // ───── Admin ─────
 export const useBranches = () => useQuery({ queryKey: ['branches'], queryFn: () => api.get<BranchNodeDto>('/admin/branches') })
+export const useAdminOverview = () => useQuery({ queryKey: ['admin-overview'], queryFn: () => api.get<AdminOverviewDto>('/admin/overview') })
 export const useAddBranch = () =>
   useApiMutation((body: Record<string, unknown>) => api.post<BranchNodeDto>('/admin/branches', body), { invalidate: [['branches']], success: 'Branch added' })
 export const useUpdateBranch = () =>
