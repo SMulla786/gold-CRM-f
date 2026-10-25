@@ -7,6 +7,7 @@ const TABS = [
   { to: '/app/billing', label: 'Sell Bill', key: 'billing.sell_bill', end: true },
   { to: '/app/billing/purchase', label: 'Purchase Bill', key: 'billing.purchase_bill' },
   { to: '/app/billing/list', label: 'Bills', key: 'billing.sell_bill' },
+  { to: '/app/billing/gst', label: 'GST Reports', key: 'billing.gst_report' },
 ]
 
 export function BillingLayout() {

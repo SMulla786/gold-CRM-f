@@ -53,6 +53,8 @@ const UdharLedger = lazy(() => import('@/pages/app/udhari/UdharLedger').then((m)
 const UdharList = lazy(() => import('@/pages/app/udhari/UdharList').then((m) => ({ default: m.UdharList })))
 const UdharPendingBills = lazy(() => import('@/pages/app/udhari/PendingBills').then((m) => ({ default: m.PendingBills })))
 const UdharStatement = lazy(() => import('@/pages/app/udhari/Statement').then((m) => ({ default: m.Statement })))
+const OwnerDashboard = lazy(() => import('@/pages/app/OwnerDashboard').then((m) => ({ default: m.OwnerDashboard })))
+const GstReports = lazy(() => import('@/pages/app/billing/GstReports').then((m) => ({ default: m.GstReports })))
 
 function HomeRedirect() {
   const { me } = useAuth()
@@ -95,7 +97,8 @@ export default function App() {
 
         <Route element={<RequireLevel levels={['ADMIN', 'BRANCH_USER']} />}>
           <Route path="/app" element={<AppLayout />}>
-            <Route index element={<Dashboard title="Store Dashboard" />} />
+            <Route index element={<OwnerDashboard />} />
+            <Route path="dashboard" element={<OwnerDashboard />} />
             <Route path="settings" element={<SettingsLayout />}>
               <Route index element={<Navigate to="/app/settings/parties" replace />} />
               <Route path="parties" element={<Parties />} />
@@ -125,6 +128,7 @@ export default function App() {
               <Route index element={<SellBill />} />
               <Route path="purchase" element={<PurchaseBill />} />
               <Route path="list" element={<BillList />} />
+              <Route path="gst" element={<GstReports />} />
               <Route path="view/:id" element={<BillView />} />
             </Route>
             <Route path="udhari" element={<UdhariLayout />}>
