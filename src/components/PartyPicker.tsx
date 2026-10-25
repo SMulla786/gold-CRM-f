@@ -10,10 +10,13 @@ interface Props {
   onChange: (p: PartyRefDto | null) => void
   type?: PartyType
   placeholder?: string
+  /** Accessible name + trigger id, forwarded to the combobox trigger. */
+  ariaLabel?: string
+  id?: string
 }
 
 /** Party combobox with inline "+ New party". Reused by transaction screens. */
-export function PartyPicker({ value, onChange, type, placeholder }: Props) {
+export function PartyPicker({ value, onChange, type, placeholder, ariaLabel, id }: Props) {
   const [creating, setCreating] = useState(false)
   return (
     <>
@@ -22,6 +25,8 @@ export function PartyPicker({ value, onChange, type, placeholder }: Props) {
         onChange={onChange}
         type={type}
         placeholder={placeholder}
+        ariaLabel={ariaLabel}
+        id={id}
         footer={(close) => (
           <>
             <CommandSeparator />

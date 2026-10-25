@@ -12,12 +12,16 @@ interface Props {
   onChange: (p: PartyRefDto | null) => void
   type?: PartyType
   placeholder?: string
+  /** Accessible name for the trigger (screen readers + test targeting); default "Party". */
+  ariaLabel?: string
+  /** Trigger id so a visible <Label htmlFor> can point at it. */
+  id?: string
   /** Extra item rendered under the results (e.g. "+ New party"). */
   footer?: (close: () => void) => ReactNode
 }
 
 /** Accessible async party combobox (cmdk) — arrow keys, Enter, type-ahead. Server-side search, so filtering is off. */
-export function PartyCombobox({ value, onChange, type, placeholder = 'Search party…', footer }: Props) {
+export function PartyCombobox({ value, onChange, type, placeholder = 'Search party…', ariaLabel = 'Party', id, footer }: Props) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<PartyRefDto[]>([])
@@ -31,7 +35,7 @@ export function PartyCombobox({ value, onChange, type, placeholder = 'Search par
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal">
+        <Button variant="outline" role="combobox" id={id} aria-label={ariaLabel} aria-expanded={open} className="w-full justify-between font-normal">
           {value ? `${value.name} · ${value.mobile}` : <span className="text-muted-foreground">{placeholder}</span>}
           <ChevronsUpDown className="opacity-50" />
         </Button>

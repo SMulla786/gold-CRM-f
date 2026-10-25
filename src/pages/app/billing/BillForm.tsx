@@ -225,8 +225,8 @@ export function BillForm({ kind }: { kind: BillKind }) {
       {/* Header */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="space-y-1.5 lg:col-span-2">
-          <Label>{kind === 'SELL' ? 'Customer' : 'Supplier'}</Label>
-          <PartyPicker value={party} onChange={setParty} placeholder="Search name / mobile" />
+          <Label htmlFor="bf-party">{kind === 'SELL' ? 'Customer' : 'Supplier'}</Label>
+          <PartyPicker value={party} onChange={setParty} placeholder="Search name / mobile" id="bf-party" ariaLabel={kind === 'SELL' ? 'Customer' : 'Supplier'} />
           {party && (
             <p className="text-xs text-muted-foreground">
               {party.mobile}
@@ -258,8 +258,8 @@ export function BillForm({ kind }: { kind: BillKind }) {
       {/* Add-line controls */}
       {kind === 'SELL' ? (
         <div className="relative max-w-md">
-          <Label>Add item — scan tag / search stock</Label>
-          <Input value={stockQ} onChange={(e) => setStockQ(e.target.value)} placeholder="Tag no. or item name" />
+          <Label htmlFor="bf-stock-search">Add item — scan tag / search stock</Label>
+          <Input id="bf-stock-search" value={stockQ} onChange={(e) => setStockQ(e.target.value)} placeholder="Tag no. or item name" />
           {stockQ && stockHits?.items.length ? (
             <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-auto rounded-md border bg-popover shadow-md">
               {stockHits.items.map((it) => (
@@ -379,7 +379,7 @@ export function BillForm({ kind }: { kind: BillKind }) {
                     </div>
                   </TableCell>
                   <TableCell className="whitespace-nowrap font-medium">{lr.total}</TableCell>
-                  <TableCell><Button variant="ghost" size="sm" onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} title="Remove">✕</Button></TableCell>
+                  <TableCell><Button variant="ghost" size="sm" aria-label="Remove line" onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} title="Remove">✕</Button></TableCell>
                 </TableRow>
               )
             })}
@@ -428,7 +428,7 @@ export function BillForm({ kind }: { kind: BillKind }) {
                   )}
                 </>
               )}
-              <Button variant="ghost" size="sm" className="ml-auto" onClick={() => setPays((ps) => ps.filter((_, j) => j !== i))}>✕</Button>
+              <Button variant="ghost" size="sm" className="ml-auto" aria-label="Remove payment" onClick={() => setPays((ps) => ps.filter((_, j) => j !== i))}>✕</Button>
             </div>
           ))}
 

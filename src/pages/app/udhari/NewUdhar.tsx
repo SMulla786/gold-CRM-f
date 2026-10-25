@@ -90,8 +90,8 @@ export function NewUdhar() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label>Party</Label>
-          <PartyPicker value={party} onChange={setParty} placeholder="Search name / mobile" />
+          <Label htmlFor="u-party">Party</Label>
+          <PartyPicker value={party} onChange={setParty} placeholder="Search name / mobile" id="u-party" ariaLabel="Party" />
           {party && <p className="text-xs text-muted-foreground">Old balance: {balance ? bal(n(o.amount), n(o.gold), n(o.silver)) : '—'}</p>}
         </div>
         <div className="space-y-1.5">

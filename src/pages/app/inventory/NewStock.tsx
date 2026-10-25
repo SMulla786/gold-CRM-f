@@ -196,8 +196,8 @@ export function NewStock() {
                   <TableCell><Input className="w-24" type="number" value={r.rate} onChange={(e) => set(i, 'rate', e.target.value)} /></TableCell>
                   <TableCell><Input className="w-24" type="number" value={r.purchaseCost} onChange={(e) => set(i, 'purchaseCost', e.target.value)} /></TableCell>
                   <TableCell className="whitespace-nowrap">
-                    <Button variant="ghost" size="sm" onClick={() => setRows((rs) => [...rs.slice(0, i + 1), { ...r }, ...rs.slice(i + 1)])} title="Duplicate (same)">⧉</Button>
-                    <Button variant="ghost" size="sm" disabled={rows.length === 1} onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} title="Remove">✕</Button>
+                    <Button variant="ghost" size="sm" aria-label="Duplicate row" onClick={() => setRows((rs) => [...rs.slice(0, i + 1), { ...r }, ...rs.slice(i + 1)])} title="Duplicate (same)">⧉</Button>
+                    <Button variant="ghost" size="sm" aria-label="Remove row" disabled={rows.length === 1} onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} title="Remove">✕</Button>
                   </TableCell>
                 </TableRow>
               )
