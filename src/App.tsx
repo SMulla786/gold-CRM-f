@@ -60,6 +60,7 @@ const NewOrder = lazy(() => import('@/pages/app/orders/NewOrder').then((m) => ({
 const OrderList = lazy(() => import('@/pages/app/orders/OrderList').then((m) => ({ default: m.OrderList })))
 const OrderDetail = lazy(() => import('@/pages/app/orders/OrderDetail').then((m) => ({ default: m.OrderDetail })))
 const KarigarIssues = lazy(() => import('@/pages/app/orders/KarigarIssues').then((m) => ({ default: m.KarigarIssues })))
+const RepairBoard = lazy(() => import('@/pages/app/repair/RepairBoard').then((m) => ({ default: m.RepairBoard })))
 const UdhariLayout = lazy(() => import('@/pages/app/udhari/UdhariLayout').then((m) => ({ default: m.UdhariLayout })))
 const NewUdhar = lazy(() => import('@/pages/app/udhari/NewUdhar').then((m) => ({ default: m.NewUdhar })))
 const UdharLedger = lazy(() => import('@/pages/app/udhari/UdharLedger').then((m) => ({ default: m.UdharLedger })))
@@ -158,6 +159,7 @@ export default function App() {
               <Route path="karigar" element={<KarigarIssues />} />
               <Route path=":id" element={<OrderDetail />} />
             </Route>
+            <Route path="repair" element={<RepairBoard />} />
             <Route path="udhari" element={<UdhariLayout />}>
               <Route index element={<NewUdhar />} />
               <Route path="ledger" element={<UdharLedger />} />
