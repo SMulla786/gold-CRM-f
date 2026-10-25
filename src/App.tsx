@@ -27,6 +27,14 @@ const BankAccounts = lazy(() => import('@/pages/app/settings/BankAccounts').then
 const Hsn = lazy(() => import('@/pages/app/settings/Hsn').then((m) => ({ default: m.Hsn })))
 const General = lazy(() => import('@/pages/app/settings/General').then((m) => ({ default: m.General })))
 const Rates = lazy(() => import('@/pages/app/settings/Rates').then((m) => ({ default: m.Rates })))
+const InventoryLayout = lazy(() => import('@/pages/app/inventory/InventoryLayout').then((m) => ({ default: m.InventoryLayout })))
+const InventoryDashboard = lazy(() => import('@/pages/app/inventory/InventoryDashboard').then((m) => ({ default: m.InventoryDashboard })))
+const ItemMasters = lazy(() => import('@/pages/app/inventory/ItemMasters').then((m) => ({ default: m.ItemMasters })))
+const NewStock = lazy(() => import('@/pages/app/inventory/NewStock').then((m) => ({ default: m.NewStock })))
+const StockList = lazy(() => import('@/pages/app/inventory/StockList').then((m) => ({ default: m.StockList })))
+const GroupStock = lazy(() => import('@/pages/app/inventory/GroupStock').then((m) => ({ default: m.GroupStock })))
+const StockImport = lazy(() => import('@/pages/app/inventory/Import').then((m) => ({ default: m.Import })))
+const Shortage = lazy(() => import('@/pages/app/inventory/Shortage').then((m) => ({ default: m.Shortage })))
 
 function HomeRedirect() {
   const { me } = useAuth()
@@ -77,6 +85,15 @@ export default function App() {
               <Route path="hsn" element={<Hsn />} />
               <Route path="general" element={<General />} />
               <Route path="rates" element={<Rates />} />
+            </Route>
+            <Route path="inventory" element={<InventoryLayout />}>
+              <Route index element={<InventoryDashboard />} />
+              <Route path="masters" element={<ItemMasters />} />
+              <Route path="new" element={<NewStock />} />
+              <Route path="stock" element={<StockList />} />
+              <Route path="groups" element={<GroupStock />} />
+              <Route path="import" element={<StockImport />} />
+              <Route path="shortage" element={<Shortage />} />
             </Route>
             <Route path=":moduleKey" element={<ModulePlaceholder />} />
           </Route>
