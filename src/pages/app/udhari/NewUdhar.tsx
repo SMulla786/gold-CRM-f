@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useBankAccounts } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
+import { useT } from '@/lib/i18n'
 import { usePartyBalance } from '@/lib/billingQueries'
 import { useCreateUdhar, usePendingBills } from '@/lib/udhariQueries'
 import { METALS, moneyToMetal, type PartyRefDto } from '@/shared'
@@ -27,6 +28,7 @@ function NumField({ id, label, value, onChange, step = '0.01' }: { id: string; l
 }
 
 export function NewUdhar() {
+  const t = useT()
   const create = useCreateUdhar()
   const { activeBranch } = useAuth()
   const branchReady = activeBranch !== '' && activeBranch !== 'all' // udhar posts to one branch
@@ -90,68 +92,68 @@ export function NewUdhar() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="u-party">Party</Label>
+          <Label htmlFor="u-party">{t('udhari.party')}</Label>
           <PartyPicker value={party} onChange={setParty} placeholder="Search name / mobile" id="u-party" ariaLabel="Party" />
-          {party && <p className="text-xs text-muted-foreground">Old balance: {balance ? bal(n(o.amount), n(o.gold), n(o.silver)) : '—'}</p>}
+          {party && <p className="text-xs text-muted-foreground">{t('udhari.old_balance')} {balance ? bal(n(o.amount), n(o.gold), n(o.silver)) : '—'}</p>}
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="u-date">Date</Label>
+          <Label htmlFor="u-date">{t('udhari.date')}</Label>
           <Input id="u-date" type="date" value={txnDate} onChange={(e) => setTxnDate(e.target.value)} />
         </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <fieldset className="space-y-3 rounded-md border p-3">
-          <legend className="px-1 text-sm font-medium">Given to party (owes more)</legend>
+          <legend className="px-1 text-sm font-medium">{t('udhari.given')}</legend>
           <div className="grid grid-cols-2 gap-3">
-            <NumField id="u-cashout" label="Cash ₹" value={f.cashOut} onChange={(v) => set('cashOut', v)} />
-            <NumField id="u-onlineout" label="Online ₹" value={f.onlineOut} onChange={(v) => set('onlineOut', v)} />
+            <NumField id="u-cashout" label={t('udhari.cash')} value={f.cashOut} onChange={(v) => set('cashOut', v)} />
+            <NumField id="u-onlineout" label={t('udhari.online')} value={f.onlineOut} onChange={(v) => set('onlineOut', v)} />
           </div>
-          {n(f.onlineOut) > 0 && <div className="space-y-1.5"><Label>Out bank</Label>{bankSelect(f.outBankId, (v) => set('outBankId', v), 'Out bank')}</div>}
+          {n(f.onlineOut) > 0 && <div className="space-y-1.5"><Label>{t('udhari.out_bank')}</Label>{bankSelect(f.outBankId, (v) => set('outBankId', v), 'Out bank')}</div>}
           <div className="grid grid-cols-2 gap-3">
-            <NumField id="u-goldout" label="Gold (g)" value={f.goldOut} onChange={(v) => set('goldOut', v)} step="0.001" />
-            <NumField id="u-silverout" label="Silver (g)" value={f.silverOut} onChange={(v) => set('silverOut', v)} step="0.001" />
+            <NumField id="u-goldout" label={t('udhari.gold_g')} value={f.goldOut} onChange={(v) => set('goldOut', v)} step="0.001" />
+            <NumField id="u-silverout" label={t('udhari.silver_g')} value={f.silverOut} onChange={(v) => set('silverOut', v)} step="0.001" />
           </div>
         </fieldset>
 
         <fieldset className="space-y-3 rounded-md border p-3">
-          <legend className="px-1 text-sm font-medium">Received from party (owes less)</legend>
+          <legend className="px-1 text-sm font-medium">{t('udhari.received')}</legend>
           <div className="grid grid-cols-2 gap-3">
-            <NumField id="u-cashin" label="Cash ₹" value={f.cashIn} onChange={(v) => set('cashIn', v)} />
-            <NumField id="u-onlinein" label="Online ₹" value={f.onlineIn} onChange={(v) => set('onlineIn', v)} />
+            <NumField id="u-cashin" label={t('udhari.cash')} value={f.cashIn} onChange={(v) => set('cashIn', v)} />
+            <NumField id="u-onlinein" label={t('udhari.online')} value={f.onlineIn} onChange={(v) => set('onlineIn', v)} />
           </div>
-          {n(f.onlineIn) > 0 && <div className="space-y-1.5"><Label>In bank</Label>{bankSelect(f.inBankId, (v) => set('inBankId', v), 'In bank')}</div>}
+          {n(f.onlineIn) > 0 && <div className="space-y-1.5"><Label>{t('udhari.in_bank')}</Label>{bankSelect(f.inBankId, (v) => set('inBankId', v), 'In bank')}</div>}
           <div className="grid grid-cols-2 gap-3">
-            <NumField id="u-goldin" label="Gold (g)" value={f.goldIn} onChange={(v) => set('goldIn', v)} step="0.001" />
-            <NumField id="u-silverin" label="Silver (g)" value={f.silverIn} onChange={(v) => set('silverIn', v)} step="0.001" />
+            <NumField id="u-goldin" label={t('udhari.gold_g')} value={f.goldIn} onChange={(v) => set('goldIn', v)} step="0.001" />
+            <NumField id="u-silverin" label={t('udhari.silver_g')} value={f.silverIn} onChange={(v) => set('silverIn', v)} step="0.001" />
           </div>
         </fieldset>
       </div>
 
       <fieldset className="space-y-3 rounded-md border p-3">
         <legend className="px-1 text-sm font-medium">
-          <label className="flex items-center gap-2"><input type="checkbox" checked={bhavOn} onChange={(e) => setBhavOn(e.target.checked)} /> Bhav cut</label>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={bhavOn} onChange={(e) => setBhavOn(e.target.checked)} /> {t('udhari.bhav_cut')}</label>
         </legend>
         {bhavOn && (
           <div className="flex flex-wrap items-end gap-3">
             <div className="space-y-1.5">
-              <Label>Direction</Label>
+              <Label>{t('udhari.direction')}</Label>
               <Select value={bhav.direction} onValueChange={(v) => setB('direction', v)}>
                 <SelectTrigger className="w-44" aria-label="Bhav direction"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="METAL_TO_MONEY">Metal → Money</SelectItem><SelectItem value="MONEY_TO_METAL">Money → Metal</SelectItem></SelectContent>
+                <SelectContent><SelectItem value="METAL_TO_MONEY">{t('udhari.metal_to_money')}</SelectItem><SelectItem value="MONEY_TO_METAL">{t('udhari.money_to_metal')}</SelectItem></SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Metal</Label>
+              <Label>{t('udhari.metal')}</Label>
               <Select value={bhav.metal} onValueChange={(v) => setB('metal', v)}>
                 <SelectTrigger className="w-24" aria-label="Bhav metal"><SelectValue /></SelectTrigger>
                 <SelectContent>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <NumField id="u-bhavamt" label="Amount ₹" value={bhav.amount} onChange={(v) => setB('amount', v)} />
-            <NumField id="u-bhavrate" label="Rate" value={bhav.rate} onChange={(v) => setB('rate', v)} />
+            <NumField id="u-bhavamt" label={t('udhari.amount')} value={bhav.amount} onChange={(v) => setB('amount', v)} />
+            <NumField id="u-bhavrate" label={t('udhari.rate')} value={bhav.rate} onChange={(v) => setB('rate', v)} />
             <div className="space-y-1.5">
-              <Label>Per</Label>
+              <Label>{t('udhari.per')}</Label>
               <Select value={bhav.unitGrams} onValueChange={(v) => setB('unitGrams', v)}>
                 <SelectTrigger className="w-24" aria-label="Rate unit grams"><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="1">1 g</SelectItem><SelectItem value="10">10 g</SelectItem><SelectItem value="1000">1 kg</SelectItem></SelectContent>
@@ -166,11 +168,11 @@ export function NewUdhar() {
 
       {pending && pending.items.length > 0 && (
         <div className="space-y-1.5">
-          <Label>Settle a pending bill (applies the cash/online received)</Label>
+          <Label>{t('udhari.settle')}</Label>
           <Select value={settleBillId || 'none'} onValueChange={(v) => setSettleBillId(v === 'none' ? '' : v)}>
             <SelectTrigger className="w-80" aria-label="Settle bill"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">None</SelectItem>
+              <SelectItem value="none">{t('udhari.none')}</SelectItem>
               {pending.items.filter((b) => b.kind === 'SELL' && Number(b.balance) > 0).map((b) => (
                 <SelectItem key={b.id} value={String(b.id)}>{b.billNo} · balance ₹{b.balance}</SelectItem>
               ))}
@@ -180,18 +182,18 @@ export function NewUdhar() {
       )}
 
       <div className="space-y-1.5">
-        <Label htmlFor="u-remark">Remark</Label>
+        <Label htmlFor="u-remark">{t('udhari.remark')}</Label>
         <Input id="u-remark" value={f.remark} onChange={(e) => set('remark', e.target.value)} />
       </div>
 
       <div className="flex items-center gap-4 rounded-md border bg-muted/40 p-3 tabular-nums">
         <div className="text-sm">
-          <div className="text-muted-foreground">New balance</div>
+          <div className="text-muted-foreground">{t('udhari.new_balance')}</div>
           <div className="font-medium">{bal(amount, gold, silver)}</div>
-          <div className="text-xs text-muted-foreground">+ = party owes shop, − = shop owes party</div>
+          <div className="text-xs text-muted-foreground">{t('udhari.sign_hint')}</div>
         </div>
         <Button className="ml-auto" disabled={!valid || create.isPending} onClick={submit}>
-          {create.isPending ? 'Saving…' : 'Save udhar'}
+          {create.isPending ? t('party.saving') : t('udhari.save')}
         </Button>
       </div>
     </div>

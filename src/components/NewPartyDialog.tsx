@@ -11,13 +11,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useCreateParty, useUpdateParty } from '@/lib/appQueries'
+import { useT } from '@/lib/i18n'
 import { useStates, useDistricts } from '@/lib/queries'
 import { PARTY_TYPES, partyBody, type PartyDto, type PartyRefDto, type PartyType } from '@/shared'
 
 type PartyIn = z.input<typeof partyBody>
 type PartyOut = z.output<typeof partyBody>
-
-const TYPE_LABEL: Record<PartyType, string> = { CUSTOMER: 'Customer', SUPPLIER: 'Supplier', KARIGAR: 'Karigar', WHOLESALER: 'Wholesaler' }
 
 function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
   const id = useId()
@@ -44,6 +43,7 @@ interface Props {
 }
 
 export function NewPartyDialog({ open, onClose, defaultType = 'CUSTOMER', defaultName, defaultMobile, party, onSaved }: Props) {
+  const t = useT()
   const create = useCreateParty()
   const update = useUpdateParty()
   const { data: states } = useStates()
@@ -99,29 +99,29 @@ export function NewPartyDialog({ open, onClose, defaultType = 'CUSTOMER', defaul
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{party ? `Edit ${party.name}` : 'New party'}</DialogTitle>
+          <DialogTitle>{party ? t('party.edit_title', { name: party.name }) : t('party.new_title')}</DialogTitle>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Type">
+            <Field label={t('party.type')}>
               <Select value={type} onValueChange={(v) => setValue('type', v as PartyType)}>
                 <SelectTrigger aria-label="Party type">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {PARTY_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {TYPE_LABEL[t]}
+                  {PARTY_TYPES.map((pt) => (
+                    <SelectItem key={pt} value={pt}>
+                      {t(`party.type.${pt}`)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Mobile" error={errors.mobile?.message}>
+            <Field label={t('party.mobile')} error={errors.mobile?.message}>
               <Input {...register('mobile')} />
             </Field>
           </div>
-          <Field label="Full name" error={errors.name?.message}>
+          <Field label={t('party.full_name')} error={errors.name?.message}>
             <Input {...register('name')} />
           </Field>
 
@@ -129,36 +129,36 @@ export function NewPartyDialog({ open, onClose, defaultType = 'CUSTOMER', defaul
             <div className="space-y-2 rounded-md border p-3">
               <label className="flex items-center gap-2 text-sm">
                 <Checkbox checked={isSub} onCheckedChange={(v) => setIsSub(Boolean(v))} />
-                Add as family sub-profile (under a parent customer)
+                {t('party.sub_profile')}
               </label>
-              {isSub && <PartyCombobox value={parent} onChange={setParent} type="CUSTOMER" placeholder="Search parent customer…" />}
+              {isSub && <PartyCombobox value={parent} onChange={setParent} type="CUSTOMER" placeholder={t('party.search_parent')} />}
             </div>
           )}
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Email" error={errors.email?.message}>
+            <Field label={t('party.email')} error={errors.email?.message}>
               <Input type="email" {...register('email')} />
             </Field>
-            <Field label="Aadhaar" error={errors.aadhaar?.message}>
+            <Field label={t('party.aadhaar')} error={errors.aadhaar?.message}>
               <Input {...register('aadhaar')} />
             </Field>
-            <Field label="PAN" error={errors.pan?.message}>
+            <Field label={t('party.pan')} error={errors.pan?.message}>
               <Input {...register('pan')} />
             </Field>
-            <Field label="GSTIN" error={errors.gstin?.message}>
+            <Field label={t('party.gstin')} error={errors.gstin?.message}>
               <Input {...register('gstin')} />
             </Field>
           </div>
 
-          <Field label="Address">
+          <Field label={t('party.address')}>
             <Input {...register('address')} />
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="State">
+            <Field label={t('party.state')}>
               <Select value={stateId ? String(stateId) : ''} onValueChange={(v) => { setValue('stateId', Number(v)); setValue('districtId', undefined) }}>
                 <SelectTrigger aria-label="State">
-                  <SelectValue placeholder="Select state" />
+                  <SelectValue placeholder={t('party.select_state')} />
                 </SelectTrigger>
                 <SelectContent>
                   {states?.map((s) => (
@@ -169,10 +169,10 @@ export function NewPartyDialog({ open, onClose, defaultType = 'CUSTOMER', defaul
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="District">
+            <Field label={t('party.district')}>
               <Select value={watch('districtId') ? String(watch('districtId')) : ''} onValueChange={(v) => setValue('districtId', Number(v))} disabled={!stateId}>
                 <SelectTrigger aria-label="District">
-                  <SelectValue placeholder="Select district" />
+                  <SelectValue placeholder={t('party.select_district')} />
                 </SelectTrigger>
                 <SelectContent>
                   {districts?.map((d) => (
@@ -186,21 +186,21 @@ export function NewPartyDialog({ open, onClose, defaultType = 'CUSTOMER', defaul
           </div>
 
           {type === 'KARIGAR' && (
-            <Field label="Specialty">
+            <Field label={t('party.specialty')}>
               <Input {...register('specialty')} />
             </Field>
           )}
           {(type === 'SUPPLIER' || type === 'WHOLESALER') && (
-            <Field label="Shop / business name">
+            <Field label={t('party.shop_name')}>
               <Input {...register('shopName')} />
             </Field>
           )}
 
-          <p className="text-xs text-muted-foreground">Photo / shop-logo upload available after saving (coming soon).</p>
+          <p className="text-xs text-muted-foreground">{t('party.photo_note')}</p>
 
           <DialogFooter>
             <Button type="submit" disabled={busy}>
-              {busy ? 'Saving…' : party ? 'Save changes' : 'Create party'}
+              {busy ? t('party.saving') : party ? t('party.save_changes') : t('party.create')}
             </Button>
           </DialogFooter>
         </form>

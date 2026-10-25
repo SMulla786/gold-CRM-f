@@ -2,6 +2,7 @@ import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { useT } from '@/lib/i18n'
 
 interface Props {
   open: boolean
@@ -14,7 +15,8 @@ interface Props {
 }
 
 /** Accessible confirm dialog (replaces window.confirm). */
-export function ConfirmDialog({ open, title, description, confirmLabel = 'Confirm', destructive, onConfirm, onClose }: Props) {
+export function ConfirmDialog({ open, title, description, confirmLabel, destructive, onConfirm, onClose }: Props) {
+  const t = useT()
   const [busy, setBusy] = useState(false)
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -25,7 +27,7 @@ export function ConfirmDialog({ open, title, description, confirmLabel = 'Confir
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={busy}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button
             variant={destructive ? 'destructive' : 'default'}
@@ -40,7 +42,7 @@ export function ConfirmDialog({ open, title, description, confirmLabel = 'Confir
               }
             }}
           >
-            {confirmLabel}
+            {confirmLabel ?? t('common.confirm')}
           </Button>
         </DialogFooter>
       </DialogContent>

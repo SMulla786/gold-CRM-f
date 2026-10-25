@@ -1,5 +1,5 @@
 // In-house i18n (no backend). t(key, params) → locale dict → en dict → key, so a missing key never breaks a screen.
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 
 import en from '@/locales/en.json'
 import hi from '@/locales/hi.json'
@@ -34,6 +34,8 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     setLocaleState(l)
     try { localStorage.setItem('locale', l) } catch { /* ignore */ }
   }, [])
+  // Keep <html lang> in step with the UI language (screen readers, hyphenation).
+  useEffect(() => { document.documentElement.lang = locale }, [locale])
   const t = useCallback<Translate>((key, params) => {
     const s = DICTS[locale][key] ?? DICTS.en[key] ?? key
     return params ? s.replace(/\{(\w+)\}/g, (_, k: string) => String(params[k] ?? `{${k}}`)) : s

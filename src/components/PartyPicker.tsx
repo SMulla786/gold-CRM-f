@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { NewPartyDialog } from '@/components/NewPartyDialog'
 import { PartyCombobox } from '@/components/PartyCombobox'
 import { CommandGroup, CommandItem, CommandSeparator } from '@/components/ui/command'
+import { useT } from '@/lib/i18n'
 import type { PartyRefDto, PartyType } from '@/shared'
 
 interface Props {
@@ -17,6 +18,7 @@ interface Props {
 
 /** Party combobox with inline "+ New party". Reused by transaction screens. */
 export function PartyPicker({ value, onChange, type, placeholder, ariaLabel, id }: Props) {
+  const t = useT()
   const [creating, setCreating] = useState(false)
   return (
     <>
@@ -32,7 +34,7 @@ export function PartyPicker({ value, onChange, type, placeholder, ariaLabel, id 
             <CommandSeparator />
             <CommandGroup>
               <CommandItem value="__new__" onSelect={() => { close(); setCreating(true) }} className="text-primary">
-                + New party
+                {t('party.new')}
               </CommandItem>
             </CommandGroup>
           </>

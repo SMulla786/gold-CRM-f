@@ -15,6 +15,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { fetchAllStock, useBulkDeleteStock, useBulkEditStock, useDeleteStock, useStock, useStockLedger, useUpdateStock } from '@/lib/inventoryQueries'
 import { useAuth } from '@/lib/auth'
 import { downloadCsv } from '@/lib/csv'
+import { useT } from '@/lib/i18n'
 import { plural } from '@/lib/plural'
 import { CheckoutDraftDialog } from '@/pages/app/billing/CheckoutDraftDialog'
 import { CHARGE_UNITS, STOCK_CLASSES, STOCK_STATUSES, type StockItemDto } from '@/shared'
@@ -183,6 +184,7 @@ function StockDetailSheet({ item, onClose }: { item: StockItemDto; onClose: () =
 }
 
 export function StockList() {
+  const t = useT()
   const { can } = useAuth()
   const canEdit = can('inventory.all_stock', 'edit')
   const canDelete = can('inventory.all_stock', 'delete')
@@ -248,23 +250,23 @@ export function StockList() {
             ) : null,
         } as ColumnDef<StockItemDto, unknown>]
       : []),
-    { header: 'Tag / Item', cell: ({ row }) => <button type="button" className="rounded-sm font-medium text-primary hover:underline focus-visible:underline focus-visible:outline-none" onClick={() => setViewing(row.original)}>{row.original.tagNo ?? row.original.itemName.name}</button> },
-    { header: 'Group', cell: ({ row }) => row.original.group.name },
-    { accessorKey: 'karatCode', header: 'Karat', cell: ({ row }) => row.original.karatCode ?? '—' },
-    { accessorKey: 'pcs', header: 'Pcs' },
-    { accessorKey: 'gross', header: 'Gross' },
-    { accessorKey: 'net', header: 'Net' },
-    { accessorKey: 'fine', header: 'Fine' },
-    { header: 'Branch', cell: ({ row }) => row.original.branch.name },
-    { accessorKey: 'status', header: 'Status', cell: ({ row }) => <Badge variant={row.original.status === 'AVAILABLE' ? 'default' : 'secondary'}>{row.original.status}</Badge> },
+    { header: t('stock.col_tag_item'), cell: ({ row }) => <button type="button" className="rounded-sm font-medium text-primary hover:underline focus-visible:underline focus-visible:outline-none" onClick={() => setViewing(row.original)}>{row.original.tagNo ?? row.original.itemName.name}</button> },
+    { header: t('stock.col_group'), cell: ({ row }) => row.original.group.name },
+    { accessorKey: 'karatCode', header: t('stock.col_karat'), cell: ({ row }) => row.original.karatCode ?? '—' },
+    { accessorKey: 'pcs', header: t('stock.col_pcs') },
+    { accessorKey: 'gross', header: t('stock.col_gross') },
+    { accessorKey: 'net', header: t('stock.col_net') },
+    { accessorKey: 'fine', header: t('stock.col_fine') },
+    { header: t('stock.col_branch'), cell: ({ row }) => row.original.branch.name },
+    { accessorKey: 'status', header: t('stock.col_status'), cell: ({ row }) => <Badge variant={row.original.status === 'AVAILABLE' ? 'default' : 'secondary'}>{row.original.status}</Badge> },
     {
       id: 'actions',
       header: '',
       cell: ({ row }) =>
         row.original.status === 'AVAILABLE' ? (
           <div className="flex gap-2">
-            {canEdit && <Button variant="outline" size="sm" onClick={() => setEditing(row.original)}>Edit</Button>}
-            {canDelete && <Button variant="ghost" size="sm" onClick={() => setDeleting(row.original)}>Delete</Button>}
+            {canEdit && <Button variant="outline" size="sm" onClick={() => setEditing(row.original)}>{t('common.edit')}</Button>}
+            {canDelete && <Button variant="ghost" size="sm" onClick={() => setDeleting(row.original)}>{t('common.delete')}</Button>}
           </div>
         ) : null,
     },
@@ -273,15 +275,15 @@ export function StockList() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <Input className="max-w-xs" placeholder="Search tag / item…" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
+        <Input className="max-w-xs" placeholder={t('stock.search')} value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
         <Select value={stockClass || 'all'} onValueChange={(v) => { setStockClass(v === 'all' ? '' : v); setPage(1) }}>
           <SelectTrigger className="w-36" aria-label="Stock class">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All classes</SelectItem>
+            <SelectItem value="all">{t('stock.all_classes')}</SelectItem>
             {STOCK_CLASSES.map((c) => (
-              <SelectItem key={c} value={c}>{CLASS_LABEL[c]}</SelectItem>
+              <SelectItem key={c} value={c}>{t(`class.${c}`)}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -296,17 +298,17 @@ export function StockList() {
           </SelectContent>
         </Select>
         <Button className="ml-auto" variant="outline" disabled={exporting} onClick={exportCsv}>
-          {exporting ? 'Exporting…' : 'Export CSV'}
+          {exporting ? 'Exporting…' : t('common.export_csv')}
         </Button>
       </div>
 
       {ids.length > 0 && (
         <div className="flex items-center gap-3 rounded-md border bg-muted/40 px-3 py-2 text-sm">
-          <span>{ids.length} selected</span>
-          {canCheckout && <Button size="sm" onClick={() => setCheckout(true)}>Add to cart</Button>}
-          {canEdit && <Button size="sm" variant="outline" onClick={() => setBulkEditing(true)}>Edit selected</Button>}
-          {canDelete && <Button size="sm" variant="ghost" onClick={() => setBulkDeleting(true)}>Delete selected</Button>}
-          <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>Clear</Button>
+          <span>{t('stock.selected', { n: ids.length })}</span>
+          {canCheckout && <Button size="sm" onClick={() => setCheckout(true)}>{t('stock.add_to_cart')}</Button>}
+          {canEdit && <Button size="sm" variant="outline" onClick={() => setBulkEditing(true)}>{t('stock.edit_selected')}</Button>}
+          {canDelete && <Button size="sm" variant="ghost" onClick={() => setBulkDeleting(true)}>{t('stock.delete_selected')}</Button>}
+          <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>{t('stock.clear')}</Button>
         </div>
       )}
 
@@ -314,7 +316,7 @@ export function StockList() {
         columns={columns}
         data={rows}
         isLoading={isLoading}
-        emptyText="No stock items"
+        emptyText={t('stock.no_items')}
         pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined}
       />
 

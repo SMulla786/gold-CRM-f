@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ShopRateCard } from '@/pages/app/ShopRateCard'
+import { useT } from '@/lib/i18n'
 import { plural } from '@/lib/plural'
 import { useActivity, useDashboard } from '@/lib/reportsQueries'
 import { ACTIVITY_ACTIONS, MODULES } from '@/shared'
@@ -27,11 +28,12 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
 }
 
 function MonthlyChart({ data }: { data: Array<{ month: string; sales: string; purchases: string }> }) {
+  const t = useT()
   const max = Math.max(1, ...data.flatMap((m) => [Number(m.sales), Number(m.purchases)]))
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium">Last 12 months
+        <CardTitle className="text-sm font-medium">{t('dash.last_12')}
           <span className="ml-3 text-xs font-normal text-muted-foreground"><span className="text-brand">■</span> Sales <span className="ml-2 text-muted-foreground">■</span> Purchases</span>
         </CardTitle>
       </CardHeader>
@@ -53,6 +55,7 @@ function MonthlyChart({ data }: { data: Array<{ month: string; sales: string; pu
 }
 
 function ActivityFeed() {
+  const t = useT()
   const [module, setModule] = useState('')
   const [action, setAction] = useState('')
   const { data } = useActivity({ module: module || undefined, action: action || undefined, pageSize: 15 })
@@ -60,19 +63,19 @@ function ActivityFeed() {
     <Card>
       <CardHeader className="pb-2">
         <div className="flex flex-wrap items-center gap-2">
-          <CardTitle className="text-sm font-medium">Recent activity</CardTitle>
+          <CardTitle className="text-sm font-medium">{t('dash.recent_activity')}</CardTitle>
           <div className="ml-auto flex gap-2">
             <Select value={module || 'all'} onValueChange={(v) => setModule(v === 'all' ? '' : v)}>
               <SelectTrigger className="h-8 w-40" aria-label="Module"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All modules</SelectItem>
+                <SelectItem value="all">{t('dash.all_modules')}</SelectItem>
                 {MODULES.map((m) => <SelectItem key={m.key} value={m.key}>{m.label}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={action || 'all'} onValueChange={(v) => setAction(v === 'all' ? '' : v)}>
               <SelectTrigger className="h-8 w-32" aria-label="Action"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All actions</SelectItem>
+                <SelectItem value="all">{t('dash.all_actions')}</SelectItem>
                 {ACTIVITY_ACTIONS.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
               </SelectContent>
             </Select>
@@ -82,7 +85,7 @@ function ActivityFeed() {
       <CardContent>
         <Table>
           <TableHeader>
-            <TableRow><TableHead>When</TableHead><TableHead>Module</TableHead><TableHead>Action</TableHead><TableHead>Summary</TableHead><TableHead>By</TableHead></TableRow>
+            <TableRow><TableHead>{t('dash.when')}</TableHead><TableHead>{t('dash.col_module')}</TableHead><TableHead>{t('dash.col_action')}</TableHead><TableHead>{t('dash.col_summary')}</TableHead><TableHead>{t('dash.col_by')}</TableHead></TableRow>
           </TableHeader>
           <TableBody>
             {data?.items.length ? data.items.map((a) => (
@@ -94,7 +97,7 @@ function ActivityFeed() {
                 <TableCell className="text-muted-foreground">{a.user ?? '—'}</TableCell>
               </TableRow>
             )) : (
-              <TableRow><TableCell colSpan={5} className="h-16 text-center text-muted-foreground">No activity</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} className="h-16 text-center text-muted-foreground">{t('dash.no_activity')}</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
@@ -104,8 +107,9 @@ function ActivityFeed() {
 }
 
 export function OwnerDashboard() {
+  const t = useT()
   const { data, isLoading, isError } = useDashboard()
-  if (isError) return <p className="text-sm text-muted-foreground">Couldn’t load the dashboard.</p>
+  if (isError) return <p className="text-sm text-muted-foreground">{t('dash.load_error')}</p>
   if (isLoading || !data) {
     return (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -117,29 +121,29 @@ export function OwnerDashboard() {
   return (
     <div className="space-y-6 tabular-nums">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Sales today" value={inr(data.sales.todayTotal)} sub={`${plural(data.sales.todayCount, 'bill')} · received ${inr(data.sales.todayReceived)}`} />
-        <Stat label="Sales this month" value={inr(data.sales.monthTotal)} sub={`Year ${inr(data.sales.yearTotal)}`} />
-        <Stat label="Pending (receivable)" value={inr(data.sales.pendingBalance)} />
-        <Stat label="Purchases this month" value={inr(data.purchases.monthTotal)} />
-        <Stat label="Udhari receivable" value={inr(data.udhari.amount)} sub={`Collected this month ${inr(data.udhari.collectedThisMonth)}${Number(data.udhari.gold) ? ` · ${data.udhari.gold}g Au` : ''}`} />
-        <Stat label="Cash in hand" value={inr(data.cash.inHand)} sub={`Bank ${inr(data.cash.bank)}`} />
-        <Stat label="Customers" value={String(data.parties.customers)} sub={`${data.parties.customersNewThisMonth} new this month`} />
-        <Stat label="Suppliers" value={String(data.parties.suppliers)} />
+        <Stat label={t('dash.sales_today')} value={inr(data.sales.todayTotal)} sub={`${plural(data.sales.todayCount, 'bill')} · received ${inr(data.sales.todayReceived)}`} />
+        <Stat label={t('dash.sales_month')} value={inr(data.sales.monthTotal)} sub={`Year ${inr(data.sales.yearTotal)}`} />
+        <Stat label={t('dash.pending')} value={inr(data.sales.pendingBalance)} />
+        <Stat label={t('dash.purchases_month')} value={inr(data.purchases.monthTotal)} />
+        <Stat label={t('dash.udhari_receivable')} value={inr(data.udhari.amount)} sub={`Collected this month ${inr(data.udhari.collectedThisMonth)}${Number(data.udhari.gold) ? ` · ${data.udhari.gold}g Au` : ''}`} />
+        <Stat label={t('dash.cash_in_hand')} value={inr(data.cash.inHand)} sub={`Bank ${inr(data.cash.bank)}`} />
+        <Stat label={t('dash.customers')} value={String(data.parties.customers)} sub={`${data.parties.customersNewThisMonth} new this month`} />
+        <Stat label={t('dash.suppliers')} value={String(data.parties.suppliers)} />
       </div>
 
       <ShopRateCard />
 
       <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Stock on hand</CardTitle></CardHeader>
+        <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">{t('dash.stock_on_hand')}</CardTitle></CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {data.stock.map((s) => (
             <div key={s.stockClass}>
-              <div className="text-sm text-muted-foreground">{CLASS_LABEL[s.stockClass] ?? s.stockClass}</div>
+              <div className="text-sm text-muted-foreground">{CLASS_LABEL[s.stockClass] ? t(`class.${s.stockClass}`) : s.stockClass}</div>
               <div className="font-semibold">{s.net} g</div>
               <div className="text-xs text-muted-foreground">{plural(s.pcs, 'pc')} · {inr(s.value)}</div>
             </div>
           ))}
-          {data.stock.length === 0 && <p className="text-sm text-muted-foreground">No stock yet.</p>}
+          {data.stock.length === 0 && <p className="text-sm text-muted-foreground">{t('dash.no_stock')}</p>}
         </CardContent>
       </Card>
 
@@ -147,10 +151,10 @@ export function OwnerDashboard() {
 
       {data.byBranch && (
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">By branch</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">{t('dash.by_branch')}</CardTitle></CardHeader>
           <CardContent>
             <Table>
-              <TableHeader><TableRow><TableHead>Branch</TableHead><TableHead className="text-right">Sales today</TableHead><TableHead className="text-right">Sales this month</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>{t('dash.branch')}</TableHead><TableHead className="text-right">{t('dash.sales_today')}</TableHead><TableHead className="text-right">{t('dash.sales_month')}</TableHead></TableRow></TableHeader>
               <TableBody>
                 {data.byBranch.map((b) => (
                   <TableRow key={b.branch.id}>

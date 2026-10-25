@@ -3,6 +3,7 @@ import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from '@tan
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { useT } from '@/lib/i18n'
 
 interface DataTableProps<T> {
   columns: ColumnDef<T, unknown>[]
@@ -13,7 +14,8 @@ interface DataTableProps<T> {
   pagination?: { page: number; pageSize: number; total: number; onPage: (page: number) => void }
 }
 
-export function DataTable<T>({ columns, data, isLoading, emptyText = 'No records', pagination }: DataTableProps<T>) {
+export function DataTable<T>({ columns, data, isLoading, emptyText, pagination }: DataTableProps<T>) {
+  const t = useT()
   const table = useReactTable({ data, columns, getCoreRowModel: getCoreRowModel() })
   const pageCount = pagination ? Math.max(1, Math.ceil(pagination.total / pagination.pageSize)) : 1
 
@@ -50,7 +52,7 @@ export function DataTable<T>({ columns, data, isLoading, emptyText = 'No records
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground">
-                  {emptyText}
+                  {emptyText ?? t('table.no_records')}
                 </TableCell>
               </TableRow>
             )}
@@ -61,13 +63,13 @@ export function DataTable<T>({ columns, data, isLoading, emptyText = 'No records
       {pagination && pagination.total > pagination.pageSize && (
         <div className="flex items-center justify-end gap-2 text-sm">
           <span className="text-muted-foreground">
-            Page {pagination.page} of {pageCount} · {pagination.total} total
+            {t('table.page_of', { page: pagination.page, pages: pageCount, total: pagination.total })}
           </span>
           <Button variant="outline" size="sm" disabled={pagination.page <= 1} onClick={() => pagination.onPage(pagination.page - 1)}>
-            Previous
+            {t('table.previous')}
           </Button>
           <Button variant="outline" size="sm" disabled={pagination.page >= pageCount} onClick={() => pagination.onPage(pagination.page + 1)}>
-            Next
+            {t('table.next')}
           </Button>
         </div>
       )}

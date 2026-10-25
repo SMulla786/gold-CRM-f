@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { api } from '@/lib/api'
 import { useBankAccounts, useKarats, useSettings } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
+import { useT } from '@/lib/i18n'
 import { fetchDraftByNo } from '@/lib/draftsQueries'
 import { ApiException } from '@/lib/errors'
 import { lineRateUnitGrams, metalRateUnitGrams, useCreateBill, useNextBillNo, usePartyBalance, useUpdateBill } from '@/lib/billingQueries'
@@ -108,6 +109,7 @@ const payFromDto = (p: BillPaymentDto): PayRow => ({
 })
 
 export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDto }) {
+  const t = useT()
   const navigate = useNavigate()
   const { activeBranch } = useAuth()
   const branchReady = !!editBill || (activeBranch !== '' && activeBranch !== 'all') // a bill posts to one branch; edit keeps the bill's branch
@@ -297,7 +299,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
       {/* Header */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="space-y-1.5 lg:col-span-2">
-          <Label htmlFor="bf-party">{kind === 'SELL' ? 'Customer' : 'Supplier'}</Label>
+          <Label htmlFor="bf-party">{kind === 'SELL' ? t('bill.customer') : t('bill.supplier')}</Label>
           <PartyPicker value={party} onChange={setParty} placeholder="Search name / mobile" id="bf-party" ariaLabel={kind === 'SELL' ? 'Customer' : 'Supplier'} />
           {party && (
             <p className="text-xs text-muted-foreground">
@@ -307,22 +309,22 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
           )}
         </div>
         <div className="space-y-1.5">
-          <Label>Type</Label>
+          <Label>{t('bill.type')}</Label>
           <Select value={billType} onValueChange={setBillType} disabled={!!editBill}>
             <SelectTrigger aria-label="Bill type"><SelectValue /></SelectTrigger>
-            <SelectContent>{BILL_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+            <SelectContent>{BILL_TYPES.map((bt) => <SelectItem key={bt} value={bt}>{bt}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label>Bill no.</Label>
+          <Label>{t('bill.bill_no')}</Label>
           <Input value={editBill ? editBill.billNo : nextNo?.billNo ?? '—'} readOnly aria-label="Bill number" />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="bf-date">Bill date</Label>
+          <Label htmlFor="bf-date">{t('bill.bill_date')}</Label>
           <Input id="bf-date" type="date" value={billDate} onChange={(e) => setBillDate(e.target.value)} />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="bf-due">Due date</Label>
+          <Label htmlFor="bf-due">{t('bill.due_date')}</Label>
           <Input id="bf-due" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
         </div>
       </div>
@@ -330,7 +332,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
       {/* Add-line controls */}
       {kind === 'SELL' ? (
         <div className="relative max-w-md">
-          <Label htmlFor="bf-stock-search">Add item — scan tag / search stock</Label>
+          <Label htmlFor="bf-stock-search">{t('bill.add_item')}</Label>
           <Input id="bf-stock-search" value={stockQ} onChange={(e) => setStockQ(e.target.value)} placeholder="Tag no. or item name" />
           {stockQ && stockHits?.items.length ? (
             <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-auto rounded-md border bg-popover shadow-md">
@@ -345,11 +347,11 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
             </ul>
           ) : null}
           <div className="mt-2 flex items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => setRows((rs) => [...rs, blankRow({})])}>+ Direct line</Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => setRows((rs) => [...rs, blankRow({})])}>{t('bill.direct_line')}</Button>
             {!editBill && (
               <>
                 <Input className="w-32" placeholder="Draft #" aria-label="Draft number" value={draftNo} onChange={(e) => setDraftNo(e.target.value)} />
-                <Button type="button" variant="outline" size="sm" onClick={() => void retrieveDraft()}>Retrieve draft</Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => void retrieveDraft()}>{t('bill.retrieve_draft')}</Button>
               </>
             )}
           </div>
@@ -358,20 +360,20 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
       ) : (
         <div className="flex flex-wrap items-end gap-3">
           <div className="space-y-1.5">
-            <Label>Stock class</Label>
+            <Label>{t('bill.stock_class')}</Label>
             <Select value={buyClass} onValueChange={(v) => { setBuyClass(v); setBuyItemId('') }}>
               <SelectTrigger className="w-40" aria-label="Stock class"><SelectValue /></SelectTrigger>
               <SelectContent>{STOCK_CLASSES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>Item name</Label>
+            <Label>{t('bill.item_name')}</Label>
             <Select value={buyItemId} onValueChange={setBuyItemId}>
               <SelectTrigger className="w-56" aria-label="Item name"><SelectValue placeholder="Select" /></SelectTrigger>
               <SelectContent>{buyNames?.items.map((n) => <SelectItem key={n.id} value={String(n.id)}>{n.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <Button type="button" variant="outline" onClick={addPurchaseRow}>+ Add row</Button>
+          <Button type="button" variant="outline" onClick={addPurchaseRow}>{t('bill.add_row')}</Button>
         </div>
       )}
 
@@ -401,7 +403,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
           </TableHeader>
           <TableBody>
             {rows.length === 0 && (
-              <TableRow><TableCell colSpan={17} className="h-20 text-center text-muted-foreground">No items yet.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={17} className="h-20 text-center text-muted-foreground">{t('bill.no_items')}</TableCell></TableRow>
             )}
             {rows.map((r, i) => {
               const lr = lineOf(r)
@@ -472,11 +474,11 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
       <div className="grid gap-5 lg:grid-cols-2">
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold">Payments</h2>
+            <h2 className="text-sm font-semibold">{t('bill.payments')}</h2>
             <div className="ml-auto flex gap-1">
-              <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('CASH')])}>+ Cash</Button>
-              <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('ONLINE')])}>+ Online</Button>
-              <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('METAL')])}>+ Metal</Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('CASH')])}>{t('bill.add_cash')}</Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('ONLINE')])}>{t('bill.add_online')}</Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('METAL')])}>{t('bill.add_metal')}</Button>
             </div>
           </div>
           {pays.map((p, i) => (
@@ -515,7 +517,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
 
           <div className="flex flex-wrap items-end gap-2">
             <div className="space-y-1.5">
-              <Label>Keep balance as</Label>
+              <Label>{t('bill.keep_balance_as')}</Label>
               <Select value={keepAs} onValueChange={setKeepAs}>
                 <SelectTrigger className="w-32" aria-label="Keep balance as"><SelectValue /></SelectTrigger>
                 <SelectContent>{KEEP_BALANCE_AS.map((k) => <SelectItem key={k} value={k}>{k}</SelectItem>)}</SelectContent>
@@ -523,7 +525,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
             </div>
             {keepAs !== 'MONEY' && (
               <div className="space-y-1.5">
-                <Label htmlFor="bf-keeprate">Keep rate</Label>
+                <Label htmlFor="bf-keeprate">{t('bill.keep_rate')}</Label>
                 <Input id="bf-keeprate" className="w-28" type="number" value={keepRate} onChange={(e) => setKeepRate(e.target.value)} />
               </div>
             )}
@@ -532,9 +534,9 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
         </div>
 
         <div className="space-y-2 rounded-md border p-4 text-sm tabular-nums">
-          <Row2 label="Subtotal" value={inr(bill.sub)} />
+          <Row2 label={t('bill.subtotal')} value={inr(bill.sub)} />
           <div className="flex items-center gap-2">
-            <span className="text-muted-foreground">Discount</span>
+            <span className="text-muted-foreground">{t('bill.discount')}</span>
             <Input className="ml-auto w-24" type="number" aria-label="Bill discount" value={discount} onChange={(e) => setDiscount(e.target.value)} />
             <Select value={discountUnit} onValueChange={setDiscountUnit}>
               <SelectTrigger className="w-16" aria-label="Bill discount unit"><SelectValue /></SelectTrigger>
@@ -543,18 +545,18 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
           </div>
           {billType === 'GST' && (
             <div className="flex items-center gap-2">
-              <span className="text-muted-foreground">GST %</span>
+              <span className="text-muted-foreground">{t('bill.gst_pct')}</span>
               <Input className="ml-auto w-24" type="number" aria-label="GST percent" value={gstPercent} onChange={(e) => setGstPercent(e.target.value)} />
             </div>
           )}
           {billType === 'GST' && <Row2 label="CGST + SGST / IGST" value={`${inr(bill.cgst)} + ${inr(bill.sgst)} / ${inr(bill.igst)}`} muted />}
-          <Row2 label="Round off" value={bill.round} muted />
-          <div className="flex justify-between border-t pt-2 text-base font-semibold"><span>Final</span><span>{inr(bill.final)}</span></div>
-          <Row2 label="Paid" value={inr(paid)} />
-          <div className="flex justify-between font-medium"><span>Balance</span><span className={balanceDue < 0 ? 'text-green-600 dark:text-green-500' : ''}>{inr(balanceDue)}{balanceDue < 0 ? ' (advance)' : ''}</span></div>
+          <Row2 label={t('bill.round_off')} value={bill.round} muted />
+          <div className="flex justify-between border-t pt-2 text-base font-semibold"><span>{t('bill.final')}</span><span>{inr(bill.final)}</span></div>
+          <Row2 label={t('bill.paid')} value={inr(paid)} />
+          <div className="flex justify-between font-medium"><span>{t('bill.balance')}</span><span className={balanceDue < 0 ? 'text-green-600 dark:text-green-500' : ''}>{inr(balanceDue)}{balanceDue < 0 ? ' (advance)' : ''}</span></div>
           <p className="text-xs text-muted-foreground">Live preview — the server recomputes every line and total authoritatively on save (GST split uses the party's state).</p>
           <Button className="hidden w-full lg:inline-flex" disabled={!valid || pending} onClick={onSaveClick}>
-            {pending ? 'Saving…' : editBill ? 'Update bill (MPIN)' : `Save ${kind === 'SELL' ? 'sell' : 'purchase'} bill`}
+            {pending ? t('bill.saving') : editBill ? t('bill.update_mpin') : kind === 'SELL' ? t('bill.save_sell') : t('bill.save_purchase')}
           </Button>
         </div>
       </div>

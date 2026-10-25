@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ApiException } from '@/lib/api'
+import { useT } from '@/lib/i18n'
 
 interface Props {
   open: boolean
@@ -14,7 +15,8 @@ interface Props {
   onClose: () => void
 }
 
-export function MpinDialog({ open, title = 'Enter MPIN', onConfirm, onClose }: Props) {
+export function MpinDialog({ open, title, onConfirm, onClose }: Props) {
+  const t = useT()
   const [mpin, setMpin] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -27,7 +29,7 @@ export function MpinDialog({ open, title = 'Enter MPIN', onConfirm, onClose }: P
       setMpin('')
       onClose()
     } catch (e) {
-      setError(e instanceof ApiException ? e.message : 'Verification failed')
+      setError(e instanceof ApiException ? e.message : t('mpin.failed'))
     } finally {
       setBusy(false)
     }
@@ -37,11 +39,11 @@ export function MpinDialog({ open, title = 'Enter MPIN', onConfirm, onClose }: P
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-xs">
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>This action needs your 4-digit security MPIN.</DialogDescription>
+          <DialogTitle>{title ?? t('mpin.title')}</DialogTitle>
+          <DialogDescription>{t('mpin.desc')}</DialogDescription>
         </DialogHeader>
         <div className="space-y-1.5">
-          <Label htmlFor="mpin">MPIN</Label>
+          <Label htmlFor="mpin">{t('mpin.label')}</Label>
           <Input
             id="mpin"
             inputMode="numeric"
@@ -55,7 +57,7 @@ export function MpinDialog({ open, title = 'Enter MPIN', onConfirm, onClose }: P
         </div>
         <DialogFooter>
           <Button disabled={mpin.length !== 4 || busy} onClick={() => void submit()}>
-            {busy ? 'Verifying…' : 'Confirm'}
+            {busy ? t('mpin.verifying') : t('common.confirm')}
           </Button>
         </DialogFooter>
       </DialogContent>
