@@ -8,8 +8,24 @@ import { NewPartyDialog } from '@/components/NewPartyDialog'
 import { QuickBilling } from '@/components/QuickBilling'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth'
+import { LOCALES, useLocale, useT } from '@/lib/i18n'
 import type { NavItem } from '@/lib/nav'
 import { cn } from '@/lib/utils'
+
+function LanguageSwitch() {
+  const { locale, setLocale } = useLocale()
+  const t = useT()
+  return (
+    <div className="flex items-center gap-0.5 rounded-md border p-0.5" role="group" aria-label={t('shell.language')}>
+      {LOCALES.map((l) => (
+        <button key={l.code} type="button" aria-pressed={locale === l.code} onClick={() => setLocale(l.code)}
+          className={cn('rounded px-1.5 py-0.5 text-xs font-medium', locale === l.code ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:text-foreground')}>
+          {l.label}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 interface ShellProps {
   area: string
@@ -20,6 +36,7 @@ interface ShellProps {
 
 export function Shell({ area, nav, showBranch }: ShellProps) {
   const { me, can, logout, readOnly, endImpersonation } = useAuth()
+  const t = useT()
   const navigate = useNavigate()
   const [newParty, setNewParty] = useState(false)
   const isStore = area === 'Store'
@@ -35,10 +52,10 @@ export function Shell({ area, nav, showBranch }: ShellProps) {
     <div className="flex min-h-dvh flex-col">
       {me?.impersonatedBy && (
         <div className="flex items-center justify-center gap-3 bg-amber-500 px-4 py-1.5 text-center text-sm font-medium text-black">
-          Viewing as {me.name}
+          {t('shell.viewing_as', { name: me.name })}
           {me.business ? ` · ${me.business.name}` : ''} — support session by {me.impersonatedBy.name}
           <Button variant="outline" size="sm" className="h-6 border-black/30 bg-transparent text-black hover:bg-black/10" onClick={() => void onEndImpersonation()}>
-            End
+            {t('shell.end')}
           </Button>
         </div>
       )}
@@ -49,10 +66,11 @@ export function Shell({ area, nav, showBranch }: ShellProps) {
         <div className="ml-auto flex items-center gap-3">
           {area !== 'Platform' && <CommandPalette nav={nav} />}
           {isStore && canBill && <QuickBilling />}
-          {isStore && canAddParty && <Button variant="outline" size="sm" onClick={() => setNewParty(true)}>+ New Party</Button>}
+          {isStore && canAddParty && <Button variant="outline" size="sm" onClick={() => setNewParty(true)}>{t('shell.new_party')}</Button>}
           {showBranch && <BranchSwitcher />}
+          <LanguageSwitch />
           <span className="text-sm text-muted-foreground">{me?.name}</span>
-          <Button variant="ghost" size="icon" onClick={() => void logout()} aria-label="Log out">
+          <Button variant="ghost" size="icon" onClick={() => void logout()} aria-label={t('shell.logout')}>
             <LogOut />
           </Button>
         </div>
@@ -62,7 +80,7 @@ export function Shell({ area, nav, showBranch }: ShellProps) {
 
       {readOnly && (
         <div className="bg-destructive px-4 py-1.5 text-center text-sm font-medium text-destructive-foreground">
-          READ-ONLY MODE · subscription inactive — viewing allowed, changes blocked
+          {t('shell.readonly')}
         </div>
       )}
 
@@ -85,7 +103,7 @@ export function Shell({ area, nav, showBranch }: ShellProps) {
           ))}
         </nav>
         <main className="flex-1 p-6">
-          <Suspense fallback={<p className="text-sm text-muted-foreground">Loading…</p>}>
+          <Suspense fallback={<p className="text-sm text-muted-foreground">{t('common.loading')}</p>}>
             <Outlet />
           </Suspense>
         </main>

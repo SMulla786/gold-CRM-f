@@ -10,8 +10,12 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useGstHsn, useGstRegister, useGstSummary } from '@/lib/reportsQueries'
 import { downloadCsv } from '@/lib/csv'
+import { useT } from '@/lib/i18n'
 import { fetchAllPaged } from '@/lib/queries'
 import type { GstRegisterRowDto } from '@/shared'
+
+import { Gstr1Report } from './Gstr1Report'
+import { Gstr3bReport } from './Gstr3bReport'
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
@@ -21,6 +25,7 @@ const skeletonRows = (cols: number, rows = 5) =>
   ))
 
 export function GstReports() {
+  const t = useT()
   const [mode, setMode] = useState('register')
   const [kind, setKind] = useState('SELL')
   const [groupBy, setGroupBy] = useState('MONTH')
@@ -62,13 +67,15 @@ export function GstReports() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1.5">
-          <Label>Report</Label>
+          <Label>{t('gst.report')}</Label>
           <Select value={mode} onValueChange={(v) => { setMode(v); setPage(1) }}>
-            <SelectTrigger className="w-44" aria-label="Report"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-44" aria-label={t('gst.report')}><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="register">Register</SelectItem>
-              <SelectItem value="hsn">HSN summary</SelectItem>
-              <SelectItem value="summary">Period summary</SelectItem>
+              <SelectItem value="register">{t('gst.register')}</SelectItem>
+              <SelectItem value="hsn">{t('gst.hsn_summary')}</SelectItem>
+              <SelectItem value="summary">{t('gst.period_summary')}</SelectItem>
+              <SelectItem value="gstr1">{t('gst.gstr1')}</SelectItem>
+              <SelectItem value="gstr3b">{t('gst.gstr3b')}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -90,9 +97,13 @@ export function GstReports() {
             </Select>
           </div>
         )}
-        <div className="space-y-1.5"><Label htmlFor="g-from">From</Label><Input id="g-from" type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1) }} /></div>
-        <div className="space-y-1.5"><Label htmlFor="g-to">To</Label><Input id="g-to" type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1) }} /></div>
-        {mode === 'register' && <Button className="ml-auto" variant="outline" disabled={exporting} onClick={exportRegister}>{exporting ? 'Exporting…' : 'Export CSV'}</Button>}
+        {mode !== 'gstr1' && mode !== 'gstr3b' && (
+          <>
+            <div className="space-y-1.5"><Label htmlFor="g-from">{t('common.from')}</Label><Input id="g-from" type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1) }} /></div>
+            <div className="space-y-1.5"><Label htmlFor="g-to">{t('common.to')}</Label><Input id="g-to" type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1) }} /></div>
+          </>
+        )}
+        {mode === 'register' && <Button className="ml-auto" variant="outline" disabled={exporting} onClick={exportRegister}>{exporting ? 'Exporting…' : t('common.export_csv')}</Button>}
       </div>
 
       {mode === 'register' && (
@@ -138,6 +149,9 @@ export function GstReports() {
           </Table>
         </div>
       )}
+
+      {mode === 'gstr1' && <Gstr1Report />}
+      {mode === 'gstr3b' && <Gstr3bReport />}
     </div>
   )
 }
