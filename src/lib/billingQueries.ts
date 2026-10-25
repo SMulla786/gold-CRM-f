@@ -17,7 +17,7 @@ export const useBill = (id?: number) =>
   useQuery({ queryKey: ['bill', id], queryFn: () => api.get<BillDto>(`/app/bills/${id}`), enabled: !!id })
 
 // bills move stock + ledger + party balances, so refresh all of them.
-const BILL_KEYS = [['bills'], ['stock'], ['stock-summary'], ['stock-groups'], ['ledger'], ['day-book'], ['party-balance']]
+const BILL_KEYS = [['bills'], ['bill'], ['stock'], ['stock-summary'], ['stock-groups'], ['ledger'], ['day-book'], ['party-balance']]
 
 export function useCreateBill() {
   const qc = useQueryClient()

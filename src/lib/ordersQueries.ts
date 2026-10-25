@@ -5,7 +5,7 @@ import { api } from '@/lib/api'
 import { qs, useApiMutation } from '@/lib/queries'
 import type { KarigarIssueDto, OrderDto, Paged } from '@/shared'
 
-const ORDER_KEYS = [['orders'], ['karigar-issues'], ['stock'], ['ledger'], ['day-book'], ['party-balance'], ['dashboard']]
+const ORDER_KEYS = [['orders'], ['order'], ['karigar-issues'], ['stock'], ['ledger'], ['day-book'], ['party-balance'], ['dashboard']]
 
 export const useOrders = (params: Record<string, string | number | undefined>) =>
   useQuery({ queryKey: ['orders', params], queryFn: () => api.get<Paged<OrderDto>>(`/app/orders${qs(params)}`) })

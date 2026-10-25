@@ -6,7 +6,7 @@ import { qs, useApiMutation } from '@/lib/queries'
 import type { BillListItemDto, Paged, PartyBalanceRowDto, StatementDto, UdharEntryRowDto, UdharTxnDto } from '@/shared'
 
 // udhar moves party balances + money/metal ledgers (and bill.paid when settling), so refresh all.
-const UDHAR_KEYS = [['udhar-entries'], ['udhar-ledger'], ['party-balance'], ['party-statement'], ['pending-bills'], ['ledger'], ['day-book'], ['bills']]
+const UDHAR_KEYS = [['udhar-entries'], ['udhar-ledger'], ['party-balance'], ['party-statement'], ['pending-bills'], ['ledger'], ['day-book'], ['bills'], ['bill']]
 
 export const useUdharEntries = (params: Record<string, string | number | undefined>) =>
   useQuery({ queryKey: ['udhar-entries', params], queryFn: () => api.get<Paged<UdharEntryRowDto>>(`/app/udhar/entries${qs(params)}`) })

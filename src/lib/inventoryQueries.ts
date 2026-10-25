@@ -70,7 +70,7 @@ export async function fetchAllStock(params: Record<string, string | number | und
 export const useShortage = (params: Record<string, string | number | undefined>) =>
   useQuery({ queryKey: ['stock-shortage', params], queryFn: () => api.get<ShortageRowDto[]>(`/app/stock/shortage${qs(params)}`) })
 
-const STOCK_KEYS = [['stock'], ['stock-summary'], ['stock-groups'], ['stock-shortage'], ['stock-transfers']]
+const STOCK_KEYS = [['stock'], ['stock-summary'], ['stock-groups'], ['stock-shortage'], ['stock-transfers'], ['stock-transfer']]
 export const useCreateStockEntry = () =>
   useApiMutation((body: Record<string, unknown>) => api.post<StockEntryResultDto>('/app/stock/entries', body), { invalidate: STOCK_KEYS, success: 'Stock added' })
 export const useUpdateStock = () =>

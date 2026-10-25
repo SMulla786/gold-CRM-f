@@ -5,7 +5,7 @@ import { api } from '@/lib/api'
 import { qs, useApiMutation } from '@/lib/queries'
 import type { JustBillDto, JustBillListItemDto, Paged } from '@/shared'
 
-const JB_KEYS = [['just-bills'], ['ledger'], ['day-book'], ['party-balance'], ['dashboard']]
+const JB_KEYS = [['just-bills'], ['just-bill'], ['ledger'], ['day-book'], ['party-balance'], ['dashboard']]
 
 export const useJustBillNextNo = (enabled = true) =>
   useQuery({ queryKey: ['just-bill-next-no'], queryFn: () => api.get<{ billNo: string }>('/app/just-bills/next-no'), enabled })

@@ -5,7 +5,7 @@ import { api } from '@/lib/api'
 import { qs, useApiMutation } from '@/lib/queries'
 import type { GirviBatchDto, GirviListItemDto, Paged } from '@/shared'
 
-const GIRVI_KEYS = [['girvi'], ['ledger'], ['day-book'], ['dashboard']]
+const GIRVI_KEYS = [['girvi'], ['girvi-batch'], ['ledger'], ['day-book'], ['dashboard']]
 
 export const useGirviList = (params: Record<string, string | number | undefined>) =>
   useQuery({ queryKey: ['girvi', params], queryFn: () => api.get<Paged<GirviListItemDto>>(`/app/girvi${qs(params)}`) })
