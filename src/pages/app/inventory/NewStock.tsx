@@ -20,13 +20,15 @@ interface Row {
   less: string
   tunch: string
   wastage: string
+  stoneCharge: string
+  other: string
   labour: string
   labourUnit: string
   rate: string
   purchaseCost: string
   remarks: string
 }
-const blank = (): Row => ({ itemNameId: '', tagNo: '', karatCode: '', pcs: '1', gross: '', less: '0', tunch: '', wastage: '0', labour: '0', labourUnit: 'PER_GRAM', rate: '', purchaseCost: '', remarks: '' })
+const blank = (): Row => ({ itemNameId: '', tagNo: '', karatCode: '', pcs: '1', gross: '', less: '0', tunch: '', wastage: '0', stoneCharge: '0', other: '0', labour: '0', labourUnit: 'PER_GRAM', rate: '', purchaseCost: '', remarks: '' })
 
 export function NewStock() {
   const [stockClass, setStockClass] = useState('GOLD')
@@ -62,6 +64,8 @@ export function NewStock() {
         less: Number(r.less) || 0,
         tunch: r.tunch ? Number(r.tunch) : undefined,
         wastage: Number(r.wastage) || 0,
+        stoneCharge: Number(r.stoneCharge) || 0,
+        other: Number(r.other) || 0,
         labour: Number(r.labour) || 0,
         labourUnit: r.labourUnit,
         rate: r.rate ? Number(r.rate) : undefined,
@@ -118,6 +122,8 @@ export function NewStock() {
               <TableHead>Wst%</TableHead>
               <TableHead>Net</TableHead>
               <TableHead>Fine</TableHead>
+              <TableHead>Stone</TableHead>
+              <TableHead>Other</TableHead>
               <TableHead>Labour</TableHead>
               <TableHead>Unit</TableHead>
               <TableHead>Rate</TableHead>
@@ -170,6 +176,8 @@ export function NewStock() {
                   <TableCell><Input className="w-16" type="number" step="0.01" value={r.wastage} onChange={(e) => set(i, 'wastage', e.target.value)} /></TableCell>
                   <TableCell className="whitespace-nowrap text-muted-foreground">{net}</TableCell>
                   <TableCell className="whitespace-nowrap text-muted-foreground">{fine}</TableCell>
+                  <TableCell><Input className="w-20" type="number" aria-label="Stone charge" value={r.stoneCharge} onChange={(e) => set(i, 'stoneCharge', e.target.value)} /></TableCell>
+                  <TableCell><Input className="w-20" type="number" aria-label="Other charge" value={r.other} onChange={(e) => set(i, 'other', e.target.value)} /></TableCell>
                   <TableCell><Input className="w-20" type="number" value={r.labour} onChange={(e) => set(i, 'labour', e.target.value)} /></TableCell>
                   <TableCell>
                     <Select value={r.labourUnit} onValueChange={(v) => set(i, 'labourUnit', v)}>
@@ -206,7 +214,7 @@ export function NewStock() {
           {create.isPending ? 'Saving…' : `Save ${rows.length} item${rows.length === 1 ? '' : 's'}`}
         </Button>
       </div>
-      <p className="text-xs text-muted-foreground">Net/Fine shown live; the server recomputes authoritatively on save. Stone charge &amp; other charges default to 0 (add on the item edit screen).</p>
+      <p className="text-xs text-muted-foreground">Net/Fine shown live; the server recomputes authoritatively on save.</p>
     </div>
   )
 }

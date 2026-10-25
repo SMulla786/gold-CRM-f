@@ -35,6 +35,9 @@ const StockList = lazy(() => import('@/pages/app/inventory/StockList').then((m) 
 const GroupStock = lazy(() => import('@/pages/app/inventory/GroupStock').then((m) => ({ default: m.GroupStock })))
 const StockImport = lazy(() => import('@/pages/app/inventory/Import').then((m) => ({ default: m.Import })))
 const Shortage = lazy(() => import('@/pages/app/inventory/Shortage').then((m) => ({ default: m.Shortage })))
+const StockTransfers = lazy(() => import('@/pages/app/inventory/StockTransfers').then((m) => ({ default: m.StockTransfers })))
+const TagPrint = lazy(() => import('@/pages/app/inventory/TagPrint').then((m) => ({ default: m.TagPrint })))
+const ScanMatch = lazy(() => import('@/pages/app/inventory/ScanMatch').then((m) => ({ default: m.ScanMatch })))
 
 function HomeRedirect() {
   const { me } = useAuth()
@@ -94,6 +97,9 @@ export default function App() {
               <Route path="groups" element={<GroupStock />} />
               <Route path="import" element={<StockImport />} />
               <Route path="shortage" element={<Shortage />} />
+              <Route path="transfers" element={<StockTransfers />} />
+              <Route path="tags" element={<TagPrint />} />
+              <Route path="scan" element={<ScanMatch />} />
             </Route>
             <Route path=":moduleKey" element={<ModulePlaceholder />} />
           </Route>

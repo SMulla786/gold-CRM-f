@@ -4,8 +4,20 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { getAccessToken } from '@/lib/api'
 import { useItemGroups, useStockImport } from '@/lib/inventoryQueries'
 import { STOCK_CLASSES, STOCK_CSV_COLUMNS, type StockImportResultDto } from '@/shared'
+
+// Sample endpoint needs the Bearer token, so fetch + blob-download rather than a bare link.
+async function downloadSample() {
+  const res = await fetch('/api/app/stock/import/sample.csv', { headers: { Authorization: `Bearer ${getAccessToken()}` }, credentials: 'include' })
+  const url = URL.createObjectURL(await res.blob())
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'stock-sample.csv'
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
 const CLASS_LABEL: Record<string, string> = { GOLD: 'Gold', SILVER: 'Silver', STONE: 'Stone', ARTIFICIAL: 'Artificial', FRANCHISE: 'Franchise' }
 
@@ -75,7 +87,12 @@ export function Import() {
         </div>
       </div>
 
-      <p className="text-xs text-muted-foreground">Columns (header row, case-insensitive): {STOCK_CSV_COLUMNS.join(', ')}</p>
+      <p className="text-xs text-muted-foreground">
+        Columns (header row, case-insensitive): {STOCK_CSV_COLUMNS.join(', ')} ·{' '}
+        <button type="button" className="text-primary underline" onClick={() => void downloadSample()}>
+          download sample CSV
+        </button>
+      </p>
 
       <div className="flex gap-3">
         <Button variant="outline" disabled={!file || !groupId || imp.isPending} onClick={() => run(true)}>

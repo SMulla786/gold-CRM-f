@@ -14,6 +14,8 @@ import type {
   StockImportResultDto,
   StockItemDto,
   StockSummaryDto,
+  StockTransferDetailDto,
+  StockTransferDto,
 } from '@/shared'
 
 // ───── Masters ─────
@@ -45,16 +47,25 @@ export const useGroupStock = (params: Record<string, string | number | undefined
 export const useShortage = (params: Record<string, string | number | undefined>) =>
   useQuery({ queryKey: ['stock-shortage', params], queryFn: () => api.get<ShortageRowDto[]>(`/app/stock/shortage${qs(params)}`) })
 
+const STOCK_KEYS = [['stock'], ['stock-summary'], ['stock-groups'], ['stock-shortage'], ['stock-transfers']]
 export const useCreateStockEntry = () =>
-  useApiMutation((body: Record<string, unknown>) => api.post<StockEntryResultDto>('/app/stock/entries', body), {
-    invalidate: [['stock'], ['stock-summary'], ['stock-groups'], ['stock-shortage']],
-    success: 'Stock added',
-  })
+  useApiMutation((body: Record<string, unknown>) => api.post<StockEntryResultDto>('/app/stock/entries', body), { invalidate: STOCK_KEYS, success: 'Stock added' })
+export const useUpdateStock = () =>
+  useApiMutation(({ id, body }: { id: number; body: Record<string, unknown> }) => api.patch(`/app/stock/${id}`, body), { invalidate: STOCK_KEYS, success: 'Stock item updated' })
 export const useDeleteStock = () =>
-  useApiMutation(({ id, mpin }: { id: number; mpin: string }) => api.del(`/app/stock/${id}`, { mpin }), {
-    invalidate: [['stock'], ['stock-summary'], ['stock-groups'], ['stock-shortage']],
-    success: 'Stock item deleted',
-  })
+  useApiMutation(({ id, mpin }: { id: number; mpin: string }) => api.del(`/app/stock/${id}`, { mpin }), { invalidate: STOCK_KEYS, success: 'Stock item deleted' })
+export const useBulkEditStock = () =>
+  useApiMutation(({ ids, patch }: { ids: number[]; patch: Record<string, unknown> }) => api.patch('/app/stock/bulk', { ids, patch }), { invalidate: STOCK_KEYS, success: 'Items updated' })
+export const useBulkDeleteStock = () =>
+  useApiMutation(({ ids, mpin }: { ids: number[]; mpin: string }) => api.post('/app/stock/bulk-delete', { ids }, { mpin }), { invalidate: STOCK_KEYS, success: 'Items deleted' })
+
+// ───── Stock transfer ─────
+export const useStockTransfers = (params: Record<string, string | number | undefined>) =>
+  useQuery({ queryKey: ['stock-transfers', params], queryFn: () => api.get<Paged<StockTransferDto>>(`/app/stock/transfers${qs(params)}`) })
+export const useStockTransfer = (id?: number) =>
+  useQuery({ queryKey: ['stock-transfer', id], queryFn: () => api.get<StockTransferDetailDto>(`/app/stock/transfers/${id}`), enabled: !!id })
+export const useCreateStockTransfer = () =>
+  useApiMutation((body: Record<string, unknown>) => api.post<StockTransferDetailDto>('/app/stock/transfers', body), { invalidate: STOCK_KEYS, success: 'Stock transferred' })
 
 /** CSV import — dryRun validates, real run imports all-or-nothing. */
 export const useStockImport = () =>

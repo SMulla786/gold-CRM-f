@@ -84,3 +84,19 @@
     color: var(--foreground);
   }
 }
+
+/* Print only the marked region (tag labels, scan-missed list); hide app chrome. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    inset: 0;
+    padding: 1rem;
+  }
+}
