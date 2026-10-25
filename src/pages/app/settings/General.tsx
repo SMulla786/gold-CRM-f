@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 import { MpinDialog } from '@/components/MpinDialog'
 import { Badge } from '@/components/ui/badge'
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useCreateKarat, useDeleteKarat, useKarats, useSaveSetting, useSettings, useUpdateKarat } from '@/lib/appQueries'
 import type { KaratDto, SettingsDto } from '@/shared'
 
-type MpinAction = { title: string; run: (mpin: string) => Promise<void> }
+type MpinAction = { title: string; run: (mpin: string) => Promise<unknown> }
 
 const BASIS = ['NET', 'GROSS', 'FINE'] as const
 
@@ -37,7 +37,7 @@ export function General() {
   )
 }
 
-function SaveSettingCard({ title, children, onSave, ask }: { title: string; children: React.ReactNode; onSave: (mpin: string) => Promise<void>; ask: (a: MpinAction) => void }) {
+function SaveSettingCard({ title, children, onSave, ask }: { title: string; children: React.ReactNode; onSave: (mpin: string) => Promise<unknown>; ask: (a: MpinAction) => void }) {
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between">

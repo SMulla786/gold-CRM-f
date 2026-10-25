@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useAuth } from '@/lib/auth'
 import { useCreateRole, usePermissionCatalog, useRoles, useSaveRolePermissions } from '@/lib/queries'
 import type { RoleDto } from '@/shared'
 
@@ -40,7 +41,7 @@ function CreateRoleDialog({ onClose }: { onClose: () => void }) {
   )
 }
 
-function RolePermissionsDialog({ role, onClose }: { role: RoleDto; onClose: () => void }) {
+function RolePermissionsDialog({ role, canManage, onClose }: { role: RoleDto; canManage: boolean; onClose: () => void }) {
   const { data: catalog } = usePermissionCatalog()
   const save = useSaveRolePermissions()
   const [map, setMap] = useState<GrantMap>(grantsToMap(role.grants))
@@ -51,27 +52,35 @@ function RolePermissionsDialog({ role, onClose }: { role: RoleDto; onClose: () =
         <DialogHeader>
           <DialogTitle>{role.name} · permissions</DialogTitle>
           <DialogDescription>
-            {role.isSystem ? 'System template — saving creates an editable copy for this business.' : 'Business role defaults.'}
+            {!canManage
+              ? 'View only — role defaults are managed by the business owner or root admin.'
+              : role.isSystem
+                ? 'System template — saving creates an editable copy for this business.'
+                : 'Business role defaults.'}
           </DialogDescription>
         </DialogHeader>
-        {catalog ? <PermissionMatrix catalog={catalog} value={map} onChange={setMap} /> : <p className="text-sm text-muted-foreground">Loading…</p>}
-        <DialogFooter>
-          <Button
-            disabled={save.isPending}
-            onClick={async () => {
-              await save.mutateAsync({ id: role.id, grants: mapToGrants(map) })
-              onClose()
-            }}
-          >
-            Save role defaults
-          </Button>
-        </DialogFooter>
+        {catalog ? <PermissionMatrix catalog={catalog} value={map} onChange={setMap} disabled={!canManage} /> : <p className="text-sm text-muted-foreground">Loading…</p>}
+        {canManage && (
+          <DialogFooter>
+            <Button
+              disabled={save.isPending}
+              onClick={async () => {
+                await save.mutateAsync({ id: role.id, grants: mapToGrants(map) })
+                onClose()
+              }}
+            >
+              Save role defaults
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   )
 }
 
 export function Roles() {
+  const { me } = useAuth()
+  const canManage = !!me && (me.isOwner || me.branch?.parentId === null)
   const { data, isLoading } = useRoles()
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<RoleDto | null>(null)

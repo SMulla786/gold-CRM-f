@@ -10,7 +10,7 @@ interface Props {
   open: boolean
   title?: string
   /** Runs the protected action with the entered MPIN; throw to keep the dialog open with an error. */
-  onConfirm: (mpin: string) => Promise<void>
+  onConfirm: (mpin: string) => Promise<unknown>
   onClose: () => void
 }
 

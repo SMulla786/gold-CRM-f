@@ -21,6 +21,12 @@ const Users = lazy(() => import('@/pages/admin/Users').then((m) => ({ default: m
 const Roles = lazy(() => import('@/pages/admin/Roles').then((m) => ({ default: m.Roles })))
 const BusinessProfile = lazy(() => import('@/pages/admin/BusinessProfile').then((m) => ({ default: m.BusinessProfile })))
 const SubscriptionView = lazy(() => import('@/pages/admin/SubscriptionView').then((m) => ({ default: m.SubscriptionView })))
+const SettingsLayout = lazy(() => import('@/pages/app/settings/SettingsLayout').then((m) => ({ default: m.SettingsLayout })))
+const Parties = lazy(() => import('@/pages/app/settings/Parties').then((m) => ({ default: m.Parties })))
+const BankAccounts = lazy(() => import('@/pages/app/settings/BankAccounts').then((m) => ({ default: m.BankAccounts })))
+const Hsn = lazy(() => import('@/pages/app/settings/Hsn').then((m) => ({ default: m.Hsn })))
+const General = lazy(() => import('@/pages/app/settings/General').then((m) => ({ default: m.General })))
+const Rates = lazy(() => import('@/pages/app/settings/Rates').then((m) => ({ default: m.Rates })))
 
 function HomeRedirect() {
   const { me } = useAuth()
@@ -64,6 +70,14 @@ export default function App() {
         <Route element={<RequireLevel levels={['ADMIN', 'BRANCH_USER']} />}>
           <Route path="/app" element={<AppLayout />}>
             <Route index element={<Dashboard title="Store Dashboard" />} />
+            <Route path="settings" element={<SettingsLayout />}>
+              <Route index element={<Navigate to="/app/settings/parties" replace />} />
+              <Route path="parties" element={<Parties />} />
+              <Route path="bank-accounts" element={<BankAccounts />} />
+              <Route path="hsn" element={<Hsn />} />
+              <Route path="general" element={<General />} />
+              <Route path="rates" element={<Rates />} />
+            </Route>
             <Route path=":moduleKey" element={<ModulePlaceholder />} />
           </Route>
         </Route>

@@ -20,6 +20,12 @@ export const setActiveBranch = (b: string | null) => {
   activeBranch = b
 }
 
+// Called when a token refresh fails mid-session (session gone) so the UI can log the user out.
+let onAuthLost: (() => void) | null = null
+export const setOnAuthLost = (fn: (() => void) | null) => {
+  onAuthLost = fn
+}
+
 export interface RequestOpts {
   mpin?: string
   signal?: AbortSignal
@@ -52,9 +58,11 @@ async function raw<T>(method: string, path: string, body?: unknown, opts: Reques
   return data as T
 }
 
-// Refresh the access token using the cookie, retrying the failed request once.
+// Single-flight refresh of the access token using the cookie. Shared by request-retry AND
+// the initial session restore, so StrictMode's double-invoke can't fire two /auth/refresh calls
+// (which the backend's reuse detection would treat as a stolen token and revoke all sessions).
 let refreshing: Promise<boolean> | null = null
-async function tryRefresh(): Promise<boolean> {
+export function refreshAccessToken(): Promise<boolean> {
   refreshing ??= raw<{ accessToken: string }>('POST', '/auth/refresh')
     .then((r) => {
       setAccessToken(r.accessToken)
@@ -76,7 +84,8 @@ export async function request<T>(method: string, path: string, body?: unknown, o
   } catch (err) {
     // One silent refresh+retry on an expired access token (not on the refresh call itself).
     if (err instanceof ApiException && err.status === 401 && err.code === 'UNAUTHENTICATED' && !path.startsWith('/auth/refresh')) {
-      if (await tryRefresh()) return raw<T>(method, path, body, opts)
+      if (await refreshAccessToken()) return raw<T>(method, path, body, opts)
+      onAuthLost?.() // refresh failed → session is gone; kick to login instead of looping 401s
     }
     throw err
   }

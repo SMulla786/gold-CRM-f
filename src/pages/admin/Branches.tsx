@@ -10,6 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useAuth } from '@/lib/auth'
 import { useAddBranch, useBranches, useMoveBranch, useUpdateBranch } from '@/lib/queries'
 import type { BranchNodeDto } from '@/shared'
 
@@ -121,11 +122,14 @@ function MoveDialog({ node, all, onClose }: { node: BranchNodeDto; all: BranchNo
 }
 
 function TreeRow({ node, all, collapsed, toggle }: { node: BranchNodeDto; all: BranchNodeDto[]; collapsed: Set<number>; toggle: (id: number) => void }) {
+  const { me } = useAuth()
   const add = useAddBranch()
   const update = useUpdateBranch()
   const [dialog, setDialog] = useState<'add' | 'edit' | 'move' | null>(null)
   const hasChildren = node.children.length > 0
   const isCollapsed = collapsed.has(node.id)
+  // Can't toggle admin-node on the business root or on the caller's own node (API rejects both).
+  const canToggleAdmin = node.parentId !== null && node.id !== me?.branch?.id
 
   return (
     <>
@@ -152,9 +156,11 @@ function TreeRow({ node, all, collapsed, toggle }: { node: BranchNodeDto; all: B
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => setDialog('add')}>Add sub-branch</DropdownMenuItem>
               <DropdownMenuItem onClick={() => setDialog('edit')}>Edit</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => update.mutate({ id: node.id, body: { isAdminNode: !node.isAdminNode } })}>
-                {node.isAdminNode ? 'Revoke admin node' : 'Make admin node'}
-              </DropdownMenuItem>
+              {canToggleAdmin && (
+                <DropdownMenuItem onClick={() => update.mutate({ id: node.id, body: { isAdminNode: !node.isAdminNode } })}>
+                  {node.isAdminNode ? 'Revoke admin node' : 'Make admin node'}
+                </DropdownMenuItem>
+              )}
               {node.parentId !== null && <DropdownMenuItem onClick={() => setDialog('move')}>Move…</DropdownMenuItem>}
             </DropdownMenuContent>
           </DropdownMenu>

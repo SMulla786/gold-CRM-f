@@ -1,6 +1,7 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 
-import { api, setAccessToken, setActiveBranch } from '@/lib/api'
+import { api, refreshAccessToken, setAccessToken, setActiveBranch, setOnAuthLost } from '@/lib/api'
 import type { LoginResponse, MeDto, PermissionAction } from '@/shared'
 
 interface AuthValue {
@@ -28,6 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<MeDto | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeBranch, setActiveBranchState] = useState('all')
+  const queryClient = useQueryClient()
 
   const apply = useCallback((user: MeDto | null) => {
     setMe(user)
@@ -36,15 +38,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setActiveBranch(user ? b : null)
   }, [])
 
-  // Refresh the access token from the cookie, then load /me.
+  // Refresh the access token from the cookie (single-flight, shared with request-retry), then load /me.
   const restore = useCallback(async () => {
-    try {
-      const r = await api.post<{ accessToken: string }>('/auth/refresh')
-      setAccessToken(r.accessToken)
-      apply(await api.get<MeDto>('/auth/me'))
-    } catch {
-      apply(null)
-    }
+    if (await refreshAccessToken()) apply(await api.get<MeDto>('/auth/me'))
+    else apply(null)
   }, [apply])
 
   useEffect(() => {
@@ -56,6 +53,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       alive = false
     }
   }, [restore])
+
+  // A mid-session refresh failure (api.ts) means the session is gone — drop to logged-out so guards redirect.
+  useEffect(() => {
+    setOnAuthLost(() => apply(null))
+    return () => setOnAuthLost(null)
+  }, [apply])
 
   const setBranch = useCallback((b: string) => {
     setActiveBranchState(b)
@@ -78,16 +81,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setAccessToken(null)
       apply(null)
+      queryClient.clear() // drop cached data so the next user on this terminal can't see it
     }
-  }, [apply])
+  }, [apply, queryClient])
 
   const impersonate = useCallback(
     async (businessId: number, reason: string) => {
       const res = await api.post<LoginResponse>(`/platform/businesses/${businessId}/impersonate`, { reason })
       setAccessToken(res.accessToken)
+      queryClient.clear() // never let one business's cached data bleed into another
       apply(res.user)
     },
-    [apply],
+    [apply, queryClient],
   )
 
   // End impersonation by restoring the real (super admin) session from the cookie.
@@ -97,8 +102,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // ignore — restore is what matters
     }
+    queryClient.clear()
     await restore()
-  }, [restore])
+  }, [restore, queryClient])
 
   const value = useMemo<AuthValue>(
     () => ({

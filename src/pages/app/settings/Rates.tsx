@@ -1,0 +1,183 @@
+import { useEffect, useState } from 'react'
+
+import { MpinDialog } from '@/components/MpinDialog'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { useCurrentRates, useRateHistory, useRateLimits, useSaveRateLimits, useSetRates } from '@/lib/appQueries'
+import type { Metal, RateRowDto, RateUnitKey } from '@/shared'
+
+type MpinAction = { title: string; run: (mpin: string) => Promise<unknown> }
+type EditRow = { karatCode: string; title: string; touch: string; sell: string; buy: string }
+const toEdit = (r: RateRowDto): EditRow => ({ karatCode: r.karatCode, title: r.title, touch: r.touch, sell: r.sellRate, buy: r.buyRate })
+
+export function Rates() {
+  const { data } = useCurrentRates()
+  const [mpinAction, setMpinAction] = useState<MpinAction | null>(null)
+
+  return (
+    <div className="space-y-6">
+      {data ? (
+        <>
+          <MetalRates metal="GOLD" unit={data.gold.rateUnit} rows={data.gold.rows} updatedAt={data.gold.updatedAt} ask={setMpinAction} />
+          <MetalRates metal="SILVER" unit={data.silver.rateUnit} rows={data.silver.rows} updatedAt={data.silver.updatedAt} ask={setMpinAction} />
+        </>
+      ) : (
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      )}
+      <LimitsCard ask={setMpinAction} />
+      <HistoryCard />
+      <MpinDialog open={!!mpinAction} title={mpinAction?.title} onConfirm={(m) => mpinAction!.run(m)} onClose={() => setMpinAction(null)} />
+    </div>
+  )
+}
+
+function MetalRates({ metal, unit, rows, updatedAt, ask }: { metal: Metal; unit: RateUnitKey; rows: RateRowDto[]; updatedAt: string | null; ask: (a: MpinAction) => void }) {
+  const setRates = useSetRates()
+  const [edit, setEdit] = useState<EditRow[]>(rows.map(toEdit))
+  const [override, setOverride] = useState(false)
+  useEffect(() => setEdit(rows.map(toEdit)), [rows])
+
+  const set = (i: number, k: 'sell' | 'buy', val: string) => setEdit((e) => e.map((r, j) => (j === i ? { ...r, [k]: val } : r)))
+
+  // Auto-calc every karat from the purest row (touch 100): rate * touch/100.
+  const autoCalc = () => {
+    const base = edit.reduce((a, b) => (Number(b.touch) > Number(a.touch) ? b : a), edit[0])
+    if (!base) return
+    setEdit((e) => e.map((r) => ({ ...r, sell: String(Math.round((Number(base.sell) * Number(r.touch)) / 100)), buy: String(Math.round((Number(base.buy) * Number(r.touch)) / 100)) })))
+  }
+
+  const save = () => {
+    const body = { metal, rateUnit: unit, overrideLimits: override, rates: edit.map((r) => ({ karatCode: r.karatCode, sellRate: Number(r.sell), buyRate: Number(r.buy) })) }
+    if (override) ask({ title: 'Override rate limits', run: (mpin) => setRates.mutateAsync({ body, mpin }) })
+    else setRates.mutate({ body })
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between">
+        <CardTitle>
+          {metal === 'GOLD' ? 'Gold' : 'Silver'} rates <span className="text-sm font-normal text-muted-foreground">({unit.replace('_', ' ').toLowerCase()}{updatedAt ? ` · updated ${new Date(updatedAt).toLocaleDateString('en-IN')}` : ''})</span>
+        </CardTitle>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={autoCalc}>
+            Auto-calc from {metal === 'GOLD' ? '24K' : '999'}
+          </Button>
+          <Button size="sm" onClick={save} disabled={setRates.isPending}>
+            Save
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Karat</TableHead>
+              <TableHead>Touch</TableHead>
+              <TableHead>Sell</TableHead>
+              <TableHead>Buy</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {edit.map((r, i) => (
+              <TableRow key={r.karatCode}>
+                <TableCell className="font-medium">{r.title}</TableCell>
+                <TableCell className="text-muted-foreground">{r.touch}%</TableCell>
+                <TableCell>
+                  <Input className="w-32" type="number" value={r.sell} onChange={(e) => set(i, 'sell', e.target.value)} />
+                </TableCell>
+                <TableCell>
+                  <Input className="w-32" type="number" value={r.buy} onChange={(e) => set(i, 'buy', e.target.value)} />
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+        <label className="flex items-center gap-2 text-sm">
+          <Checkbox checked={override} onCheckedChange={(v) => setOverride(Boolean(v))} />
+          Override rate limits (needs MPIN)
+        </label>
+      </CardContent>
+    </Card>
+  )
+}
+
+function LimitsCard({ ask }: { ask: (a: MpinAction) => void }) {
+  const { data } = useRateLimits()
+  const save = useSaveRateLimits()
+  const [rows, setRows] = useState<{ metal: Metal; rateUnit: RateUnitKey; min: string; max: string }[]>([])
+  useEffect(() => { if (data) setRows(data.map((l) => ({ metal: l.metal, rateUnit: l.rateUnit, min: l.minRate, max: l.maxRate }))) }, [data])
+
+  const set = (i: number, k: 'min' | 'max', v: string) => setRows((r) => r.map((row, j) => (j === i ? { ...row, [k]: v } : row)))
+  const onSave = () =>
+    ask({ title: 'Save rate limits', run: (mpin) => save.mutateAsync({ limits: rows.map((r) => ({ metal: r.metal, rateUnit: r.rateUnit, minRate: Number(r.min), maxRate: Number(r.max) })), mpin }) })
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between">
+        <CardTitle>Rate limits (min / max guard)</CardTitle>
+        <Button size="sm" onClick={onSave} disabled={!rows.length || save.isPending}>
+          Save limits
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {rows.map((r, i) => (
+          <div key={`${r.metal}-${r.rateUnit}`} className="flex items-center gap-3 text-sm">
+            <span className="w-40">{r.metal} · {r.rateUnit.replace('_', ' ').toLowerCase()}</span>
+            <Label className="text-xs">Min</Label>
+            <Input className="w-32" type="number" value={r.min} onChange={(e) => set(i, 'min', e.target.value)} />
+            <Label className="text-xs">Max</Label>
+            <Input className="w-32" type="number" value={r.max} onChange={(e) => set(i, 'max', e.target.value)} />
+          </div>
+        ))}
+        {!rows.length && <p className="text-sm text-muted-foreground">No limits configured</p>}
+      </CardContent>
+    </Card>
+  )
+}
+
+function HistoryCard() {
+  const { data } = useRateHistory({ page: 1 })
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Rate history</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>When</TableHead>
+              <TableHead>Metal</TableHead>
+              <TableHead>Karat</TableHead>
+              <TableHead>Sell</TableHead>
+              <TableHead>Buy</TableHead>
+              <TableHead>By</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {data?.items.length ? (
+              data.items.map((h) => (
+                <TableRow key={h.id}>
+                  <TableCell>{new Date(h.effectiveAt).toLocaleString('en-IN')}</TableCell>
+                  <TableCell>{h.metal}</TableCell>
+                  <TableCell>{h.karatCode}</TableCell>
+                  <TableCell>{h.sellRate}</TableCell>
+                  <TableCell>{h.buyRate}</TableCell>
+                  <TableCell>{h.createdBy ?? '—'}</TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={6} className="h-20 text-center text-muted-foreground">No history</TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  )
+}
