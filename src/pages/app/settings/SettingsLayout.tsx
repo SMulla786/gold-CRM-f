@@ -12,6 +12,7 @@ const TABS = [
   { to: '/app/settings/invoice', label: 'Invoice', key: 'settings.misc' },
   { to: '/app/settings/rates', label: 'Rates', key: 'settings.misc' },
   { to: '/app/settings/opening', label: 'Opening', key: 'settings.misc' },
+  { to: '/app/settings/girvi', label: 'Girvi', key: 'settings.misc' },
 ]
 
 export function SettingsLayout() {

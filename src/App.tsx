@@ -61,6 +61,11 @@ const OrderList = lazy(() => import('@/pages/app/orders/OrderList').then((m) => 
 const OrderDetail = lazy(() => import('@/pages/app/orders/OrderDetail').then((m) => ({ default: m.OrderDetail })))
 const KarigarIssues = lazy(() => import('@/pages/app/orders/KarigarIssues').then((m) => ({ default: m.KarigarIssues })))
 const RepairBoard = lazy(() => import('@/pages/app/repair/RepairBoard').then((m) => ({ default: m.RepairBoard })))
+const GirviLayout = lazy(() => import('@/pages/app/girvi/GirviLayout').then((m) => ({ default: m.GirviLayout })))
+const NewGirvi = lazy(() => import('@/pages/app/girvi/NewGirvi').then((m) => ({ default: m.NewGirvi })))
+const GirviList = lazy(() => import('@/pages/app/girvi/GirviList').then((m) => ({ default: m.GirviList })))
+const GirviDetail = lazy(() => import('@/pages/app/girvi/GirviDetail').then((m) => ({ default: m.GirviDetail })))
+const GirviDefaults = lazy(() => import('@/pages/app/settings/GirviDefaults').then((m) => ({ default: m.GirviDefaults })))
 const UdhariLayout = lazy(() => import('@/pages/app/udhari/UdhariLayout').then((m) => ({ default: m.UdhariLayout })))
 const NewUdhar = lazy(() => import('@/pages/app/udhari/NewUdhar').then((m) => ({ default: m.NewUdhar })))
 const UdharLedger = lazy(() => import('@/pages/app/udhari/UdharLedger').then((m) => ({ default: m.UdharLedger })))
@@ -122,6 +127,7 @@ export default function App() {
               <Route path="invoice" element={<InvoiceSettings />} />
               <Route path="rates" element={<Rates />} />
               <Route path="opening" element={<OpeningBalances />} />
+              <Route path="girvi" element={<GirviDefaults />} />
             </Route>
             <Route path="inventory" element={<InventoryLayout />}>
               <Route index element={<InventoryDashboard />} />
@@ -160,6 +166,11 @@ export default function App() {
               <Route path=":id" element={<OrderDetail />} />
             </Route>
             <Route path="repair" element={<RepairBoard />} />
+            <Route path="girvi" element={<GirviLayout />}>
+              <Route index element={<GirviList />} />
+              <Route path="new" element={<NewGirvi />} />
+              <Route path=":id" element={<GirviDetail />} />
+            </Route>
             <Route path="udhari" element={<UdhariLayout />}>
               <Route index element={<NewUdhar />} />
               <Route path="ledger" element={<UdharLedger />} />
