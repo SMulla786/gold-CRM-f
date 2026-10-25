@@ -1,15 +1,16 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useEffect, useState } from 'react'
+import { cloneElement, isValidElement, useEffect, useId, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
+import { PartyCombobox } from '@/components/PartyCombobox'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { partySearch, useCreateParty, useUpdateParty } from '@/lib/appQueries'
+import { useCreateParty, useUpdateParty } from '@/lib/appQueries'
 import { useStates, useDistricts } from '@/lib/queries'
 import { PARTY_TYPES, partyBody, type PartyDto, type PartyRefDto, type PartyType } from '@/shared'
 
@@ -19,10 +20,11 @@ type PartyOut = z.output<typeof partyBody>
 const TYPE_LABEL: Record<PartyType, string> = { CUSTOMER: 'Customer', SUPPLIER: 'Supplier', KARIGAR: 'Karigar', WHOLESALER: 'Wholesaler' }
 
 function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
+  const id = useId()
   return (
     <div className="space-y-1.5">
-      <Label>{label}</Label>
-      {children}
+      <Label htmlFor={id}>{label}</Label>
+      {isValidElement(children) ? cloneElement(children as React.ReactElement<{ id?: string }>, { id }) : children}
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   )
@@ -61,8 +63,6 @@ export function NewPartyDialog({ open, onClose, defaultType = 'CUSTOMER', party,
 
   const [isSub, setIsSub] = useState(false)
   const [parent, setParent] = useState<PartyRefDto | null>(null)
-  const [parentQuery, setParentQuery] = useState('')
-  const [parentResults, setParentResults] = useState<PartyRefDto[]>([])
 
   useEffect(() => {
     if (party) {
@@ -79,13 +79,6 @@ export function NewPartyDialog({ open, onClose, defaultType = 'CUSTOMER', party,
       }
     }
   }, [party, reset])
-
-  // parent typeahead (customers only)
-  useEffect(() => {
-    if (!isSub || parentQuery.trim().length < 1) return setParentResults([])
-    const t = setTimeout(() => void partySearch(parentQuery, 'CUSTOMER').then(setParentResults).catch(() => setParentResults([])), 250)
-    return () => clearTimeout(t)
-  }, [parentQuery, isSub])
 
   const onSubmit = handleSubmit(async (values) => {
     const body = { ...values, parentId: isSub ? parent?.id : undefined }
@@ -109,7 +102,7 @@ export function NewPartyDialog({ open, onClose, defaultType = 'CUSTOMER', party,
           <div className="grid grid-cols-2 gap-3">
             <Field label="Type">
               <Select value={type} onValueChange={(v) => setValue('type', v as PartyType)}>
-                <SelectTrigger>
+                <SelectTrigger aria-label="Party type">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -135,40 +128,7 @@ export function NewPartyDialog({ open, onClose, defaultType = 'CUSTOMER', party,
                 <Checkbox checked={isSub} onCheckedChange={(v) => setIsSub(Boolean(v))} />
                 Add as family sub-profile (under a parent customer)
               </label>
-              {isSub && (
-                <div>
-                  {parent ? (
-                    <div className="flex items-center justify-between rounded border px-3 py-1.5 text-sm">
-                      <span>{parent.name}</span>
-                      <Button type="button" variant="ghost" size="sm" onClick={() => setParent(null)}>
-                        Change
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="relative">
-                      <Input placeholder="Search parent customer…" value={parentQuery} onChange={(e) => setParentQuery(e.target.value)} />
-                      {parentResults.length > 0 && (
-                        <div className="absolute z-10 mt-1 w-full rounded-md border bg-popover shadow">
-                          {parentResults.map((r) => (
-                            <button
-                              type="button"
-                              key={r.id}
-                              className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent"
-                              onClick={() => {
-                                setParent(r)
-                                setParentQuery('')
-                                setParentResults([])
-                              }}
-                            >
-                              {r.name} · {r.mobile}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
+              {isSub && <PartyCombobox value={parent} onChange={setParent} type="CUSTOMER" placeholder="Search parent customer…" />}
             </div>
           )}
 
@@ -194,7 +154,7 @@ export function NewPartyDialog({ open, onClose, defaultType = 'CUSTOMER', party,
           <div className="grid grid-cols-2 gap-3">
             <Field label="State">
               <Select value={stateId ? String(stateId) : ''} onValueChange={(v) => { setValue('stateId', Number(v)); setValue('districtId', undefined) }}>
-                <SelectTrigger>
+                <SelectTrigger aria-label="State">
                   <SelectValue placeholder="Select state" />
                 </SelectTrigger>
                 <SelectContent>
@@ -208,7 +168,7 @@ export function NewPartyDialog({ open, onClose, defaultType = 'CUSTOMER', party,
             </Field>
             <Field label="District">
               <Select value={watch('districtId') ? String(watch('districtId')) : ''} onValueChange={(v) => setValue('districtId', Number(v))} disabled={!stateId}>
-                <SelectTrigger>
+                <SelectTrigger aria-label="District">
                   <SelectValue placeholder="Select district" />
                 </SelectTrigger>
                 <SelectContent>

@@ -1,6 +1,7 @@
 import type { ColumnDef } from '@tanstack/react-table'
 import { useState } from 'react'
 
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { DataTable } from '@/components/DataTable'
 import { NewPartyDialog } from '@/components/NewPartyDialog'
 import { Badge } from '@/components/ui/badge'
@@ -8,9 +9,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useDeleteParty, useParties, useParty } from '@/lib/appQueries'
+import { useAuth } from '@/lib/auth'
 import { PARTY_TYPES, type PartyListItemDto, type PartyType } from '@/shared'
 
 export function Parties() {
+  const { can } = useAuth()
+  const canEdit = can('settings.parties', 'edit')
+  const canDelete = can('settings.parties', 'delete')
   const [type, setType] = useState('')
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
@@ -19,6 +24,7 @@ export function Parties() {
   const [creating, setCreating] = useState(false)
   const [editId, setEditId] = useState<number | null>(null)
   const { data: editParty } = useParty(editId ?? undefined)
+  const [removing, setRemoving] = useState<PartyListItemDto | null>(null)
 
   const columns: ColumnDef<PartyListItemDto, unknown>[] = [
     { accessorKey: 'name', header: 'Name', cell: ({ row }) => <span className="font-medium">{row.original.name}</span> },
@@ -32,16 +38,16 @@ export function Parties() {
       header: '',
       cell: ({ row }) => (
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => setEditId(row.original.id)}>
-            Edit
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => window.confirm(`Remove ${row.original.name}?`) && del.mutate(row.original.id)}
-          >
-            Remove
-          </Button>
+          {canEdit && (
+            <Button variant="outline" size="sm" onClick={() => setEditId(row.original.id)}>
+              Edit
+            </Button>
+          )}
+          {canDelete && (
+            <Button variant="ghost" size="sm" onClick={() => setRemoving(row.original)}>
+              Remove
+            </Button>
+          )}
         </div>
       ),
     },
@@ -52,7 +58,7 @@ export function Parties() {
       <div className="flex flex-wrap items-center gap-3">
         <Input className="max-w-xs" placeholder="Search name / mobile / shop…" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
         <Select value={type || 'all'} onValueChange={(v) => { setType(v === 'all' ? '' : v); setPage(1) }}>
-          <SelectTrigger className="w-40">
+          <SelectTrigger className="w-40" aria-label="Filter by type">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -64,9 +70,11 @@ export function Parties() {
             ))}
           </SelectContent>
         </Select>
-        <Button className="ml-auto" onClick={() => setCreating(true)}>
-          New party
-        </Button>
+        {canEdit && (
+          <Button className="ml-auto" onClick={() => setCreating(true)}>
+            New party
+          </Button>
+        )}
       </div>
 
       <DataTable
@@ -79,6 +87,15 @@ export function Parties() {
 
       {creating && <NewPartyDialog open onClose={() => setCreating(false)} defaultType={(type || 'CUSTOMER') as PartyType} />}
       {editId && editParty && <NewPartyDialog open party={editParty} onClose={() => setEditId(null)} />}
+      <ConfirmDialog
+        open={!!removing}
+        title={`Remove ${removing?.name ?? ''}?`}
+        description="The party is deactivated, not deleted. You can re-add it later."
+        confirmLabel="Remove"
+        destructive
+        onConfirm={async () => { if (removing) await del.mutateAsync(removing.id) }}
+        onClose={() => setRemoving(null)}
+      />
     </div>
   )
 }

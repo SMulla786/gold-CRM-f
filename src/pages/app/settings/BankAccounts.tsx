@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -10,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useBankAccounts, useDeleteBankAccount, useSaveBankAccount } from '@/lib/appQueries'
+import { useAuth } from '@/lib/auth'
 import { useBranches } from '@/lib/queries'
 import { BANK_APPLY_TO, bankAccountBody, type BankAccountDto, type BranchNodeDto } from '@/shared'
 
@@ -45,7 +47,7 @@ function BankDialog({ account, onClose }: { account?: BankAccountDto; onClose: (
           <div className="space-y-1.5">
             <Label>Applies to branch</Label>
             <Select value={String(watch('branchId') ?? 0)} onValueChange={(v) => setValue('branchId', Number(v))}>
-              <SelectTrigger>
+              <SelectTrigger aria-label="Applies to branch">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -83,7 +85,7 @@ function BankDialog({ account, onClose }: { account?: BankAccountDto; onClose: (
           <div className="space-y-1.5">
             <Label>Apply to</Label>
             <Select value={watch('applyTo')} onValueChange={(v) => setValue('applyTo', v as BankOut['applyTo'])}>
-              <SelectTrigger>
+              <SelectTrigger aria-label="Apply to">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -107,15 +109,19 @@ function BankDialog({ account, onClose }: { account?: BankAccountDto; onClose: (
 }
 
 export function BankAccounts() {
+  const { can } = useAuth()
+  const canEdit = can('settings.misc', 'edit')
+  const canDelete = can('settings.misc', 'delete')
   const { data, isLoading } = useBankAccounts()
   const del = useDeleteBankAccount()
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<BankAccountDto | null>(null)
+  const [removing, setRemoving] = useState<BankAccountDto | null>(null)
 
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <Button onClick={() => setCreating(true)}>New bank account</Button>
+        {canEdit && <Button onClick={() => setCreating(true)}>New bank account</Button>}
       </div>
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
@@ -130,12 +136,16 @@ export function BankAccounts() {
               <span className="text-muted-foreground">{a.branchId === 0 ? 'All branches' : a.branchName ?? `Branch ${a.branchId}`}</span>
               {!a.isActive && <Badge variant="destructive">Inactive</Badge>}
               <div className="ml-auto flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => setEditing(a)}>
-                  Edit
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => window.confirm(`Remove ${a.bankName}?`) && del.mutate(a.id)}>
-                  Remove
-                </Button>
+                {canEdit && (
+                  <Button variant="outline" size="sm" onClick={() => setEditing(a)}>
+                    Edit
+                  </Button>
+                )}
+                {canDelete && (
+                  <Button variant="ghost" size="sm" onClick={() => setRemoving(a)}>
+                    Remove
+                  </Button>
+                )}
               </div>
             </div>
           ))}
@@ -143,6 +153,15 @@ export function BankAccounts() {
       )}
       {creating && <BankDialog onClose={() => setCreating(false)} />}
       {editing && <BankDialog account={editing} onClose={() => setEditing(null)} />}
+      <ConfirmDialog
+        open={!!removing}
+        title={`Remove ${removing?.bankName ?? ''}?`}
+        description="The account is deactivated, not deleted."
+        confirmLabel="Remove"
+        destructive
+        onConfirm={async () => { if (removing) await del.mutateAsync(removing.id) }}
+        onClose={() => setRemoving(null)}
+      />
     </div>
   )
 }

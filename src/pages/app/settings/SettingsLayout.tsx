@@ -1,21 +1,25 @@
 import { NavLink, Outlet } from 'react-router-dom'
 
+import { useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
+// Parties page is gated by settings.parties; the rest by settings.misc.
 const TABS = [
-  { to: '/app/settings/parties', label: 'Parties' },
-  { to: '/app/settings/bank-accounts', label: 'Bank Accounts' },
-  { to: '/app/settings/hsn', label: 'HSN' },
-  { to: '/app/settings/general', label: 'General' },
-  { to: '/app/settings/rates', label: 'Rates' },
+  { to: '/app/settings/parties', label: 'Parties', key: 'settings.parties' },
+  { to: '/app/settings/bank-accounts', label: 'Bank Accounts', key: 'settings.misc' },
+  { to: '/app/settings/hsn', label: 'HSN', key: 'settings.misc' },
+  { to: '/app/settings/general', label: 'General', key: 'settings.misc' },
+  { to: '/app/settings/rates', label: 'Rates', key: 'settings.misc' },
 ]
 
 export function SettingsLayout() {
+  const { can } = useAuth()
+  const tabs = TABS.filter((t) => can(t.key, 'view'))
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Settings</h1>
       <nav className="flex gap-1 border-b">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <NavLink
             key={t.to}
             to={t.to}

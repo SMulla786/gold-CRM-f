@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { toast } from 'sonner'
 
 import { MpinDialog } from '@/components/MpinDialog'
 import { Badge } from '@/components/ui/badge'
@@ -9,7 +10,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useCreateKarat, useDeleteKarat, useKarats, useSaveSetting, useSettings, useUpdateKarat } from '@/lib/appQueries'
-import type { KaratDto, SettingsDto } from '@/shared'
+import { useAuth } from '@/lib/auth'
+import { karatBody, type KaratDto, type SettingsDto } from '@/shared'
 
 type MpinAction = { title: string; run: (mpin: string) => Promise<unknown> }
 
@@ -38,13 +40,16 @@ export function General() {
 }
 
 function SaveSettingCard({ title, children, onSave, ask }: { title: string; children: React.ReactNode; onSave: (mpin: string) => Promise<unknown>; ask: (a: MpinAction) => void }) {
+  const { can } = useAuth()
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between">
         <CardTitle>{title}</CardTitle>
-        <Button size="sm" onClick={() => ask({ title: 'Authenticate & save', run: onSave })}>
-          Save
-        </Button>
+        {can('settings.misc', 'edit') && (
+          <Button size="sm" onClick={() => ask({ title: 'Authenticate & save', run: onSave })}>
+            Save
+          </Button>
+        )}
       </CardHeader>
       <CardContent className="space-y-4">{children}</CardContent>
     </Card>
@@ -61,7 +66,7 @@ function CalcBasisCard({ settings, ask }: { settings: SettingsDto; ask: (a: Mpin
           <div key={k} className="space-y-1.5">
             <Label className="capitalize">{k} basis</Label>
             <Select value={v[k]} onValueChange={(nv) => setV({ ...v, [k]: nv as (typeof BASIS)[number] })}>
-              <SelectTrigger>
+              <SelectTrigger aria-label={`${k} basis`}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -88,7 +93,7 @@ function RateUnitsCard({ settings, ask }: { settings: SettingsDto; ask: (a: Mpin
         <div className="space-y-1.5">
           <Label>Gold</Label>
           <Select value={v.gold} onValueChange={(nv) => setV({ ...v, gold: nv as typeof v.gold })}>
-            <SelectTrigger>
+            <SelectTrigger aria-label="Gold rate unit">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -101,7 +106,7 @@ function RateUnitsCard({ settings, ask }: { settings: SettingsDto; ask: (a: Mpin
         <div className="space-y-1.5">
           <Label>Silver</Label>
           <Select value={v.silver} onValueChange={(nv) => setV({ ...v, silver: nv as typeof v.silver })}>
-            <SelectTrigger>
+            <SelectTrigger aria-label="Silver rate unit">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -124,7 +129,7 @@ function PrintCard({ settings, ask }: { settings: SettingsDto; ask: (a: MpinActi
         <div className="space-y-1.5">
           <Label>Default layout</Label>
           <Select value={v.layout} onValueChange={(nv) => setV({ ...v, layout: nv as typeof v.layout })}>
-            <SelectTrigger>
+            <SelectTrigger aria-label="Print layout">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -152,6 +157,9 @@ function PrintCard({ settings, ask }: { settings: SettingsDto; ask: (a: MpinActi
 }
 
 function KaratCard({ ask }: { ask: (a: MpinAction) => void }) {
+  const { can } = useAuth()
+  const canEdit = can('settings.misc', 'edit')
+  const canDelete = can('settings.misc', 'delete')
   const { data: karats } = useKarats()
   const create = useCreateKarat()
   const update = useUpdateKarat()
@@ -159,10 +167,23 @@ function KaratCard({ ask }: { ask: (a: MpinAction) => void }) {
   const [add, setAdd] = useState({ metal: 'GOLD', code: '', title: '', touch: '' })
   const [edit, setEdit] = useState<Record<number, string>>({}) // id -> touch being edited
 
+  // Validate with the shared schema (blank touch -> error, not 0).
   const submitAdd = () => {
-    if (!add.code || !add.title || !add.touch) return
-    create.mutate({ metal: add.metal, code: add.code, title: add.title, touch: Number(add.touch) })
+    const parsed = karatBody.safeParse(add)
+    if (!parsed.success) return toast.error(parsed.error.issues[0]?.message ?? 'Invalid karat')
+    create.mutate(parsed.data)
     setAdd({ metal: 'GOLD', code: '', title: '', touch: '' })
+  }
+  const saveTouch = (id: number, value: string) => {
+    const parsed = karatBody.shape.touch.safeParse(value)
+    if (!parsed.success) return toast.error(parsed.error.issues[0]?.message ?? 'Invalid touch')
+    ask({
+      title: 'Save karat',
+      run: async (mpin) => {
+        await update.mutateAsync({ id, body: { touch: parsed.data }, mpin })
+        setEdit((p) => { const n = { ...p }; delete n[id]; return n })
+      },
+    })
   }
 
   return (
@@ -180,16 +201,18 @@ function KaratCard({ ask }: { ask: (a: MpinAction) => void }) {
               className="w-28"
               type="number"
               step="0.01"
+              aria-label={`${k.title} touch %`}
+              disabled={!canEdit}
               value={edit[k.id] ?? k.touch}
               onChange={(e) => setEdit({ ...edit, [k.id]: e.target.value })}
             />
             <span className="text-muted-foreground">% touch</span>
-            {edit[k.id] !== undefined && edit[k.id] !== k.touch && (
-              <Button size="sm" variant="outline" onClick={() => ask({ title: 'Save karat', run: async (mpin) => { await update.mutateAsync({ id: k.id, body: { touch: Number(edit[k.id]) }, mpin }); setEdit((p) => { const n = { ...p }; delete n[k.id]; return n }) } })}>
+            {canEdit && edit[k.id] !== undefined && edit[k.id] !== k.touch && (
+              <Button size="sm" variant="outline" onClick={() => saveTouch(k.id, edit[k.id])}>
                 Save
               </Button>
             )}
-            {!k.isSystem && (
+            {canDelete && !k.isSystem && (
               <Button size="sm" variant="ghost" onClick={() => ask({ title: 'Delete karat', run: (mpin) => del.mutateAsync({ id: k.id, mpin }) })}>
                 Delete
               </Button>
@@ -197,11 +220,12 @@ function KaratCard({ ask }: { ask: (a: MpinAction) => void }) {
           </div>
         ))}
 
+        {canEdit && (
         <div className="flex flex-wrap items-end gap-2 border-t pt-3">
           <div className="space-y-1">
             <Label className="text-xs">Metal</Label>
             <Select value={add.metal} onValueChange={(v) => setAdd({ ...add, metal: v })}>
-              <SelectTrigger className="w-28">
+              <SelectTrigger className="w-28" aria-label="Metal">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -226,6 +250,7 @@ function KaratCard({ ask }: { ask: (a: MpinAction) => void }) {
             Add karat
           </Button>
         </div>
+        )}
       </CardContent>
     </Card>
   )

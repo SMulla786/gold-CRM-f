@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 
 import { MpinDialog } from '@/components/MpinDialog'
 import { Button } from '@/components/ui/button'
@@ -8,7 +9,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useCurrentRates, useRateHistory, useRateLimits, useSaveRateLimits, useSetRates } from '@/lib/appQueries'
-import type { Metal, RateRowDto, RateUnitKey } from '@/shared'
+import { useAuth } from '@/lib/auth'
+import { rateLimitsBody, setRatesBody, type Metal, type RateRowDto, type RateUnitKey } from '@/shared'
 
 type MpinAction = { title: string; run: (mpin: string) => Promise<unknown> }
 type EditRow = { karatCode: string; title: string; touch: string; sell: string; buy: string }
@@ -36,6 +38,8 @@ export function Rates() {
 }
 
 function MetalRates({ metal, unit, rows, updatedAt, ask }: { metal: Metal; unit: RateUnitKey; rows: RateRowDto[]; updatedAt: string | null; ask: (a: MpinAction) => void }) {
+  const { can } = useAuth()
+  const canEdit = can('settings.misc', 'edit')
   const setRates = useSetRates()
   const [edit, setEdit] = useState<EditRow[]>(rows.map(toEdit))
   const [override, setOverride] = useState(false)
@@ -51,7 +55,10 @@ function MetalRates({ metal, unit, rows, updatedAt, ask }: { metal: Metal; unit:
   }
 
   const save = () => {
-    const body = { metal, rateUnit: unit, overrideLimits: override, rates: edit.map((r) => ({ karatCode: r.karatCode, sellRate: Number(r.sell), buyRate: Number(r.buy) })) }
+    // shared zod coerces + rejects blanks (decimalInput: blank -> NaN -> error, not 0)
+    const parsed = setRatesBody.safeParse({ metal, rateUnit: unit, overrideLimits: override, rates: edit.map((r) => ({ karatCode: r.karatCode, sellRate: r.sell, buyRate: r.buy })) })
+    if (!parsed.success) return toast.error(parsed.error.issues[0]?.message ?? 'Enter valid rates')
+    const body = parsed.data as Record<string, unknown>
     if (override) ask({ title: 'Override rate limits', run: (mpin) => setRates.mutateAsync({ body, mpin }) })
     else setRates.mutate({ body })
   }
@@ -62,14 +69,16 @@ function MetalRates({ metal, unit, rows, updatedAt, ask }: { metal: Metal; unit:
         <CardTitle>
           {metal === 'GOLD' ? 'Gold' : 'Silver'} rates <span className="text-sm font-normal text-muted-foreground">({unit.replace('_', ' ').toLowerCase()}{updatedAt ? ` · updated ${new Date(updatedAt).toLocaleDateString('en-IN')}` : ''})</span>
         </CardTitle>
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={autoCalc}>
-            Auto-calc from {metal === 'GOLD' ? '24K' : '999'}
-          </Button>
-          <Button size="sm" onClick={save} disabled={setRates.isPending}>
-            Save
-          </Button>
-        </div>
+        {canEdit && (
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={autoCalc}>
+              Auto-calc from {metal === 'GOLD' ? '24K' : '999'}
+            </Button>
+            <Button size="sm" onClick={save} disabled={setRates.isPending}>
+              Save
+            </Button>
+          </div>
+        )}
       </CardHeader>
       <CardContent className="space-y-3">
         <Table>
@@ -87,50 +96,60 @@ function MetalRates({ metal, unit, rows, updatedAt, ask }: { metal: Metal; unit:
                 <TableCell className="font-medium">{r.title}</TableCell>
                 <TableCell className="text-muted-foreground">{r.touch}%</TableCell>
                 <TableCell>
-                  <Input className="w-32" type="number" value={r.sell} onChange={(e) => set(i, 'sell', e.target.value)} />
+                  <Input className="w-32" type="number" aria-label={`${r.title} sell rate`} disabled={!canEdit} value={r.sell} onChange={(e) => set(i, 'sell', e.target.value)} />
                 </TableCell>
                 <TableCell>
-                  <Input className="w-32" type="number" value={r.buy} onChange={(e) => set(i, 'buy', e.target.value)} />
+                  <Input className="w-32" type="number" aria-label={`${r.title} buy rate`} disabled={!canEdit} value={r.buy} onChange={(e) => set(i, 'buy', e.target.value)} />
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
-        <label className="flex items-center gap-2 text-sm">
-          <Checkbox checked={override} onCheckedChange={(v) => setOverride(Boolean(v))} />
-          Override rate limits (needs MPIN)
-        </label>
+        {canEdit && (
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox checked={override} onCheckedChange={(v) => setOverride(Boolean(v))} />
+            Override rate limits (needs MPIN)
+          </label>
+        )}
       </CardContent>
     </Card>
   )
 }
 
 function LimitsCard({ ask }: { ask: (a: MpinAction) => void }) {
+  const { can } = useAuth()
+  const canEdit = can('settings.misc', 'edit')
   const { data } = useRateLimits()
   const save = useSaveRateLimits()
   const [rows, setRows] = useState<{ metal: Metal; rateUnit: RateUnitKey; min: string; max: string }[]>([])
   useEffect(() => { if (data) setRows(data.map((l) => ({ metal: l.metal, rateUnit: l.rateUnit, min: l.minRate, max: l.maxRate }))) }, [data])
 
   const set = (i: number, k: 'min' | 'max', v: string) => setRows((r) => r.map((row, j) => (j === i ? { ...row, [k]: v } : row)))
-  const onSave = () =>
-    ask({ title: 'Save rate limits', run: (mpin) => save.mutateAsync({ limits: rows.map((r) => ({ metal: r.metal, rateUnit: r.rateUnit, minRate: Number(r.min), maxRate: Number(r.max) })), mpin }) })
+  const onSave = () => {
+    // rateLimitsBody enforces max > min and rejects blanks via shared zod
+    const parsed = rateLimitsBody.safeParse({ limits: rows.map((r) => ({ metal: r.metal, rateUnit: r.rateUnit, minRate: r.min, maxRate: r.max })) })
+    if (!parsed.success) return toast.error(parsed.error.issues[0]?.message ?? 'Enter valid limits')
+    ask({ title: 'Save rate limits', run: (mpin) => save.mutateAsync({ limits: parsed.data.limits, mpin }) })
+  }
 
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between">
         <CardTitle>Rate limits (min / max guard)</CardTitle>
-        <Button size="sm" onClick={onSave} disabled={!rows.length || save.isPending}>
-          Save limits
-        </Button>
+        {canEdit && (
+          <Button size="sm" onClick={onSave} disabled={!rows.length || save.isPending}>
+            Save limits
+          </Button>
+        )}
       </CardHeader>
       <CardContent className="space-y-2">
         {rows.map((r, i) => (
           <div key={`${r.metal}-${r.rateUnit}`} className="flex items-center gap-3 text-sm">
             <span className="w-40">{r.metal} · {r.rateUnit.replace('_', ' ').toLowerCase()}</span>
             <Label className="text-xs">Min</Label>
-            <Input className="w-32" type="number" value={r.min} onChange={(e) => set(i, 'min', e.target.value)} />
+            <Input className="w-32" type="number" aria-label={`${r.metal} ${r.rateUnit} min`} disabled={!canEdit} value={r.min} onChange={(e) => set(i, 'min', e.target.value)} />
             <Label className="text-xs">Max</Label>
-            <Input className="w-32" type="number" value={r.max} onChange={(e) => set(i, 'max', e.target.value)} />
+            <Input className="w-32" type="number" aria-label={`${r.metal} ${r.rateUnit} max`} disabled={!canEdit} value={r.max} onChange={(e) => set(i, 'max', e.target.value)} />
           </div>
         ))}
         {!rows.length && <p className="text-sm text-muted-foreground">No limits configured</p>}

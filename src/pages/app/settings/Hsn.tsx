@@ -5,9 +5,12 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useHsn, useToggleHsn } from '@/lib/appQueries'
+import { useAuth } from '@/lib/auth'
 import { HSN_CATEGORIES } from '@/shared'
 
 export function Hsn() {
+  const { can } = useAuth()
+  const canEdit = can('settings.misc', 'edit')
   const [q, setQ] = useState('')
   const [category, setCategory] = useState('')
   const { data, isLoading } = useHsn({ q: q || undefined, category: category || undefined })
@@ -18,7 +21,7 @@ export function Hsn() {
       <div className="flex flex-wrap items-center gap-3">
         <Input className="max-w-xs" placeholder="Search HSN / product…" value={q} onChange={(e) => setQ(e.target.value)} />
         <Select value={category || 'all'} onValueChange={(v) => setCategory(v === 'all' ? '' : v)}>
-          <SelectTrigger className="w-44">
+          <SelectTrigger className="w-44" aria-label="Category">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -52,7 +55,7 @@ export function Hsn() {
               data.map((h) => (
                 <TableRow key={h.id}>
                   <TableCell>
-                    <Checkbox checked={h.active} onCheckedChange={(v) => toggle.mutate({ id: h.id, active: Boolean(v) })} />
+                    <Checkbox aria-label={`Enable HSN ${h.code}`} checked={h.active} disabled={!canEdit} onCheckedChange={(v) => toggle.mutate({ id: h.id, active: Boolean(v) })} />
                   </TableCell>
                   <TableCell>{h.category}</TableCell>
                   <TableCell>{h.productType}</TableCell>
