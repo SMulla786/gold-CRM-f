@@ -55,6 +55,11 @@ const JustBillList = lazy(() => import('@/pages/app/billing/JustBillList').then(
 const JustBillView = lazy(() => import('@/pages/app/billing/JustBillView').then((m) => ({ default: m.JustBillView })))
 const Drafts = lazy(() => import('@/pages/app/billing/Drafts').then((m) => ({ default: m.Drafts })))
 const DraftApprovals = lazy(() => import('@/pages/app/billing/DraftApprovals').then((m) => ({ default: m.DraftApprovals })))
+const OrdersLayout = lazy(() => import('@/pages/app/orders/OrdersLayout').then((m) => ({ default: m.OrdersLayout })))
+const NewOrder = lazy(() => import('@/pages/app/orders/NewOrder').then((m) => ({ default: m.NewOrder })))
+const OrderList = lazy(() => import('@/pages/app/orders/OrderList').then((m) => ({ default: m.OrderList })))
+const OrderDetail = lazy(() => import('@/pages/app/orders/OrderDetail').then((m) => ({ default: m.OrderDetail })))
+const KarigarIssues = lazy(() => import('@/pages/app/orders/KarigarIssues').then((m) => ({ default: m.KarigarIssues })))
 const UdhariLayout = lazy(() => import('@/pages/app/udhari/UdhariLayout').then((m) => ({ default: m.UdhariLayout })))
 const NewUdhar = lazy(() => import('@/pages/app/udhari/NewUdhar').then((m) => ({ default: m.NewUdhar })))
 const UdharLedger = lazy(() => import('@/pages/app/udhari/UdharLedger').then((m) => ({ default: m.UdharLedger })))
@@ -146,6 +151,12 @@ export default function App() {
               <Route path="approvals" element={<DraftApprovals />} />
               <Route path="edit/:id" element={<BillEdit />} />
               <Route path="view/:id" element={<BillView />} />
+            </Route>
+            <Route path="orders" element={<OrdersLayout />}>
+              <Route index element={<OrderList />} />
+              <Route path="new" element={<NewOrder />} />
+              <Route path="karigar" element={<KarigarIssues />} />
+              <Route path=":id" element={<OrderDetail />} />
             </Route>
             <Route path="udhari" element={<UdhariLayout />}>
               <Route index element={<NewUdhar />} />

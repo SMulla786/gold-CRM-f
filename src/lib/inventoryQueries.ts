@@ -32,7 +32,7 @@ export const useCreateItemGroup = () =>
 export const useUpdateItemGroup = () =>
   useApiMutation(({ id, body }: { id: number; body: Record<string, unknown> }) => api.patch(`/app/item-groups/${id}`, body), { invalidate: [['item-groups']], success: 'Group updated' })
 
-export const useItemNames = (params: { page?: number; q?: string; stockClass?: string; groupId?: number }) =>
+export const useItemNames = (params: { page?: number; pageSize?: number; q?: string; stockClass?: string; groupId?: number }) =>
   useQuery({ queryKey: ['item-names', params], queryFn: () => api.get<Paged<ItemNameDto>>(`/app/item-names${qs(params)}`) })
 export const useCreateItemName = () =>
   useApiMutation((body: Record<string, unknown>) => api.post('/app/item-names', body), { invalidate: [['item-names']], success: 'Item name created' })

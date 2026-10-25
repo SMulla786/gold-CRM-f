@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
@@ -19,6 +19,7 @@ import { fetchDraftByNo } from '@/lib/draftsQueries'
 import { ApiException } from '@/lib/errors'
 import { lineRateUnitGrams, metalRateUnitGrams, useCreateBill, useNextBillNo, usePartyBalance, useUpdateBill } from '@/lib/billingQueries'
 import { useItemNames, useStock } from '@/lib/inventoryQueries'
+import { useOrder } from '@/lib/ordersQueries'
 import {
   BILL_TYPES,
   CHARGE_UNITS,
@@ -135,6 +136,21 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
   const [editMpin, setEditMpin] = useState('')
   const [draftId, setDraftId] = useState<number | null>(null) // set when billing from an approved showroom draft
   const [draftNo, setDraftNo] = useState('')
+  const [orderId, setOrderId] = useState<number | null>(null) // set when billing a READY order (?orderId=)
+  const [orderLoaded, setOrderLoaded] = useState(false)
+  const orderIdParam = searchParams.get('orderId')
+  const { data: orderData } = useOrder(!editBill && orderIdParam ? Number(orderIdParam) : undefined)
+
+  // Billing a READY order: prefill its party + reserved finished pieces as lines, carry orderId on the bill.
+  useEffect(() => {
+    if (!orderData || orderLoaded) return
+    setOrderLoaded(true)
+    setParty(orderData.party)
+    setOrderId(orderData.id)
+    void Promise.all(orderData.items.filter((it) => it.stockItemId).map((it) => api.get<StockItemDto>(`/app/stock/${it.stockItemId}`)))
+      .then((items) => setRows(items.map(rowFromStock)))
+      .catch(() => toast.error('Could not load the order items'))
+  }, [orderData, orderLoaded])
   const [walkInDraft, setWalkInDraft] = useState<{ name: string; mobile: string } | null>(null) // walk-in draft needs a party before billing
 
   const retrieveDraft = async () => {
@@ -251,6 +267,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
       keepBalanceAs: keepAs, keepRate: keepAs === 'MONEY' ? undefined : Number(keepRate) || undefined,
       pan: panValue || undefined,
       draftId: !editBill && kind === 'SELL' ? draftId ?? undefined : undefined,
+      orderId: !editBill && kind === 'SELL' ? orderId ?? undefined : undefined,
     }
     try {
       const saved = editBill
