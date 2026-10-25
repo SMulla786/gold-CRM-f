@@ -44,7 +44,7 @@ export function Shell({ area, nav, showBranch }: ShellProps) {
       )}
 
       <header className="flex h-14 shrink-0 items-center gap-4 border-b bg-card px-4">
-        <span className="font-semibold">Just Udhari</span>
+        <span className="font-serif text-lg font-semibold tracking-tight text-brand">Just Udhari</span>
         <span className="rounded bg-secondary px-2 py-0.5 text-xs text-secondary-foreground">{area}</span>
         <div className="ml-auto flex items-center gap-3">
           {area !== 'Platform' && <CommandPalette nav={nav} />}

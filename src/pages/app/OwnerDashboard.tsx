@@ -31,7 +31,7 @@ function MonthlyChart({ data }: { data: Array<{ month: string; sales: string; pu
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium">Last 12 months
-          <span className="ml-3 text-xs font-normal text-muted-foreground"><span className="text-primary">■</span> Sales <span className="ml-2 text-muted-foreground">■</span> Purchases</span>
+          <span className="ml-3 text-xs font-normal text-muted-foreground"><span className="text-brand">■</span> Sales <span className="ml-2 text-muted-foreground">■</span> Purchases</span>
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -39,7 +39,7 @@ function MonthlyChart({ data }: { data: Array<{ month: string; sales: string; pu
           {data.map((m) => (
             <div key={m.month} className="flex flex-1 flex-col items-center gap-1">
               <div className="flex h-32 w-full items-end justify-center gap-0.5">
-                <div className="w-1/2 rounded-t bg-primary" style={{ height: `${(Number(m.sales) / max) * 100}%` }} title={`Sales ${inr(m.sales)}`} />
+                <div className="w-1/2 rounded-t bg-brand" style={{ height: `${(Number(m.sales) / max) * 100}%` }} title={`Sales ${inr(m.sales)}`} />
                 <div className="w-1/2 rounded-t bg-muted-foreground/40" style={{ height: `${(Number(m.purchases) / max) * 100}%` }} title={`Purchases ${inr(m.purchases)}`} />
               </div>
               <span className="text-[10px] text-muted-foreground">{monthLabel(m.month)}</span>
