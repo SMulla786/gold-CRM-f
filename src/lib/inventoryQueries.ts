@@ -54,6 +54,10 @@ export const useStockLedger = (item?: StockItemDto) =>
     enabled: !!item,
   })
 
+/** Reactive "all matching stock" (tag print, scan/match) — loops pages under the 100 cap via fetchAllStock. */
+export const useAllStock = (params: Record<string, string | number | undefined>) =>
+  useQuery({ queryKey: ['stock-all', params], queryFn: () => fetchAllStock(params) })
+
 /** Fetch every stock row matching the current filters, for CSV export (pageSize caps at 100, so loop). */
 export async function fetchAllStock(params: Record<string, string | number | undefined>): Promise<StockItemDto[]> {
   const out: StockItemDto[] = []

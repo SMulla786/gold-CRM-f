@@ -3,12 +3,12 @@ import { useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { useStock } from '@/lib/inventoryQueries'
+import { useAllStock } from '@/lib/inventoryQueries'
 
 // Browser-only stock audit: scan TAG barcodes (keyboard-wedge; Enter submits) and match against available stock.
 export function ScanMatch() {
-  const { data } = useStock({ status: 'AVAILABLE', method: 'TAG', pageSize: 500 })
-  const available = useMemo(() => new Map((data?.items ?? []).filter((i) => i.tagNo).map((i) => [i.tagNo as string, i])), [data])
+  const { data } = useAllStock({ status: 'AVAILABLE', method: 'TAG' })
+  const available = useMemo(() => new Map((data ?? []).filter((i) => i.tagNo).map((i) => [i.tagNo as string, i])), [data])
   const [scanned, setScanned] = useState<Set<string>>(new Set())
   const [unknown, setUnknown] = useState<string[]>([])
   const inputRef = useRef<HTMLInputElement>(null)

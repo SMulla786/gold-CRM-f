@@ -472,10 +472,21 @@ export function BillForm({ kind }: { kind: BillKind }) {
           <Row2 label="Paid" value={inr(paid)} />
           <div className="flex justify-between font-medium"><span>Balance</span><span className={balanceDue < 0 ? 'text-green-600 dark:text-green-500' : ''}>{inr(balanceDue)}{balanceDue < 0 ? ' (advance)' : ''}</span></div>
           <p className="text-xs text-muted-foreground">Live preview — the server recomputes every line and total authoritatively on save (GST split uses the party's state).</p>
-          <Button className="w-full" disabled={!valid || create.isPending} onClick={() => submit()}>
+          <Button className="hidden w-full lg:inline-flex" disabled={!valid || create.isPending} onClick={() => submit()}>
             {create.isPending ? 'Saving…' : `Save ${kind === 'SELL' ? 'sell' : 'purchase'} bill`}
           </Button>
         </div>
+      </div>
+
+      {/* Mobile sticky totals + Save bar (desktop uses the Save in the summary card). */}
+      <div className="sticky bottom-0 z-10 -mx-6 flex items-center gap-3 border-t bg-background/95 px-6 py-3 backdrop-blur lg:hidden">
+        <div className="text-sm">
+          <div className="font-semibold">{inr(bill.final)}</div>
+          <div className="text-xs text-muted-foreground">Bal {inr(balanceDue)}</div>
+        </div>
+        <Button className="ml-auto" disabled={!valid || create.isPending} onClick={() => submit()}>
+          {create.isPending ? 'Saving…' : 'Save bill'}
+        </Button>
       </div>
 
       <Dialog open={panOpen} onOpenChange={(o) => !o && setPanOpen(false)}>
