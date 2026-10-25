@@ -130,7 +130,8 @@ export function BillForm({ kind }: { kind: BillKind }) {
 
   const lineOf = (r: Row) =>
     computeLine({
-      gross: Number(r.gross) || 0, less: Number(r.less) || 0, tunch: Number(r.tunch) || 0, wastage: Number(r.wastage) || 0,
+      // blank tunch → 100 to match the server's fallback (karat pick already fills it); stock rows are prefilled.
+      gross: Number(r.gross) || 0, less: Number(r.less) || 0, tunch: r.tunch !== '' ? Number(r.tunch) : 100, wastage: Number(r.wastage) || 0,
       stoneCharge: Number(r.stoneCharge) || 0, rate: Number(r.rate) || 0, rateUnitGrams: lineRateUnitGrams(kind, r.stockClass, settings),
       labour: Number(r.labour) || 0, labourUnit: r.labourUnit as 'PER_GRAM', other: Number(r.other) || 0,
       discount: Number(r.discount) || 0, discountUnit: r.discountUnit as 'FIXED', basis: basis as 'NET',
@@ -182,7 +183,7 @@ export function BillForm({ kind }: { kind: BillKind }) {
         description: r.stockItemId ? undefined : r.description || undefined,
         stockClass: r.stockClass, tagNo: kind === 'PURCHASE' && r.tagNo ? r.tagNo : undefined,
         karatCode: r.karatCode || undefined, pcs: Number(r.pcs) || 1, gross: Number(r.gross) || 0, less: Number(r.less) || 0,
-        tunch: r.tunch ? Number(r.tunch) : undefined, wastage: Number(r.wastage) || 0, stoneCharge: Number(r.stoneCharge) || 0,
+        tunch: r.tunch !== '' ? Number(r.tunch) : undefined, wastage: Number(r.wastage) || 0, stoneCharge: Number(r.stoneCharge) || 0,
         rate: Number(r.rate) || 0, labour: Number(r.labour) || 0, labourUnit: r.labourUnit, other: Number(r.other) || 0,
         discount: Number(r.discount) || 0, discountUnit: r.discountUnit,
       })),
@@ -317,7 +318,8 @@ export function BillForm({ kind }: { kind: BillKind }) {
             )}
             {rows.map((r, i) => {
               const lr = lineOf(r)
-              const ro = r.locked
+              const weightRO = r.locked          // TAG stock item: pcs/gross/less come from the item
+              const fixedRO = !!r.stockItemId    // any stock line: tunch/wastage/karat come from the item (server ignores edits)
               return (
                 <TableRow key={r.key} className={rateLimitLine === i ? 'bg-destructive/10' : ''}>
                   <TableCell>
@@ -338,17 +340,17 @@ export function BillForm({ kind }: { kind: BillKind }) {
                   </TableCell>
                   <TableCell>
                     {metalRow(r) ? (
-                      <Select value={r.karatCode} onValueChange={(v) => setRow(i, 'karatCode', v)} disabled={ro}>
+                      <Select value={r.karatCode} onValueChange={(v) => setRow(i, 'karatCode', v)} disabled={fixedRO}>
                         <SelectTrigger className="w-20" aria-label="Karat"><SelectValue placeholder="—" /></SelectTrigger>
                         <SelectContent>{karats?.map((k) => <SelectItem key={k.id} value={k.code}>{k.title}</SelectItem>)}</SelectContent>
                       </Select>
                     ) : '—'}
                   </TableCell>
-                  <TableCell><Input className="w-14" type="number" value={r.pcs} disabled={ro} onChange={(e) => setRow(i, 'pcs', e.target.value)} /></TableCell>
-                  <TableCell><Input className="w-20" type="number" step="0.001" value={r.gross} disabled={ro} onChange={(e) => setRow(i, 'gross', e.target.value)} /></TableCell>
-                  <TableCell><Input className="w-16" type="number" step="0.001" value={r.less} disabled={ro} onChange={(e) => setRow(i, 'less', e.target.value)} /></TableCell>
-                  <TableCell><Input className="w-16" type="number" step="0.01" value={r.tunch} disabled={ro} onChange={(e) => setRow(i, 'tunch', e.target.value)} /></TableCell>
-                  <TableCell><Input className="w-14" type="number" step="0.01" value={r.wastage} disabled={ro} onChange={(e) => setRow(i, 'wastage', e.target.value)} /></TableCell>
+                  <TableCell><Input className="w-14" type="number" value={r.pcs} disabled={weightRO} onChange={(e) => setRow(i, 'pcs', e.target.value)} /></TableCell>
+                  <TableCell><Input className="w-20" type="number" step="0.001" value={r.gross} disabled={weightRO} onChange={(e) => setRow(i, 'gross', e.target.value)} /></TableCell>
+                  <TableCell><Input className="w-16" type="number" step="0.001" value={r.less} disabled={weightRO} onChange={(e) => setRow(i, 'less', e.target.value)} /></TableCell>
+                  <TableCell><Input className="w-16" type="number" step="0.01" value={r.tunch} disabled={fixedRO} onChange={(e) => setRow(i, 'tunch', e.target.value)} /></TableCell>
+                  <TableCell><Input className="w-14" type="number" step="0.01" value={r.wastage} disabled={fixedRO} onChange={(e) => setRow(i, 'wastage', e.target.value)} /></TableCell>
                   <TableCell className="whitespace-nowrap text-muted-foreground">{lr.net}</TableCell>
                   <TableCell className="whitespace-nowrap text-muted-foreground">{lr.fine}</TableCell>
                   <TableCell><Input className="w-20" type="number" aria-label="Stone charge" value={r.stoneCharge} onChange={(e) => setRow(i, 'stoneCharge', e.target.value)} /></TableCell>
