@@ -3,7 +3,7 @@ import * as React from 'react'
 import { cn } from '@/lib/utils'
 
 function Card({ className, ...props }: React.ComponentProps<'div'>) {
-  return <div className={cn('rounded-xl border bg-card text-card-foreground shadow', className)} {...props} />
+  return <div className={cn('rounded-xl border border-border/70 bg-card text-card-foreground shadow-sm', className)} {...props} />
 }
 
 function CardHeader({ className, ...props }: React.ComponentProps<'div'>) {

@@ -17,10 +17,11 @@ const monthLabel = (m: string) => new Date(m + '-01').toLocaleDateString('en-IN'
 
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <Card>
+    <Card className="relative overflow-hidden">
+      <span aria-hidden className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand/70 to-transparent" />
       <CardHeader className="pb-1"><CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle></CardHeader>
       <CardContent>
-        <div className="text-2xl font-semibold break-words">{value}</div>
+        <div className="text-3xl font-semibold tracking-tight tabular-nums break-words">{value}</div>
         {sub && <div className="text-xs text-muted-foreground break-words">{sub}</div>}
       </CardContent>
     </Card>

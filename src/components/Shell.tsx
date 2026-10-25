@@ -1,5 +1,9 @@
-import { LogOut } from 'lucide-react'
-import { Suspense, useState } from 'react'
+import {
+  ArrowLeftRight, BadgeIndianRupee, BarChart3, BookOpen, Boxes, Building2, ClipboardList,
+  CreditCard, Gem, GitBranch, HandCoins, LayoutDashboard, LogOut, NotebookTabs, Package,
+  PiggyBank, ReceiptText, Settings, ShieldCheck, Store, UserPlus, Users, Wrench,
+} from 'lucide-react'
+import { Suspense, useState, type ComponentType } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 
 import { BranchSwitcher } from '@/components/BranchSwitcher'
@@ -26,6 +30,17 @@ function LanguageSwitch() {
     </div>
   )
 }
+
+/** One icon per menu entry, keyed by the last path segment; falls back to a gem for anything new. */
+const NAV_ICON: Record<string, ComponentType<{ className?: string }>> = {
+  platform: LayoutDashboard, admin: LayoutDashboard, dashboard: LayoutDashboard,
+  signups: UserPlus, businesses: Building2, plans: Package, payments: CreditCard,
+  branches: GitBranch, users: Users, roles: ShieldCheck, business: Store, subscription: BadgeIndianRupee,
+  inventory: Boxes, billing: ReceiptText, gst: ReceiptText, udhari: NotebookTabs, daybook: BookOpen,
+  orders: ClipboardList, repair: Wrench, girvi: HandCoins, exchange: ArrowLeftRight, buy_sell: ArrowLeftRight,
+  schemes: PiggyBank, settings: Settings, parties: Users, reports: BarChart3,
+}
+const navIcon = (to: string) => NAV_ICON[to.split('/').filter(Boolean).pop() ?? ''] ?? Gem
 
 interface ShellProps {
   area: string
@@ -60,9 +75,12 @@ export function Shell({ area, nav, showBranch }: ShellProps) {
         </div>
       )}
 
-      <header className="flex h-14 shrink-0 items-center gap-4 border-b bg-card px-4">
-        <span className="font-serif text-lg font-semibold tracking-tight text-brand">Just Udhari</span>
-        <span className="rounded bg-secondary px-2 py-0.5 text-xs text-secondary-foreground">{area}</span>
+      <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-4 border-b bg-card/85 px-4 backdrop-blur supports-[backdrop-filter]:bg-card/70">
+        <span className="flex items-center gap-2">
+          <Gem className="size-5 text-brand" aria-hidden />
+          <span className="wordmark font-serif text-lg font-semibold tracking-tight">Just Udhari</span>
+        </span>
+        <span className="rounded-full border border-brand/25 bg-brand/10 px-2 py-0.5 text-xs font-medium text-brand">{area}</span>
         <div className="ml-auto flex items-center gap-3">
           {area !== 'Platform' && <CommandPalette nav={nav} />}
           {isStore && canBill && <QuickBilling />}
@@ -85,22 +103,37 @@ export function Shell({ area, nav, showBranch }: ShellProps) {
       )}
 
       <div className="flex flex-1">
-        <nav className="w-56 shrink-0 border-r bg-card p-2">
-          {nav.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to.split('/').length <= 2}
-              className={({ isActive }) =>
-                cn(
-                  'block rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                  isActive ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
-                )
-              }
-            >
-              {item.label}
-            </NavLink>
-          ))}
+        <nav className="w-60 shrink-0 space-y-0.5 border-r bg-card p-3">
+          {nav.map((item) => {
+            const Icon = navIcon(item.to)
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.to.split('/').length <= 2}
+                className={({ isActive }) =>
+                  cn(
+                    'group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                    isActive ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
+                  )
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    <span
+                      aria-hidden
+                      className={cn(
+                        'absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-full bg-brand transition-opacity',
+                        isActive ? 'opacity-100' : 'opacity-0',
+                      )}
+                    />
+                    <Icon className={cn('size-4 shrink-0', isActive ? 'text-brand' : 'text-muted-foreground/70 group-hover:text-foreground')} />
+                    {item.label}
+                  </>
+                )}
+              </NavLink>
+            )
+          })}
         </nav>
         <main className="flex-1 p-6">
           <Suspense fallback={<p className="text-sm text-muted-foreground">{t('common.loading')}</p>}>
