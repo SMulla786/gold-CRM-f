@@ -9,6 +9,7 @@ const TABS = [
   { to: '/app/settings/bank-accounts', label: 'Bank Accounts', key: 'settings.misc' },
   { to: '/app/settings/hsn', label: 'HSN', key: 'settings.misc' },
   { to: '/app/settings/general', label: 'General', key: 'settings.misc' },
+  { to: '/app/settings/invoice', label: 'Invoice', key: 'settings.misc' },
   { to: '/app/settings/rates', label: 'Rates', key: 'settings.misc' },
 ]
 

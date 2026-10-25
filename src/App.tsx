@@ -26,6 +26,7 @@ const Parties = lazy(() => import('@/pages/app/settings/Parties').then((m) => ({
 const BankAccounts = lazy(() => import('@/pages/app/settings/BankAccounts').then((m) => ({ default: m.BankAccounts })))
 const Hsn = lazy(() => import('@/pages/app/settings/Hsn').then((m) => ({ default: m.Hsn })))
 const General = lazy(() => import('@/pages/app/settings/General').then((m) => ({ default: m.General })))
+const InvoiceSettings = lazy(() => import('@/pages/app/settings/InvoiceSettings').then((m) => ({ default: m.InvoiceSettings })))
 const Rates = lazy(() => import('@/pages/app/settings/Rates').then((m) => ({ default: m.Rates })))
 const InventoryLayout = lazy(() => import('@/pages/app/inventory/InventoryLayout').then((m) => ({ default: m.InventoryLayout })))
 const InventoryDashboard = lazy(() => import('@/pages/app/inventory/InventoryDashboard').then((m) => ({ default: m.InventoryDashboard })))
@@ -105,6 +106,7 @@ export default function App() {
               <Route path="bank-accounts" element={<BankAccounts />} />
               <Route path="hsn" element={<Hsn />} />
               <Route path="general" element={<General />} />
+              <Route path="invoice" element={<InvoiceSettings />} />
               <Route path="rates" element={<Rates />} />
             </Route>
             <Route path="inventory" element={<InventoryLayout />}>
