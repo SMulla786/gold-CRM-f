@@ -244,7 +244,7 @@ export function StockList() {
             ) : null,
         } as ColumnDef<StockItemDto, unknown>]
       : []),
-    { header: 'Tag / Item', cell: ({ row }) => <button type="button" className="font-medium text-primary hover:underline" onClick={() => setViewing(row.original)}>{row.original.tagNo ?? row.original.itemName.name}</button> },
+    { header: 'Tag / Item', cell: ({ row }) => <button type="button" className="rounded-sm font-medium text-primary hover:underline focus-visible:underline focus-visible:outline-none" onClick={() => setViewing(row.original)}>{row.original.tagNo ?? row.original.itemName.name}</button> },
     { header: 'Group', cell: ({ row }) => row.original.group.name },
     { accessorKey: 'karatCode', header: 'Karat', cell: ({ row }) => row.original.karatCode ?? '—' },
     { accessorKey: 'pcs', header: 'Pcs' },

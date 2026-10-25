@@ -8,7 +8,7 @@ export function SelectBranchForTxn({ note }: { note: string }) {
     <div className="space-y-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
       <p>{note}</p>
       <select
-        className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+        className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-label="Branch for this transaction"
         defaultValue=""
         onChange={(e) => e.target.value && setBranch(e.target.value)}

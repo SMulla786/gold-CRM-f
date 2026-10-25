@@ -264,7 +264,7 @@ export function BillForm({ kind }: { kind: BillKind }) {
             <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-auto rounded-md border bg-popover shadow-md">
               {stockHits.items.map((it) => (
                 <li key={it.id}>
-                  <button type="button" className="flex w-full justify-between px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => addStock(it)}>
+                  <button type="button" className="flex w-full justify-between px-3 py-2 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none" onClick={() => addStock(it)}>
                     <span>{it.tagNo ?? it.itemName.name} · {it.group.name}</span>
                     <span className="text-muted-foreground">{it.net}g {it.karatCode ?? ''}</span>
                   </button>
@@ -450,7 +450,7 @@ export function BillForm({ kind }: { kind: BillKind }) {
           </div>
         </div>
 
-        <div className="space-y-2 rounded-md border p-4 text-sm">
+        <div className="space-y-2 rounded-md border p-4 text-sm tabular-nums">
           <Row2 label="Subtotal" value={inr(bill.sub)} />
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground">Discount</span>
@@ -479,7 +479,7 @@ export function BillForm({ kind }: { kind: BillKind }) {
       </div>
 
       {/* Mobile sticky totals + Save bar (desktop uses the Save in the summary card). */}
-      <div className="sticky bottom-0 z-10 -mx-6 flex items-center gap-3 border-t bg-background/95 px-6 py-3 backdrop-blur lg:hidden">
+      <div className="sticky bottom-0 z-10 -mx-6 flex items-center gap-3 border-t bg-background/95 px-6 py-3 tabular-nums backdrop-blur lg:hidden">
         <div className="text-sm">
           <div className="font-semibold">{inr(bill.final)}</div>
           <div className="text-xs text-muted-foreground">Bal {inr(balanceDue)}</div>

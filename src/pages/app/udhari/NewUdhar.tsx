@@ -184,7 +184,7 @@ export function NewUdhar() {
         <Input id="u-remark" value={f.remark} onChange={(e) => set('remark', e.target.value)} />
       </div>
 
-      <div className="flex items-center gap-4 rounded-md border bg-muted/40 p-3">
+      <div className="flex items-center gap-4 rounded-md border bg-muted/40 p-3 tabular-nums">
         <div className="text-sm">
           <div className="text-muted-foreground">New balance</div>
           <div className="font-medium">{bal(amount, gold, silver)}</div>

@@ -39,7 +39,7 @@ export function BillInvoice({ bill, shopName, business, stateName, terms, therma
   )
 
   const totals = (
-    <div className={thermal ? 'space-y-0.5' : 'ml-auto max-w-xs space-y-0.5'}>
+    <div className={thermal ? 'space-y-0.5 tabular-nums' : 'ml-auto max-w-xs space-y-0.5 tabular-nums'}>
       <Row label="Subtotal" value={inr(bill.sub)} />
       {Number(bill.discountAmount) > 0 && <Row label="Discount" value={`− ${inr(bill.discountAmount)}`} />}
       {bill.billType === 'GST' && (bill.interState

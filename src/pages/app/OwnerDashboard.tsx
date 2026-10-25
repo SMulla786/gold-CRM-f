@@ -114,7 +114,7 @@ export function OwnerDashboard() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 tabular-nums">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Sales today" value={inr(data.sales.todayTotal)} sub={`${data.sales.todayCount} bills · received ${inr(data.sales.todayReceived)}`} />
         <Stat label="Sales this month" value={inr(data.sales.monthTotal)} sub={`Year ${inr(data.sales.yearTotal)}`} />
