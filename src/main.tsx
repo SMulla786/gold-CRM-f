@@ -6,13 +6,12 @@ import { BrowserRouter } from 'react-router-dom'
 import App from '@/App'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from '@/components/ui/sonner'
-import { ThemeProvider } from 'next-themes'
+import { ThemeProvider } from '@/lib/theme'
 import { AuthProvider } from '@/lib/auth'
 import { LocaleProvider } from '@/lib/i18n'
 // Self-hosted fonts (no runtime fetch to Google — works on a flaky shop connection).
+import '@fontsource-variable/plus-jakarta-sans'
 import '@fontsource-variable/inter'
-import '@fontsource/fraunces/500.css'
-import '@fontsource/fraunces/600.css'
 import './index.css'
 
 const queryClient = new QueryClient({
@@ -21,7 +20,7 @@ const queryClient = new QueryClient({
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ThemeProvider attribute="class" defaultTheme="light" storageKey="ju-theme" disableTransitionOnChange>
+    <ThemeProvider>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>

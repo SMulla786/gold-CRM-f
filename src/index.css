@@ -5,62 +5,64 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --radius: 0.75rem;
-  /* warm paper + ink; antique gold is the one accent (brand, active nav, focus, key data) */
-  --background: oklch(0.985 0.008 85);
-  --foreground: oklch(0.23 0.015 75);
+  --radius: 1rem;
+  /* "Premium Golden": cool slate canvas, white 3D cards, navy ink, one gold accent */
+  --background: oklch(0.975 0.003 265);
+  --foreground: oklch(0.28 0.04 265);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.23 0.015 75);
+  --card-foreground: oklch(0.28 0.04 265);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.23 0.015 75);
-  --primary: oklch(0.70 0.135 75);
-  --primary-foreground: oklch(0.2 0.03 60);
-  --secondary: oklch(0.965 0.006 85);
-  --secondary-foreground: oklch(0.28 0.02 70);
-  --muted: oklch(0.965 0.006 85);
-  --muted-foreground: oklch(0.52 0.015 75);
-  --accent: oklch(0.95 0.035 85);
-  --accent-foreground: oklch(0.28 0.02 70);
-  --brand: oklch(0.72 0.13 78);
-  --brand-strong: oklch(0.62 0.14 66);
-  --brand-foreground: oklch(0.23 0.015 75);
+  --popover-foreground: oklch(0.28 0.04 265);
+  --primary: oklch(0.76 0.14 85);
+  --primary-foreground: oklch(0.24 0.04 265);
+  --secondary: oklch(0.96 0.006 265);
+  --secondary-foreground: oklch(0.28 0.04 265);
+  --muted: oklch(0.965 0.005 265);
+  --muted-foreground: oklch(0.55 0.03 260);
+  --accent: oklch(0.965 0.02 85);
+  --accent-foreground: oklch(0.28 0.04 265);
+  --brand: oklch(0.76 0.14 85);
+  --brand-strong: oklch(0.63 0.13 75);
+  --brand-foreground: oklch(0.24 0.04 265);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.91 0.014 85);
-  --input: oklch(0.9 0.008 85);
-  --ring: oklch(0.72 0.13 78);
-  --sh: 62 47 30; /* warm shadow tint (ink over paper, not neutral grey) */
+  --border: oklch(0.925 0.008 265);
+  --input: oklch(0.9 0.01 265);
+  --ring: oklch(0.76 0.14 85);
+  --sh: 15 23 42; /* slate-900 shadow tint */
+  --hi: 255 255 255; /* top-edge highlight that makes cards read as raised */
 }
 
 .dark {
-  --background: oklch(0.145 0.008 70);
-  --foreground: oklch(0.96 0.006 85);
-  --card: oklch(0.195 0.012 72);
-  --card-foreground: oklch(0.96 0.006 85);
-  --popover: oklch(0.21 0.013 72);
-  --popover-foreground: oklch(0.96 0.006 85);
-  --primary: oklch(0.78 0.13 80);
-  --primary-foreground: oklch(0.2 0.015 75);
-  --secondary: oklch(0.28 0.014 75);
-  --secondary-foreground: oklch(0.96 0.006 85);
-  --muted: oklch(0.28 0.014 75);
-  --muted-foreground: oklch(0.72 0.01 82);
-  --accent: oklch(0.32 0.03 82);
-  --accent-foreground: oklch(0.96 0.006 85);
-  --brand: oklch(0.80 0.12 82);
-  --brand-strong: oklch(0.70 0.13 72);
-  --brand-foreground: oklch(0.2 0.015 75);
+  --background: oklch(0.17 0.03 265);
+  --foreground: oklch(0.95 0.008 265);
+  --card: oklch(0.225 0.035 265);
+  --card-foreground: oklch(0.95 0.008 265);
+  --popover: oklch(0.25 0.035 265);
+  --popover-foreground: oklch(0.95 0.008 265);
+  --primary: oklch(0.80 0.14 85);
+  --primary-foreground: oklch(0.2 0.03 265);
+  --secondary: oklch(0.29 0.035 265);
+  --secondary-foreground: oklch(0.95 0.008 265);
+  --muted: oklch(0.27 0.03 265);
+  --muted-foreground: oklch(0.72 0.025 260);
+  --accent: oklch(0.32 0.05 80 / 55%);
+  --accent-foreground: oklch(0.95 0.008 265);
+  --brand: oklch(0.80 0.14 85);
+  --brand-strong: oklch(0.72 0.13 78);
+  --brand-foreground: oklch(0.2 0.03 265);
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.85 0.06 85 / 13%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.80 0.12 82);
-  --sh: 0 0 0; /* on the dark ground, shadow is plain black */
+  --border: oklch(1 0 0 / 9%);
+  --input: oklch(1 0 0 / 14%);
+  --ring: oklch(0.80 0.14 85);
+  --sh: 0 0 0;
+  --hi: 255 255 255 / 0.06;
 }
 
 @theme inline {
-  --font-sans: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, sans-serif;
-  --font-serif: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-sans: 'Plus Jakarta Sans Variable', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: 'Plus Jakarta Sans Variable', ui-sans-serif, sans-serif; /* one family; headings use weight, not a serif */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -89,10 +91,10 @@
   --color-ring: var(--ring);
   /* Warm, layered elevation — tinted with ink so cards sit on paper, not on grey felt. */
   --shadow-2xs: 0 1px 2px 0 rgb(var(--sh) / 0.04);
-  --shadow-xs: 0 1px 2px 0 rgb(var(--sh) / 0.05);
-  --shadow-sm: 0 1px 3px 0 rgb(var(--sh) / 0.07), 0 1px 2px -1px rgb(var(--sh) / 0.06);
+  --shadow-xs: 0 4px 12px -4px rgb(var(--sh) / 0.06), inset 0 1px 0 rgb(var(--hi));
+  --shadow-sm: 0 10px 25px -5px rgb(var(--sh) / 0.06), 0 8px 10px -6px rgb(var(--sh) / 0.02), inset 0 1px 0 rgb(var(--hi));
   --shadow: 0 1px 3px 0 rgb(var(--sh) / 0.08), 0 1px 2px -1px rgb(var(--sh) / 0.06);
-  --shadow-md: 0 4px 10px -2px rgb(var(--sh) / 0.09), 0 2px 6px -2px rgb(var(--sh) / 0.06);
+  --shadow-md: 0 20px 35px -5px rgb(var(--sh) / 0.10), 0 10px 15px -5px rgb(var(--sh) / 0.04), inset 0 1px 0 rgb(var(--hi));
   --shadow-lg: 0 10px 28px -8px rgb(var(--sh) / 0.14);
   --shadow-xl: 0 20px 40px -12px rgb(var(--sh) / 0.18);
   /* Soft content swap on navigation — opacity only, strong ease-out, under 300ms. */
@@ -122,7 +124,8 @@
   h1,
   h2 {
     font-family: var(--font-serif);
-    letter-spacing: -0.01em;
+    font-weight: 700;
+    letter-spacing: -0.02em;
   }
   /* Money & weight read best with figures that line up; harmless for text cells. */
   table {
@@ -210,6 +213,31 @@
   }
 }
 
+/* Raised 3D surfaces: hero card (navy, gold-lit) and gold icon chip — opt-in classes for pages. */
+.hero-card {
+  border-radius: 1.5rem;
+  color: oklch(0.96 0.01 265);
+  background: radial-gradient(120% 90% at 100% 0%, oklch(0.76 0.14 85 / 0.22), transparent 55%), linear-gradient(160deg, oklch(0.28 0.045 265), oklch(0.19 0.04 265));
+  box-shadow: 0 24px 40px -12px rgb(15 23 42 / 0.45), inset 0 1px 0 rgb(255 255 255 / 0.08);
+}
+.icon-chip {
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 1rem;
+  color: var(--brand-strong);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--brand) 14%, var(--card)), color-mix(in srgb, var(--brand) 26%, var(--card)));
+  box-shadow: inset 0 2px 4px rgb(255 255 255 / 0.7), 0 6px 14px -6px color-mix(in srgb, var(--brand) 60%, transparent);
+}
+.dark .hero-card {
+  box-shadow: 0 24px 40px -12px rgb(0 0 0 / 0.6), inset 0 0 0 1px oklch(0.80 0.14 85 / 0.18), inset 0 1px 0 rgb(255 255 255 / 0.08);
+}
+.dark .icon-chip {
+  color: var(--brand);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08), 0 6px 14px -6px rgb(0 0 0 / 0.5);
+}
+
 /* Faint gold glow at the top of the canvas so pages don't sit on a flat sheet. */
 body {
   background-image: radial-gradient(1200px 380px at 50% -120px, color-mix(in oklch, var(--brand) 12%, transparent), transparent 70%);
@@ -221,6 +249,6 @@ body {
   main h1 {
     font-size: 1.875rem;
     line-height: 2.25rem;
-    font-weight: 600;
+    font-weight: 800;
   }
 }

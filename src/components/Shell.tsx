@@ -4,7 +4,7 @@ import {
   PiggyBank, ReceiptText, Settings, ShieldCheck, Store, UserPlus, Users, Wrench,
 } from 'lucide-react'
 import { Suspense, useState, type ComponentType } from 'react'
-import { useTheme } from 'next-themes'
+import { useTheme } from '@/lib/theme'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
 import { BranchSwitcher } from '@/components/BranchSwitcher'
