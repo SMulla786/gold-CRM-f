@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useBankAccounts } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
+import { useT } from '@/lib/i18n'
 import { usePartyBalance } from '@/lib/billingQueries'
 import { useCreateKarigarIssue } from '@/lib/ordersQueries'
 import { SAMPLES_PERM, useIssueSamples } from '@/lib/samplesQueries'
@@ -18,6 +19,7 @@ const n = (s: string) => Number(s) || 0
 
 /** Issue PENDING order items to a karigar. Shared by Order Detail (ticked items) and the All Orders row action. */
 export function IssueDialog({ items, onClose }: { items: OrderItemDto[]; onClose: () => void }) {
+  const t = useT()
   const itemIds = items.map((it) => it.id)
   const issue = useCreateKarigarIssue()
   const canSamples = useAuth().can(SAMPLES_PERM, 'edit')
@@ -72,11 +74,11 @@ export function IssueDialog({ items, onClose }: { items: OrderItemDto[]; onClose
           <div className="space-y-1.5"><Label htmlFor="ki-remark">Remark</Label><Input id="ki-remark" value={f.remark} onChange={(e) => set('remark', e.target.value)} /></div>
           {canSamples && <div className="space-y-2">
             <Button type="button" variant="outline" size="sm" aria-expanded={samplesOpen} onClick={() => setSamplesOpen((o) => !o)}>
-              Select samples{samples.length ? ` (${samples.length})` : ''}
+              {t('samples.select')}{samples.length ? ` (${samples.length})` : ''}
             </Button>
             {samplesOpen && (
               <>
-                <p className="text-xs text-muted-foreground">Optional: tounch samples handed over with this issue. They are marked issued after the issue saves.</p>
+                <p className="text-xs text-muted-foreground">{t('samples.select_hint')}</p>
                 <SamplePicker multiple value={samples} onChange={setSamples} />
               </>
             )}

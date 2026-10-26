@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useAuth } from '@/lib/auth'
+import { useT } from '@/lib/i18n'
 import { SAMPLES_PERM, useCreateSample, useIssueSample, useMeltSample, useReturnSample, useSample, useSamples, useUpdateSample } from '@/lib/samplesQueries'
 import { METALS, SAMPLE_STATUSES, sampleBody, type PartyRefDto, type SampleDto, type SampleStatus } from '@/shared'
 
@@ -25,7 +26,6 @@ type FormOut = z.output<typeof sampleBody>
 const ALL = 'ALL'
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
 const dateTime = (s: string) => new Date(s).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
-const statusLabel = (s: string) => s.replace('_', ' ').toLowerCase().replace(/^\w/, (c) => c.toUpperCase())
 const STATUS_VARIANT: Record<SampleStatus, 'default' | 'secondary' | 'outline' | 'destructive'> = { IN_HAND: 'default', ISSUED: 'secondary', RETURNED: 'outline', MELTED: 'destructive' }
 const EDITABLE: SampleStatus[] = ['IN_HAND', 'RETURNED']
 /** PartyCombobox shows "name · mobile"; DTO refs carry no mobile. */
@@ -33,11 +33,13 @@ const asRef = (p: { id: number; name: string } | null, type: PartyRefDto['type']
 const autoFine = (gross: unknown, tounch: unknown) => ((Number(gross) || 0) * (Number(tounch) || 0) / 100).toFixed(3)
 
 function StatusBadge({ status }: { status: SampleStatus }) {
-  return <Badge variant={STATUS_VARIANT[status]}>{statusLabel(status)}</Badge>
+  const t = useT()
+  return <Badge variant={STATUS_VARIANT[status]}>{t(`samples.status.${status}`)}</Badge>
 }
 
 /** New sample (POST) or edit (PATCH, only IN_HAND / RETURNED). Fine follows gross × tounch / 100 until typed over. */
 function SampleFormDialog({ sample, onClose }: { sample?: SampleDto; onClose: () => void }) {
+  const t = useT()
   const { activeBranch } = useAuth()
   const branchReady = !!sample || (activeBranch !== '' && activeBranch !== 'all')
   const create = useCreateSample()
@@ -76,57 +78,57 @@ function SampleFormDialog({ sample, onClose }: { sample?: SampleDto; onClose: ()
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{sample ? `Edit sample #${sample.sampleNo}` : 'New sample'}</DialogTitle>
-          <DialogDescription>A tounch sample kept in custody. Nothing is posted to the ledger.</DialogDescription>
+          <DialogTitle>{sample ? t('samples.edit_title', { no: sample.sampleNo }) : t('samples.new')}</DialogTitle>
+          <DialogDescription>{t('samples.form_desc')}</DialogDescription>
         </DialogHeader>
-        {!branchReady && <SelectBranchForTxn note="A sample is registered at one branch. Select a branch." />}
+        {!branchReady && <SelectBranchForTxn note={t('samples.branch_note')} />}
         <form id="sample-form" onSubmit={(e) => void submit(e).catch(() => {})} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Metal</Label>
+              <Label>{t('samples.metal')}</Label>
               <Select value={metalV} onValueChange={(v) => setValue('metal', v as FormOut['metal'])}>
                 <SelectTrigger aria-label="Sample metal"><SelectValue /></SelectTrigger>
                 <SelectContent>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="sm-gross">Gross wt (g)</Label>
+              <Label htmlFor="sm-gross">{t('samples.gross_g')}</Label>
               <Input id="sm-gross" type="number" step="0.001" min="0" inputMode="decimal" {...register('grossWt')} />
               {err('grossWt')}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="sm-tounch">Tounch %</Label>
+              <Label htmlFor="sm-tounch">{t('samples.tounch_pct')}</Label>
               <Input id="sm-tounch" type="number" step="0.01" min="0" max="100" inputMode="decimal" {...register('tounchPercent')} />
               {err('tounchPercent')}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="sm-fine">Fine (g)</Label>
+              <Label htmlFor="sm-fine">{t('samples.fine_g')}</Label>
               <Input id="sm-fine" type="number" step="0.001" min="0" inputMode="decimal" value={fineManual ?? fineAuto} onChange={(e) => setFineManual(e.target.value)} />
               {fineManual !== null ? (
-                <button type="button" className="text-xs text-primary hover:underline" onClick={() => setFineManual(null)}>Use auto ({fineAuto} g)</button>
+                <button type="button" className="text-xs text-primary hover:underline" onClick={() => setFineManual(null)}>{t('samples.use_auto', { g: fineAuto })}</button>
               ) : (
-                <p className="text-xs text-muted-foreground">Auto = gross × tounch / 100</p>
+                <p className="text-xs text-muted-foreground">{t('samples.auto_hint')}</p>
               )}
-              {fineBad && <p className="text-xs text-destructive">Enter a fine weight of 0 or more</p>}
+              {fineBad && <p className="text-xs text-destructive">{t('samples.fine_invalid')}</p>}
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="sm-party">Party</Label>
-            <PartyCombobox id="sm-party" value={party} onChange={setParty} ariaLabel="Sample party" placeholder="Search party" />
+            <Label htmlFor="sm-party">{t('samples.party')}</Label>
+            <PartyCombobox id="sm-party" value={party} onChange={setParty} ariaLabel="Sample party" placeholder={t('samples.search_party')} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="sm-karigar">Karigar</Label>
-            <PartyCombobox id="sm-karigar" value={karigar} onChange={setKarigar} type="KARIGAR" ariaLabel="Sample karigar" placeholder="Search karigar" />
+            <Label htmlFor="sm-karigar">{t('samples.karigar')}</Label>
+            <PartyCombobox id="sm-karigar" value={karigar} onChange={setKarigar} type="KARIGAR" ariaLabel="Sample karigar" placeholder={t('samples.search_karigar')} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="sm-note">Note</Label>
+            <Label htmlFor="sm-note">{t('samples.note')}</Label>
             <Input id="sm-note" {...register('note')} />
             {err('note')}
           </div>
         </form>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button type="submit" form="sample-form" disabled={!branchReady || pending || fineBad}>{pending ? 'Saving…' : sample ? 'Save changes' : 'Save sample'}</Button>
+          <Button variant="outline" onClick={onClose}>{t('samples.cancel')}</Button>
+          <Button type="submit" form="sample-form" disabled={!branchReady || pending || fineBad}>{pending ? t('samples.saving') : sample ? t('samples.save_changes') : t('samples.save')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -137,6 +139,7 @@ type ActionKind = 'issue' | 'return' | 'melt'
 
 /** Issue (to karigar / party), return (back in hand) or melt (terminal). Custody only. */
 function ActionDialog({ sample, kind, onClose }: { sample: SampleDto; kind: ActionKind; onClose: () => void }) {
+  const t = useT()
   const issue = useIssueSample()
   const ret = useReturnSample()
   const melt = useMeltSample()
@@ -144,7 +147,7 @@ function ActionDialog({ sample, kind, onClose }: { sample: SampleDto; kind: Acti
   const [party, setParty] = useState<PartyRefDto | null>(asRef(sample.party, 'CUSTOMER'))
   const [note, setNote] = useState('')
   const pending = issue.isPending || ret.isPending || melt.isPending
-  const title = { issue: `Issue sample #${sample.sampleNo}`, return: `Return sample #${sample.sampleNo}`, melt: `Melt sample #${sample.sampleNo}` }[kind]
+  const title = t(`samples.${kind}_title`, { no: sample.sampleNo })
 
   const go = async () => {
     const body = { note: note.trim() || undefined }
@@ -160,38 +163,35 @@ function ActionDialog({ sample, kind, onClose }: { sample: SampleDto; kind: Acti
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            {sample.metal} · {sample.grossWt} g · {Number(sample.tounchPercent).toFixed(2)}% · fine {sample.fine} g
+            {sample.metal} · {sample.grossWt} g · {Number(sample.tounchPercent).toFixed(2)}% · {t('samples.picker_fine', { g: sample.fine })}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           {kind === 'issue' && (
             <>
               <div className="space-y-1.5">
-                <Label htmlFor="si-karigar">Karigar</Label>
-                <PartyCombobox id="si-karigar" value={karigar} onChange={setKarigar} type="KARIGAR" ariaLabel="Issue to karigar" placeholder="Search karigar" />
+                <Label htmlFor="si-karigar">{t('samples.karigar')}</Label>
+                <PartyCombobox id="si-karigar" value={karigar} onChange={setKarigar} type="KARIGAR" ariaLabel="Issue to karigar" placeholder={t('samples.search_karigar')} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="si-party">Party</Label>
-                <PartyCombobox id="si-party" value={party} onChange={setParty} ariaLabel="Issue to party" placeholder="Search party" />
+                <Label htmlFor="si-party">{t('samples.party')}</Label>
+                <PartyCombobox id="si-party" value={party} onChange={setParty} ariaLabel="Issue to party" placeholder={t('samples.search_party')} />
               </div>
-              <p className="text-xs text-muted-foreground">Leave both as they are to keep the current holder.</p>
+              <p className="text-xs text-muted-foreground">{t('samples.keep_holder')}</p>
             </>
           )}
           {kind === 'melt' && (
-            <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-              Melting is final: the sample leaves the register and cannot be issued or edited again. This only marks the sample as melted.
-              Post the metal itself through Kacha / Melting as usual.
-            </p>
+            <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm">{t('samples.melt_warning')}</p>
           )}
           <div className="space-y-1.5">
-            <Label htmlFor="sa-note">Note</Label>
+            <Label htmlFor="sa-note">{t('samples.note')}</Label>
             <Input id="sa-note" value={note} maxLength={300} onChange={(e) => setNote(e.target.value)} />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="outline" onClick={onClose}>{t('samples.cancel')}</Button>
           <Button variant={kind === 'melt' ? 'destructive' : 'default'} disabled={pending} onClick={() => void go().catch(() => {})}>
-            {kind === 'issue' ? 'Issue sample' : kind === 'return' ? 'Mark returned' : 'Mark melted'}
+            {kind === 'issue' ? t('samples.issue_btn') : kind === 'return' ? t('samples.mark_returned') : t('samples.mark_melted')}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -200,39 +200,40 @@ function ActionDialog({ sample, kind, onClose }: { sample: SampleDto; kind: Acti
 }
 
 function DetailSheet({ id, onClose }: { id: number; onClose: () => void }) {
+  const t = useT()
   const { data, isLoading } = useSample(id)
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-md">
         <SheetHeader>
-          <SheetTitle>Sample #{data?.sampleNo ?? ''}</SheetTitle>
-          <SheetDescription>Custody history, oldest first.</SheetDescription>
+          <SheetTitle>{t('samples.detail_title', { no: data?.sampleNo ?? '' })}</SheetTitle>
+          <SheetDescription>{t('samples.detail_desc')}</SheetDescription>
         </SheetHeader>
         {isLoading || !data ? (
-          <p className="px-4 text-sm text-muted-foreground">Loading…</p>
+          <p className="px-4 text-sm text-muted-foreground">{t('samples.loading')}</p>
         ) : (
           <div className="space-y-4 px-4 pb-6 text-sm">
             <div className="grid grid-cols-2 gap-2 rounded-2xl border bg-muted/40 p-3 tabular-nums">
-              <div><div className="text-xs text-muted-foreground">Metal</div>{data.metal}</div>
-              <div><div className="text-xs text-muted-foreground">Status</div><StatusBadge status={data.status} /></div>
-              <div><div className="text-xs text-muted-foreground">Gross</div>{data.grossWt} g</div>
-              <div><div className="text-xs text-muted-foreground">Tounch</div>{Number(data.tounchPercent).toFixed(2)}%</div>
-              <div><div className="text-xs text-muted-foreground">Fine</div>{data.fine} g</div>
-              <div><div className="text-xs text-muted-foreground">Branch</div>{data.branch.name}</div>
-              <div><div className="text-xs text-muted-foreground">Party</div>{data.party?.name ?? '—'}</div>
-              <div><div className="text-xs text-muted-foreground">Karigar</div>{data.karigar?.name ?? '—'}</div>
-              {data.note && <div className="col-span-2"><div className="text-xs text-muted-foreground">Note</div>{data.note}</div>}
+              <div><div className="text-xs text-muted-foreground">{t('samples.metal')}</div>{data.metal}</div>
+              <div><div className="text-xs text-muted-foreground">{t('samples.status')}</div><StatusBadge status={data.status} /></div>
+              <div><div className="text-xs text-muted-foreground">{t('samples.gross')}</div>{data.grossWt} g</div>
+              <div><div className="text-xs text-muted-foreground">{t('samples.tounch')}</div>{Number(data.tounchPercent).toFixed(2)}%</div>
+              <div><div className="text-xs text-muted-foreground">{t('samples.fine')}</div>{data.fine} g</div>
+              <div><div className="text-xs text-muted-foreground">{t('samples.branch')}</div>{data.branch.name}</div>
+              <div><div className="text-xs text-muted-foreground">{t('samples.party')}</div>{data.party?.name ?? '—'}</div>
+              <div><div className="text-xs text-muted-foreground">{t('samples.karigar')}</div>{data.karigar?.name ?? '—'}</div>
+              {data.note && <div className="col-span-2"><div className="text-xs text-muted-foreground">{t('samples.note')}</div>{data.note}</div>}
             </div>
             <ol className="space-y-2">
               {data.movements.map((m) => (
                 <li key={m.id} className="rounded-xl border p-3">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium">{statusLabel(m.action)}</span>
+                    <span className="font-medium">{t(`samples.action.${m.action}`)}</span>
                     <span className="text-xs text-muted-foreground">{dateTime(m.createdAt)}</span>
                   </div>
-                  {(m.karigar || m.party) && <div className="text-muted-foreground">To {[m.karigar?.name, m.party?.name].filter(Boolean).join(' / ')}</div>}
+                  {(m.karigar || m.party) && <div className="text-muted-foreground">{t('samples.to_names', { names: [m.karigar?.name, m.party?.name].filter(Boolean).join(' / ') })}</div>}
                   {m.note && <div>{m.note}</div>}
-                  {m.user && <div className="text-xs text-muted-foreground">by {m.user}</div>}
+                  {m.user && <div className="text-xs text-muted-foreground">{t('samples.by_user', { user: m.user })}</div>}
                 </li>
               ))}
             </ol>
@@ -245,6 +246,7 @@ function DetailSheet({ id, onClose }: { id: number; onClose: () => void }) {
 
 /** Inventory › Samples: the tounch-sample custody register (IN_HAND → ISSUED → RETURNED …, any → MELTED). */
 export function Samples() {
+  const t = useT()
   const { can } = useAuth()
   const canEdit = can(SAMPLES_PERM, 'edit')
   const [page, setPage] = useState(1)
@@ -270,14 +272,14 @@ export function Samples() {
   const fine = rows.reduce((a, s) => a + Number(s.fine), 0)
 
   const columns: ColumnDef<SampleDto, unknown>[] = [
-    { header: 'Sample no', cell: ({ row }) => <button className="font-medium hover:underline" aria-label={`Open sample #${row.original.sampleNo}`} onClick={() => setDetailId(row.original.id)}>#{row.original.sampleNo}</button> },
-    { accessorKey: 'metal', header: 'Metal' },
-    { header: 'Gross (g)', cell: ({ row }) => <span className="tabular-nums">{row.original.grossWt}</span> },
-    { header: 'Tounch %', cell: ({ row }) => <span className="tabular-nums">{Number(row.original.tounchPercent).toFixed(2)}</span> },
-    { header: 'Fine (g)', cell: ({ row }) => <span className="tabular-nums">{row.original.fine}</span> },
-    { header: 'Status', cell: ({ row }) => <StatusBadge status={row.original.status} /> },
-    { header: 'Party / karigar', cell: ({ row }) => [row.original.party?.name, row.original.karigar?.name].filter(Boolean).join(' / ') || '—' },
-    { header: 'Date', cell: ({ row }) => date(row.original.createdAt) },
+    { header: t('samples.col_no'), cell: ({ row }) => <button className="font-medium hover:underline" aria-label={`Open sample #${row.original.sampleNo}`} onClick={() => setDetailId(row.original.id)}>#{row.original.sampleNo}</button> },
+    { accessorKey: 'metal', header: t('samples.metal') },
+    { header: t('samples.col_gross'), cell: ({ row }) => <span className="tabular-nums">{row.original.grossWt}</span> },
+    { header: t('samples.col_tounch'), cell: ({ row }) => <span className="tabular-nums">{Number(row.original.tounchPercent).toFixed(2)}</span> },
+    { header: t('samples.col_fine'), cell: ({ row }) => <span className="tabular-nums">{row.original.fine}</span> },
+    { header: t('samples.status'), cell: ({ row }) => <StatusBadge status={row.original.status} /> },
+    { header: t('samples.col_holder'), cell: ({ row }) => [row.original.party?.name, row.original.karigar?.name].filter(Boolean).join(' / ') || '—' },
+    { header: t('samples.col_date'), cell: ({ row }) => date(row.original.createdAt) },
     {
       id: 'actions',
       header: '',
@@ -285,11 +287,11 @@ export function Samples() {
         const s = row.original
         return (
           <div className="flex justify-end gap-1">
-            <Button size="sm" variant="ghost" onClick={() => setDetailId(s.id)}>History</Button>
-            {canEdit && EDITABLE.includes(s.status) && <Button size="sm" variant="outline" onClick={() => setAction({ sample: s, kind: 'issue' })}>Issue</Button>}
-            {canEdit && s.status === 'ISSUED' && <Button size="sm" variant="outline" onClick={() => setAction({ sample: s, kind: 'return' })}>Return</Button>}
-            {canEdit && EDITABLE.includes(s.status) && <Button size="sm" variant="ghost" onClick={() => setEditing(s)}>Edit</Button>}
-            {canEdit && s.status !== 'MELTED' && <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setAction({ sample: s, kind: 'melt' })}>Melt</Button>}
+            <Button size="sm" variant="ghost" onClick={() => setDetailId(s.id)}>{t('samples.history')}</Button>
+            {canEdit && EDITABLE.includes(s.status) && <Button size="sm" variant="outline" onClick={() => setAction({ sample: s, kind: 'issue' })}>{t('samples.btn_issue')}</Button>}
+            {canEdit && s.status === 'ISSUED' && <Button size="sm" variant="outline" onClick={() => setAction({ sample: s, kind: 'return' })}>{t('samples.btn_return')}</Button>}
+            {canEdit && EDITABLE.includes(s.status) && <Button size="sm" variant="ghost" onClick={() => setEditing(s)}>{t('samples.btn_edit')}</Button>}
+            {canEdit && s.status !== 'MELTED' && <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setAction({ sample: s, kind: 'melt' })}>{t('samples.btn_melt')}</Button>}
           </div>
         )
       },
@@ -300,41 +302,41 @@ export function Samples() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl">Samples</h2>
-          <p className="text-sm text-muted-foreground">Tounch samples in custody: who holds each one, and its purity. A register only, with no ledger postings.</p>
+          <h2 className="text-xl">{t('samples.title')}</h2>
+          <p className="text-sm text-muted-foreground">{t('samples.intro')}</p>
         </div>
-        {canEdit && <Button onClick={() => setCreating(true)}>New sample</Button>}
+        {canEdit && <Button onClick={() => setCreating(true)}>{t('samples.new')}</Button>}
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1.5">
-          <Label htmlFor="samples-q">Search</Label>
-          <Input id="samples-q" type="search" className="w-56" placeholder="Sample no. or name" value={q} onChange={(e) => setQ(e.target.value)} />
+          <Label htmlFor="samples-q">{t('samples.search')}</Label>
+          <Input id="samples-q" type="search" className="w-56" placeholder={t('samples.search_ph')} value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
         <div className="space-y-1.5">
-          <Label>Status</Label>
+          <Label>{t('samples.status')}</Label>
           <Select value={status} onValueChange={filter(setStatus)}>
             <SelectTrigger className="w-40" aria-label="Sample status"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value={ALL}>All statuses</SelectItem>
-              {SAMPLE_STATUSES.map((s) => <SelectItem key={s} value={s}>{statusLabel(s)}</SelectItem>)}
+              <SelectItem value={ALL}>{t('samples.all_statuses')}</SelectItem>
+              {SAMPLE_STATUSES.map((s) => <SelectItem key={s} value={s}>{t(`samples.status.${s}`)}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label>Metal</Label>
+          <Label>{t('samples.metal')}</Label>
           <Select value={metal} onValueChange={filter(setMetal)}>
             <SelectTrigger className="w-36" aria-label="Sample metal filter"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value={ALL}>All metals</SelectItem>
+              <SelectItem value={ALL}>{t('samples.all_metals')}</SelectItem>
               {METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
         <div className="ml-auto flex gap-4 rounded-2xl border bg-muted/40 px-4 py-2 text-sm tabular-nums" aria-label="Page totals">
-          <span><span className="text-muted-foreground">Samples </span>{data?.total ?? '—'}</span>
-          <span><span className="text-muted-foreground">Gross (this page) </span>{gross.toFixed(3)} g</span>
-          <span><span className="text-muted-foreground">Fine (this page) </span>{fine.toFixed(3)} g</span>
+          <span><span className="text-muted-foreground">{t('samples.count')}{' '}</span>{data?.total ?? '—'}</span>
+          <span><span className="text-muted-foreground">{t('samples.gross_page')}{' '}</span>{gross.toFixed(3)} g</span>
+          <span><span className="text-muted-foreground">{t('samples.fine_page')}{' '}</span>{fine.toFixed(3)} g</span>
         </div>
       </div>
 
@@ -343,7 +345,7 @@ export function Samples() {
           columns={columns}
           data={rows}
           isLoading={isLoading}
-          emptyText="No samples yet."
+          emptyText={t('samples.empty')}
           pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: setPageSize } : undefined}
         />
       </Card>

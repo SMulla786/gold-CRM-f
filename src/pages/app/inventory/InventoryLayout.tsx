@@ -15,8 +15,7 @@ const TABS = [
   { to: '/app/inventory/summary', tk: 'inv.tab.summary', key: 'inventory.all_stock' },
   { to: '/app/inventory/import', tk: 'inv.import.import', key: 'inventory.import_stock' },
   { to: '/app/inventory/shortage', tk: 'inv.shortage.st_shortage', key: 'inventory.all_stock' },
-  // TASK-98: plain label until the samples.* i18n fragment is merged (then drop `label`)
-  { to: '/app/inventory/samples', tk: 'samples.tab', label: 'Samples', key: SAMPLES_PERM },
+  { to: '/app/inventory/samples', tk: 'samples.tab', key: SAMPLES_PERM },
   { to: '/app/inventory/transfers', tk: 'inv.tab.transfer', key: 'inventory.stock_transfer', needsBranches: true },
   { to: '/app/inventory/tags', tk: 'inv.tab.tags', key: 'inventory.tag_print' },
   { to: '/app/inventory/scan', tk: 'inv.tab.scan', key: 'inventory.scan_match' },
@@ -45,7 +44,7 @@ export function InventoryLayout() {
               cn('border-b-2 px-3 py-2 text-sm font-medium', isActive ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground')
             }
           >
-            {tab.label ?? t(tab.tk)}
+            {t(tab.tk)}
           </NavLink>
         ))}
       </nav>
