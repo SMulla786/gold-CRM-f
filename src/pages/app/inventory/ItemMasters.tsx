@@ -18,12 +18,12 @@ import { CHARGE_UNITS, ENTRY_METHODS, STOCK_CLASSES, type ItemGroupDto, type Ite
 
 const CLASS_LABEL: Record<string, string> = { GOLD: 'Gold', SILVER: 'Silver', STONE: 'Stone', ARTIFICIAL: 'Artificial', FRANCHISE: 'Franchise' }
 
-/** '' → undefined (field not sent), else a number. */
-const optNum = (s: string) => (s.trim() === '' ? undefined : Number(s))
+/** '' → `empty` (undefined = not sent on create; null = cleared on edit), else a number. */
+const optNum = (s: string, empty?: null) => (s.trim() === '' ? empty : Number(s))
 const str = (v: string | number | null | undefined) => (v == null ? '' : String(v))
 
 type Limits = { minWeight: string; maxWeight: string; minPcs: string; maxPcs: string }
-const limitsBody = (l: Limits) => ({ minWeight: optNum(l.minWeight), maxWeight: optNum(l.maxWeight), minPcs: optNum(l.minPcs), maxPcs: optNum(l.maxPcs) })
+const limitsBody = (l: Limits, empty?: null) => ({ minWeight: optNum(l.minWeight, empty), maxWeight: optNum(l.maxWeight, empty), minPcs: optNum(l.minPcs, empty), maxPcs: optNum(l.maxPcs, empty) })
 
 /** HSN picker fed by the settings HSN master (enabled codes only), with a client-side 4/6/8-digit filter. */
 function HsnSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
@@ -80,8 +80,6 @@ function LimitFields({ prefix, value, onChange }: { prefix: string; value: Limit
   )
 }
 
-const EDIT_HINT = 'Blank fields keep their current value.'
-
 function GroupDialog({ group, defaultClass, onCreated, onClose }: { group?: ItemGroupDto; defaultClass?: string; onCreated?: (groups: ItemGroupDto[]) => void; onClose: () => void }) {
   const editing = !!group
   const create = useCreateItemGroup()
@@ -101,7 +99,9 @@ function GroupDialog({ group, defaultClass, onCreated, onClose }: { group?: Item
     if (n && !names.includes(n)) setNames([...names, n])
     setDraft('')
   }
-  const extra = { hsnId: hsnId ? Number(hsnId) : undefined, ...limitsBody(limits) }
+  // Edit sends null for a cleared field so the server clears it; create just leaves it out.
+  const empty = editing ? null : undefined
+  const extra = { hsnId: hsnId ? Number(hsnId) : empty, ...limitsBody(limits, empty) }
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -128,11 +128,12 @@ function GroupDialog({ group, defaultClass, onCreated, onClose }: { group?: Item
             </div>
             <div className="space-y-1.5">
               <Label>Jewellery type</Label>
-              <Select value={jewelleryTypeId} onValueChange={setJewelleryTypeId}>
+              <Select value={jewelleryTypeId} onValueChange={(v) => setJewelleryTypeId(v === 'none' ? '' : v)}>
                 <SelectTrigger aria-label="Jewellery type">
                   <SelectValue placeholder="Optional" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="none">No type</SelectItem>
                   {types?.map((t) => (
                     <SelectItem key={t.id} value={String(t.id)}>
                       {t.name}
@@ -184,14 +185,13 @@ function GroupDialog({ group, defaultClass, onCreated, onClose }: { group?: Item
             </div>
           </div>
           <LimitFields prefix="g" value={limits} onChange={setLimits} />
-          {editing && <p className="text-xs text-muted-foreground">{EDIT_HINT}</p>}
         </div>
         <DialogFooter>
           {editing ? (
             <Button
               disabled={!editName.trim() || update.isPending}
               onClick={async () => {
-                await update.mutateAsync({ id: group.id, body: { name: editName.trim(), gstRate: Number(gstRate), jewelleryTypeId: jewelleryTypeId ? Number(jewelleryTypeId) : undefined, ...extra } })
+                await update.mutateAsync({ id: group.id, body: { name: editName.trim(), gstRate: Number(gstRate), jewelleryTypeId: jewelleryTypeId ? Number(jewelleryTypeId) : null, ...extra } })
                 onClose()
               }}
             >
@@ -239,20 +239,21 @@ export function ItemNameDialog({ groups, item, stockClass, onCreated, onClose }:
   const groupClass = groups.find((g) => String(g.id) === groupId)?.stockClass
   const karatOpts = [...new Map((karats ?? []).filter((k) => groupClass !== 'GOLD' && groupClass !== 'SILVER' ? true : k.metal === groupClass).map((k) => [k.code, k])).values()]
 
+  const empty = editing ? null : undefined
   const body = () => ({
     name: name.trim(),
     method,
     tagPrefix: needsTag && tagPrefix ? tagPrefix : undefined,
     tagDigits: needsTag ? Number(tagDigits) : undefined,
-    hsnId: hsnId ? Number(hsnId) : undefined,
-    taxValue: optNum(taxValue),
-    taxUnit: taxValue.trim() !== '' ? taxUnit : undefined,
-    ...limitsBody(limits),
-    defKaratCode: def.karat || undefined,
-    defTunch: optNum(def.tunch),
-    defWastage: optNum(def.wastage),
-    defLabour: optNum(def.labour),
-    defLabourUnit: def.labourUnit || undefined,
+    hsnId: hsnId ? Number(hsnId) : empty,
+    taxValue: optNum(taxValue, empty),
+    taxUnit: taxValue.trim() !== '' ? taxUnit : empty,
+    ...limitsBody(limits, empty),
+    defKaratCode: def.karat || empty,
+    defTunch: optNum(def.tunch, empty),
+    defWastage: optNum(def.wastage, empty),
+    defLabour: optNum(def.labour, empty),
+    defLabourUnit: def.labourUnit || empty,
   })
 
   return (
@@ -390,7 +391,6 @@ export function ItemNameDialog({ groups, item, stockClass, onCreated, onClose }:
               </div>
             </div>
           </fieldset>
-          {editing && <p className="text-xs text-muted-foreground">{EDIT_HINT}</p>}
         </div>
         <DialogFooter>
           {editing ? (

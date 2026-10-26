@@ -1,6 +1,7 @@
 import JsBarcode from 'jsbarcode'
 import { Barcode as BarcodeIcon, ListChecks, Scale, Tags, Weight, type LucideIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { useLocation } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
@@ -8,9 +9,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useAllStock } from '@/lib/inventoryQueries'
+import { useAuth } from '@/lib/auth'
+import { useAllStock, usePrinterSettings, useTagTemplates } from '@/lib/inventoryQueries'
 import { plural } from '@/lib/plural'
-import type { StockItemDto } from '@/shared'
+import { printerSettingsBody, type PrinterSettingsDto, type StockItemDto } from '@/shared'
+
+import { TagLabel } from './TagLabel'
 
 const CLASS_LABEL: Record<string, string> = { GOLD: 'Gold', SILVER: 'Silver', STONE: 'Stone', ARTIFICIAL: 'Artificial', FRANCHISE: 'Franchise' }
 
@@ -22,7 +26,28 @@ function Barcode({ value }: { value: string }) {
   return <svg ref={ref} />
 }
 
+const DEFAULT_PRINTER = printerSettingsBody.parse({})
+
+/** @page for the print only: label printers get a page one row of labels tall; A4 sheets keep A4 with the saved margin as padding. */
+function pageCss(p: PrinterSettingsDto): string {
+  if (p.printerType === 'A4_SHEET') return '@page { size: A4; margin: 0; }'
+  const width = p.columns * p.labelWidthMm + (p.columns - 1) * p.gapMm + 2 * p.marginMm
+  return `@page { size: ${width}mm ${p.labelHeightMm + p.gapMm}mm; margin: 0; }`
+}
+
 export function TagPrint() {
+  const { can, me } = useAuth()
+  const canLayout = can('inventory.printer_setting', 'view')
+  // Users without printer-setting access print with the defaults and the fixed layout.
+  const printer = usePrinterSettings(canLayout).data ?? DEFAULT_PRINTER
+  const { data: templates } = useTagTemplates(canLayout)
+  const templateFor = (c: string) => templates?.find((t) => t.isActive && (t.appliesTo as string[]).includes(c))
+  const [printing, setPrinting] = useState(false)
+  const print = () => {
+    flushSync(() => setPrinting(true))
+    window.addEventListener('afterprint', () => setPrinting(false), { once: true })
+    window.print()
+  }
   const { data } = useAllStock({ status: 'AVAILABLE', method: 'TAG' })
   const items = (data ?? []).filter((i) => i.tagNo)
   // "Save & print" from New Stock lands here with the new items preselected (router state).
@@ -85,7 +110,7 @@ export function TagPrint() {
           <h2 className="text-xl">Barcode tags</h2>
           <p className="text-sm text-muted-foreground">Pick tagged pieces and print a barcode sheet for them.</p>
         </div>
-        <Button disabled={selected.length === 0} onClick={() => window.print()}>
+        <Button disabled={selected.length === 0} onClick={print}>
           Print {selected.length ? plural(selected.length, 'label') : 'labels'}
         </Button>
       </div>
@@ -135,15 +160,24 @@ export function TagPrint() {
         </CardContent>
       </Card>
 
-      {/* Printable label sheet */}
-      <div className="print-area grid grid-cols-3 gap-2">
-        {selected.map((it) => (
-          <div key={it.id} className="rounded border p-2 text-center text-xs">
-            <div className="font-medium">{it.itemName.name}</div>
-            <div className="text-muted-foreground">{it.net}g · {it.karatCode ?? ''}</div>
-            <Barcode value={it.tagNo as string} />
-          </div>
-        ))}
+      {/* Printable label sheet: saved printer settings set the grid; an active template for the item's class replaces the fixed layout. */}
+      {printing && <style>{pageCss(printer)}</style>}
+      <div
+        className="print-area grid"
+        style={{ gridTemplateColumns: `repeat(${printer.columns}, max-content)`, gap: `${printer.gapMm}mm`, padding: `${printer.marginMm}mm` }}
+      >
+        {selected.map((it) => {
+          const tpl = templateFor(it.stockClass)
+          return tpl ? (
+            <TagLabel key={it.id} template={tpl} item={it} shopName={me?.business?.name ?? ''} />
+          ) : (
+            <div key={it.id} className="overflow-hidden rounded border p-1 text-center text-xs" style={{ width: `${printer.labelWidthMm}mm`, height: `${printer.labelHeightMm}mm` }}>
+              <div className="font-medium">{it.itemName.name}</div>
+              <div className="text-muted-foreground">{it.net}g · {it.karatCode ?? ''}</div>
+              <Barcode value={it.tagNo as string} />
+            </div>
+          )
+        })}
       </div>
     </div>
   )

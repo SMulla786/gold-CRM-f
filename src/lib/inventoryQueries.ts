@@ -4,19 +4,25 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { qs, useApiMutation } from '@/lib/queries'
 import type {
+  AllStockSummaryDto,
   GroupStockDto,
   ItemGroupDto,
   ItemNameDto,
   JewelleryTypeDto,
   LedgerPageDto,
   Paged,
+  PrinterSettingsDto,
+  SetStockCard,
+  SetStockLogDto,
   ShortageRowDto,
   StockEntryResultDto,
   StockImportResultDto,
   StockItemDto,
+  StockListPage,
   StockSummaryDto,
   StockTransferDetailDto,
   StockTransferDto,
+  TagTemplateDto,
 } from '@/shared'
 
 // ───── Masters ─────
@@ -42,7 +48,7 @@ export const useUpdateItemName = () =>
 // ───── Stock ─────
 export const useStockSummary = () => useQuery({ queryKey: ['stock-summary'], queryFn: () => api.get<StockSummaryDto[]>('/app/stock/summary') })
 export const useStock = (params: Record<string, string | number | undefined>) =>
-  useQuery({ queryKey: ['stock', params], queryFn: () => api.get<Paged<StockItemDto>>(`/app/stock${qs(params)}`) })
+  useQuery({ queryKey: ['stock', params], queryFn: () => api.get<StockListPage>(`/app/stock${qs(params)}`) })
 export const useGroupStock = (params: Record<string, string | number | undefined>) =>
   useQuery({ queryKey: ['stock-groups', params], queryFn: () => api.get<GroupStockDto[]>(`/app/stock/groups${qs(params)}`) })
 
@@ -106,3 +112,28 @@ export const useStockImport = () =>
     for (const [k, v] of Object.entries(fields)) fd.append(k, v)
     return api.post<StockImportResultDto>('/app/stock/import', fd)
   }, { invalidate: [['stock'], ['stock-summary']] })
+
+// ───── Printer settings + tag templates ─────
+export const usePrinterSettings = (enabled = true) =>
+  useQuery({ queryKey: ['printer-settings'], queryFn: () => api.get<PrinterSettingsDto>('/app/inventory/printer-settings'), enabled })
+export const useSavePrinterSettings = () =>
+  useApiMutation((body: PrinterSettingsDto) => api.put<PrinterSettingsDto>('/app/inventory/printer-settings', body), { invalidate: [['printer-settings']], success: 'Printer settings saved' })
+
+export const useTagTemplates = (enabled = true) =>
+  useQuery({ queryKey: ['tag-templates'], queryFn: () => api.get<TagTemplateDto[]>('/app/tag-templates'), enabled })
+export const useSaveTagTemplate = () =>
+  useApiMutation(({ id, body }: { id?: number; body: Record<string, unknown> }) => (id ? api.patch<TagTemplateDto>(`/app/tag-templates/${id}`, body) : api.post<TagTemplateDto>('/app/tag-templates', body)), { invalidate: [['tag-templates']], success: 'Template saved' })
+export const useActivateTagTemplate = () =>
+  useApiMutation((id: number) => api.post<TagTemplateDto>(`/app/tag-templates/${id}/activate`), { invalidate: [['tag-templates']], success: 'Template is now active' })
+export const useDeleteTagTemplate = () =>
+  useApiMutation((id: number) => api.del(`/app/tag-templates/${id}`), { invalidate: [['tag-templates']], success: 'Template deleted' })
+
+// ───── All Stock Summary + Set Stock ─────
+export const useAllStockSummary = () => useQuery({ queryKey: ['all-stock-summary'], queryFn: () => api.get<AllStockSummaryDto>('/app/stock/all-summary') })
+export const useSetStock = () =>
+  useApiMutation(({ mpin, ...body }: { card: SetStockCard; newBalance: number; remarks?: string; mpin: string }) => api.post<SetStockLogDto>('/app/stock/all-summary/set', body, { mpin }), {
+    invalidate: [['all-stock-summary'], ['set-stock-logs']],
+    success: 'Balance updated',
+  })
+export const useSetStockLogs = (params: { page: number; pageSize: number }, enabled = true) =>
+  useQuery({ queryKey: ['set-stock-logs', params], queryFn: () => api.get<Paged<SetStockLogDto>>(`/app/stock/set-stock-logs${qs(params)}`), enabled })

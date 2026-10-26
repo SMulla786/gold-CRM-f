@@ -193,6 +193,7 @@ export function GroupStock() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="ALL">All</SelectItem>
               {STOCK_STATUSES.map((s) => (
                 <SelectItem key={s} value={s}>{s}</SelectItem>
               ))}

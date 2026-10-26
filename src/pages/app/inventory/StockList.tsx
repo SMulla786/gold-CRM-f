@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useKarats } from '@/lib/appQueries'
-import { fetchAllStock, useBulkDeleteStock, useBulkEditStock, useDeleteStock, useItemGroups, useItemNames, useRemoveStockPhoto, useStock, useStockLedger, useUpdateStock, useUploadStockPhoto } from '@/lib/inventoryQueries'
+import { fetchAllStock, useBulkDeleteStock, useBulkEditStock, useDeleteStock, useItemGroups, useItemNames, useJewelleryTypes, useRemoveStockPhoto, useStock, useStockLedger, useUpdateStock, useUploadStockPhoto } from '@/lib/inventoryQueries'
 import { useAuth } from '@/lib/auth'
 import { downloadCsv } from '@/lib/csv'
 import { useT } from '@/lib/i18n'
@@ -236,6 +236,8 @@ export function StockList() {
   const [karatCode, setKaratCode] = useState('')
   const [minWeight, setMinWeight] = useState('')
   const [maxWeight, setMaxWeight] = useState('')
+  const [jewelleryTypeId, setJewelleryTypeId] = useState('')
+  const { data: typeOpts } = useJewelleryTypes(stockClass || undefined)
   const { data: groupOpts } = useItemGroups({ stockClass: stockClass || undefined, pageSize: 100 })
   const { data: nameOpts } = useItemNames({ stockClass: stockClass || undefined, groupId: groupId ? Number(groupId) : undefined, pageSize: 100 })
   const { data: karats } = useKarats()
@@ -250,6 +252,7 @@ export function StockList() {
     karatCode: karatCode || undefined,
     minWeight: minWeight || undefined,
     maxWeight: maxWeight || undefined,
+    jewelleryTypeId: jewelleryTypeId || undefined,
   }
   const { data, isLoading } = useStock({ page, pageSize, ...filters })
   const navigate = useNavigate()
@@ -381,7 +384,7 @@ export function StockList() {
       <Card>
         <CardContent className="flex flex-wrap items-end gap-3 pt-6">
           <Input className="max-w-xs" placeholder={t('stock.search')} value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
-          <Select value={stockClass || 'all'} onValueChange={(v) => { setStockClass(v === 'all' ? '' : v); setGroupId(''); setItemNameId(''); setPage(1) }}>
+          <Select value={stockClass || 'all'} onValueChange={(v) => { setStockClass(v === 'all' ? '' : v); setGroupId(''); setItemNameId(''); setJewelleryTypeId(''); setPage(1) }}>
             <SelectTrigger className="w-36" aria-label="Stock class">
               <SelectValue />
             </SelectTrigger>
@@ -397,6 +400,7 @@ export function StockList() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="ALL">All</SelectItem>
               {STOCK_STATUSES.map((s) => (
                 <SelectItem key={s} value={s}>{s}</SelectItem>
               ))}
@@ -410,6 +414,17 @@ export function StockList() {
               <SelectItem value="all">Tag + Loose</SelectItem>
               <SelectItem value="TAG">Tag only</SelectItem>
               <SelectItem value="LOOSE">Loose only</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={jewelleryTypeId || 'all'} onValueChange={(v) => { setJewelleryTypeId(v === 'all' ? '' : v); setPage(1) }}>
+            <SelectTrigger className="w-40" aria-label="Type (collection)">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All types</SelectItem>
+              {typeOpts?.map((jt) => (
+                <SelectItem key={jt.id} value={String(jt.id)}>{jt.name}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Select value={groupId || 'all'} onValueChange={(v) => { setGroupId(v === 'all' ? '' : v); setItemNameId(''); setPage(1) }}>
@@ -456,6 +471,16 @@ export function StockList() {
           <Button variant="outline" disabled={exporting} onClick={exportPdf}>Export PDF</Button>
         </CardContent>
       </Card>
+
+      {data?.totals && (
+        <div className="flex flex-wrap gap-x-6 gap-y-1 rounded-2xl border bg-muted/40 px-4 py-3 text-sm tabular-nums" role="group" aria-label="Totals for all matching items">
+          <span className="font-medium">All {data.total} matching</span>
+          <span>Pcs {data.totals.pcs}</span>
+          <span>Gross {g3(Number(data.totals.gross))}</span>
+          <span>Net {g3(Number(data.totals.net))}</span>
+          <span>Fine {g3(Number(data.totals.fine))}</span>
+        </div>
+      )}
 
       {ids.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border bg-muted/40 px-4 py-3 text-sm">

@@ -15,6 +15,8 @@ const TABS = [
   { to: '/app/inventory/transfers', label: 'Transfer', key: 'inventory.stock_transfer', needsBranches: true },
   { to: '/app/inventory/tags', label: 'Tags', key: 'inventory.tag_print' },
   { to: '/app/inventory/scan', label: 'Scan/Match', key: 'inventory.scan_match' },
+  { to: '/app/inventory/printer', label: 'Printer settings', key: 'inventory.printer_setting' },
+  { to: '/app/inventory/tag-editor', label: 'Tag editor', key: 'inventory.printer_setting' },
 ]
 
 export function InventoryLayout() {
