@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useT } from '@/lib/i18n'
 import { useBhavBookings } from '@/lib/tradeQueries'
 import { METALS, TRADE_SIDES, type BhavBookingDto } from '@/shared'
 
@@ -21,6 +22,7 @@ const time = (s: string) => new Date(s).toLocaleTimeString('en-IN', { hour: '2-d
 
 /** Closed bhav bookings (fully delivered or cancelled). 'All' lists both statuses together (closed=true). */
 export function BhavOldBookings() {
+  const t = useT()
   const [status, setStatus] = useState<'ALL' | 'DELIVERED' | 'CANCELLED'>('ALL')
   const [side, setSide] = useState('')
   const [metal, setMetal] = useState('')
@@ -33,20 +35,20 @@ export function BhavOldBookings() {
   const { data, isLoading } = useBhavBookings({ ...statusParams, side: side || undefined, metal: metal || undefined, q: q || undefined, from: from || undefined, to: to || undefined, page, pageSize })
 
   const columns: ColumnDef<BhavBookingDto, unknown>[] = [
-    { header: 'No', cell: ({ row }) => <span className="font-medium">#{row.original.bookingNo}</span> },
-    { header: 'Date', cell: ({ row }) => <div className="whitespace-nowrap">{date(row.original.txnDate)}<div className="text-xs text-muted-foreground">{time(row.original.createdAt)}</div></div> },
-    { header: 'Party', cell: ({ row }) => <div>{row.original.party.name}<div className="text-xs text-muted-foreground tabular-nums">{row.original.party.mobile}</div></div> },
-    { header: 'Side', cell: ({ row }) => <Badge variant="secondary">{row.original.side}</Badge> },
-    { header: 'Metal', cell: ({ row }) => row.original.metal },
-    { header: 'Weight', cell: ({ row }) => <span className="tabular-nums">{row.original.weight} g</span> },
-    { header: 'Rate', cell: ({ row }) => <span className="tabular-nums">{row.original.rate}</span> },
-    { header: 'Amount', cell: ({ row }) => <span className="tabular-nums">{inr(row.original.amount)}</span> },
-    { header: 'Advance', cell: ({ row }) => <span className="tabular-nums">{inr(row.original.advance)}</span> },
-    { header: 'Narration', cell: ({ row }) => <span className="text-muted-foreground">{row.original.narration ?? '—'}</span> },
-    { header: 'Status', cell: ({ row }) => <div className="flex flex-wrap gap-1"><Badge variant="outline">{row.original.status}</Badge><VerifiedBadge b={row.original} /></div> },
+    { header: t('trade.col_no'), cell: ({ row }) => <span className="font-medium">#{row.original.bookingNo}</span> },
+    { header: t('udhari.date'), cell: ({ row }) => <div className="whitespace-nowrap">{date(row.original.txnDate)}<div className="text-xs text-muted-foreground">{time(row.original.createdAt)}</div></div> },
+    { header: t('udhari.party'), cell: ({ row }) => <div>{row.original.party.name}<div className="text-xs text-muted-foreground tabular-nums">{row.original.party.mobile}</div></div> },
+    { header: t('trade.side'), cell: ({ row }) => <Badge variant="secondary">{row.original.side}</Badge> },
+    { header: t('udhari.metal'), cell: ({ row }) => row.original.metal },
+    { header: t('bill.col_weight'), cell: ({ row }) => <span className="tabular-nums">{row.original.weight} g</span> },
+    { header: t('udhari.rate'), cell: ({ row }) => <span className="tabular-nums">{row.original.rate}</span> },
+    { header: t('bill.amount'), cell: ({ row }) => <span className="tabular-nums">{inr(row.original.amount)}</span> },
+    { header: t('trade.col_advance'), cell: ({ row }) => <span className="tabular-nums">{inr(row.original.advance)}</span> },
+    { header: t('udhari.col_narration'), cell: ({ row }) => <span className="text-muted-foreground">{row.original.narration ?? '—'}</span> },
+    { header: t('stock.col_status'), cell: ({ row }) => <div className="flex flex-wrap gap-1"><Badge variant="outline">{row.original.status}</Badge><VerifiedBadge b={row.original} /></div> },
     { id: 'actions', header: '', cell: ({ row }) => (
       <div className="flex justify-end gap-1">
-        <Button asChild variant="ghost" size="sm"><Link to={`/app/buy_sell/bhav/${row.original.id}/print`}><Printer className="size-4" aria-hidden />Print</Link></Button>
+        <Button asChild variant="ghost" size="sm"><Link to={`/app/buy_sell/bhav/${row.original.id}/print`}><Printer className="size-4" aria-hidden />{t('bill.print')}</Link></Button>
         <BhavRowMenu b={row.original} />
       </div>
     ) },
@@ -55,31 +57,31 @@ export function BhavOldBookings() {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-xl">Old bookings</h2>
-        <p className="text-sm text-muted-foreground">Rate locks that are fully delivered or cancelled.</p>
+        <h2 className="text-xl">{t('trade.tab_old_bookings')}</h2>
+        <p className="text-sm text-muted-foreground">{t('trade.old.subtitle')}</p>
       </div>
 
       <Card>
         <CardContent className="flex flex-wrap items-end gap-3 pt-6">
-          <Input className="max-w-xs" placeholder="Search no / party / mobile…" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
+          <Input className="max-w-xs" placeholder={t('trade.search_ph')} value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
           <Select value={status} onValueChange={(v) => { setStatus(v === 'CANCELLED' || v === 'DELIVERED' ? v : 'ALL'); setPage(1) }}>
             <SelectTrigger className="w-48" aria-label="Status"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="ALL">Delivered + cancelled</SelectItem><SelectItem value="DELIVERED">Delivered</SelectItem><SelectItem value="CANCELLED">Cancelled</SelectItem></SelectContent>
+            <SelectContent><SelectItem value="ALL">{t('trade.old.status_all')}</SelectItem><SelectItem value="DELIVERED">{t('trade.old.delivered')}</SelectItem><SelectItem value="CANCELLED">{t('gst.col_cancelled')}</SelectItem></SelectContent>
           </Select>
           <Select value={side || 'all'} onValueChange={(v) => { setSide(v === 'all' ? '' : v); setPage(1) }}>
             <SelectTrigger className="w-32" aria-label="Side"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="all">All sides</SelectItem>{TRADE_SIDES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+            <SelectContent><SelectItem value="all">{t('trade.all_sides')}</SelectItem>{TRADE_SIDES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
           </Select>
           <Select value={metal || 'all'} onValueChange={(v) => { setMetal(v === 'all' ? '' : v); setPage(1) }}>
             <SelectTrigger className="w-32" aria-label="Metal"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="all">All metals</SelectItem>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+            <SelectContent><SelectItem value="all">{t('trade.all_metals')}</SelectItem>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
           </Select>
           <DateRangeFilter from={from} to={to} onChange={(a, b) => { setFrom(a); setTo(b); setPage(1) }} />
         </CardContent>
       </Card>
 
       <Card className="p-4">
-        <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} emptyText="No old bookings" pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: setPageSize } : undefined} />
+        <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} emptyText={t('trade.old.empty')} pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: setPageSize } : undefined} />
       </Card>
     </div>
   )

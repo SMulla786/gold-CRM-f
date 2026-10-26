@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useBankAccounts, useCurrentRates, useSettings } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { metalRateUnitGrams } from '@/lib/billingQueries'
+import { useT } from '@/lib/i18n'
 import { useBhavBooking, useBhavBookings, useBuySell, useCreateBuySell, useUpdateBuySell } from '@/lib/tradeQueries'
 import { businessDayISO, METALS, TRADE_SIDES, metalToMoney, type BhavBookingDto, type PartyRefDto } from '@/shared'
 
@@ -31,6 +32,7 @@ interface Row { key: string; weight: string; rate: string }
 const blankRow = (rate = ''): Row => ({ key: k(), weight: '', rate })
 
 export function NewBuySell() {
+  const t = useT()
   const navigate = useNavigate()
   const { activeBranch } = useAuth()
   const branchReady = activeBranch !== '' && activeBranch !== 'all'
@@ -124,7 +126,7 @@ export function NewBuySell() {
     if (editing) { setAskMpin(true); return }
     const saved = await create.mutateAsync(body())
     navigate('/app/buy_sell')
-    toast(`Trade #${saved.buySellNo} slip is ready`, { action: { label: 'Print slip', onClick: () => navigate(`/app/buy_sell/${saved.id}/print`) } })
+    toast(t('trade.bs.toast_saved', { no: saved.buySellNo }), { action: { label: t('trade.bs.print_slip'), onClick: () => navigate(`/app/buy_sell/${saved.id}/print`) } })
   }
   const saveEdit = async (mpin: string) => {
     await update.mutateAsync({ id: editing!.id, mpin, body: body() })
@@ -134,43 +136,43 @@ export function NewBuySell() {
 
   return (
     <div className="space-y-8">
-      {!branchReady && <SelectBranchForTxn note="A trade is booked at one branch. Select a branch." />}
+      {!branchReady && <SelectBranchForTxn note={t('trade.bs.branch_note')} />}
       {editing && (
         <Card>
           <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-6 text-sm">
-            <span>Editing trade #{editing.buySellNo}. Saving replaces its entries (same number) and needs your MPIN.</span>
-            <Button asChild variant="outline" size="sm"><Link to="/app/buy_sell">Cancel edit</Link></Button>
+            <span>{t('trade.bs.editing', { no: editing.buySellNo })}</span>
+            <Button asChild variant="outline" size="sm"><Link to="/app/buy_sell">{t('trade.cancel_edit')}</Link></Button>
           </CardContent>
         </Card>
       )}
 
       <Card>
-        <CardHeader><CardTitle>Trade details</CardTitle></CardHeader>
+        <CardHeader><CardTitle>{t('trade.bs.details')}</CardTitle></CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div className="space-y-1.5">
-            <Label>Side</Label>
+            <Label>{t('trade.side')}</Label>
             <Select value={side} onValueChange={(v) => { setSide(v); setBooking(null) }}>
               <SelectTrigger aria-label="Side"><SelectValue /></SelectTrigger>
-              <SelectContent>{TRADE_SIDES.map((s) => <SelectItem key={s} value={s}>{s === 'BUY' ? 'Buy (bullion in)' : 'Sell (bullion out)'}</SelectItem>)}</SelectContent>
+              <SelectContent>{TRADE_SIDES.map((s) => <SelectItem key={s} value={s}>{s === 'BUY' ? t('trade.bs.side_buy') : t('trade.bs.side_sell')}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5 lg:col-span-2"><Label htmlFor="bs-party">Party</Label><PartyPicker value={party} onChange={(p) => { setParty(p); setBooking(null) }} placeholder="Search name / mobile" id="bs-party" ariaLabel="Party" /></div>
+          <div className="space-y-1.5 lg:col-span-2"><Label htmlFor="bs-party">{t('udhari.party')}</Label><PartyPicker value={party} onChange={(p) => { setParty(p); setBooking(null) }} placeholder={t('bill.search_party')} id="bs-party" ariaLabel="Party" /></div>
           <div className="space-y-1.5">
-            <Label>Metal</Label>
+            <Label>{t('udhari.metal')}</Label>
             <Select value={metal} onValueChange={(v) => { setMetal(v); setBooking(null) }}>
               <SelectTrigger aria-label="Metal"><SelectValue /></SelectTrigger>
               <SelectContent>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5"><Label htmlFor="bs-date">Date</Label><Input id="bs-date" type="date" value={txnDate} onChange={(e) => setTxnDate(e.target.value)} /></div>
+          <div className="space-y-1.5"><Label htmlFor="bs-date">{t('udhari.date')}</Label><Input id="bs-date" type="date" value={txnDate} onChange={(e) => setTxnDate(e.target.value)} /></div>
           {!!bookingOptions.length && (
             <div className="space-y-1.5 lg:col-span-2">
-              <Label>Deliver against bhav booking</Label>
+              <Label>{t('trade.bs.deliver_against')}</Label>
               <Select value={booking ? String(booking.id) : 'none'} onValueChange={(v) => pickBooking(v === 'none' ? '' : v)}>
                 <SelectTrigger aria-label="Bhav booking"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">None (spot rate)</SelectItem>
-                  {bookingOptions.map((b) => <SelectItem key={b.id} value={String(b.id)}>#{b.bookingNo} · {b.pendingWeight}g pending @ {b.rate}</SelectItem>)}
+                  <SelectItem value="none">{t('trade.bs.no_booking')}</SelectItem>
+                  {bookingOptions.map((b) => <SelectItem key={b.id} value={String(b.id)}>{t('trade.bs.booking_option', { no: b.bookingNo, wt: b.pendingWeight, rate: b.rate })}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -179,10 +181,10 @@ export function NewBuySell() {
       </Card>
 
       <section className="space-y-3">
-        <h2 className="text-xl">Line items</h2>
+        <h2 className="text-xl">{t('trade.bs.line_items')}</h2>
         <Card className="overflow-x-auto p-2">
           <Table>
-            <TableHeader><TableRow><TableHead>Weight (g)</TableHead><TableHead>Rate ({metal === 'GOLD' ? '/10g' : '/kg'})</TableHead><TableHead>Amount</TableHead><TableHead /></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>{t('udhari.weight_g')}</TableHead><TableHead>{t('trade.rate_unit', { unit: metal === 'GOLD' ? '/10g' : '/kg' })}</TableHead><TableHead>{t('bill.amount')}</TableHead><TableHead /></TableRow></TableHeader>
             <TableBody>
               {rows.map((r, i) => (
                 <TableRow key={r.key}>
@@ -196,23 +198,23 @@ export function NewBuySell() {
           </Table>
         </Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Button variant="outline" size="sm" onClick={() => setRows((rs) => [...rs, blankRow(booking?.rate ?? '')])}>+ Add line</Button>
-          {spot && <p className="text-xs text-muted-foreground tabular-nums">Today's fine {side === 'BUY' ? 'buy' : 'sell'} rate {spot} ({metal === 'GOLD' ? '/10g' : '/kg'}) is used when a line's rate is left blank.</p>}
+          <Button variant="outline" size="sm" onClick={() => setRows((rs) => [...rs, blankRow(booking?.rate ?? '')])}>{t('jbill.add_line')}</Button>
+          {spot && <p className="text-xs text-muted-foreground tabular-nums">{t('trade.bs.spot_hint', { side: side === 'BUY' ? t('trade.side_buy_lc') : t('trade.side_sell_lc'), rate: spot, unit: metal === 'GOLD' ? '/10g' : '/kg' })}</p>}
         </div>
       </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <CardHeader><CardTitle>Payment</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{t('trade.payment')}</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5"><Label htmlFor="bs-disc">Discount ₹</Label><Input id="bs-disc" type="number" value={f.discount} onChange={(e) => set('discount', e.target.value)} /></div>
+              <div className="space-y-1.5"><Label htmlFor="bs-disc">{t('girvi.discount_inr')}</Label><Input id="bs-disc" type="number" value={f.discount} onChange={(e) => set('discount', e.target.value)} /></div>
               {!split && <>
-                <div className="space-y-1.5"><Label htmlFor="bs-cash">{side === 'BUY' ? 'Cash paid ₹' : 'Cash recd ₹'}</Label><Input id="bs-cash" type="number" value={f.cash} onChange={(e) => set('cash', e.target.value)} /></div>
-                <div className="space-y-1.5"><Label htmlFor="bs-online">Online ₹</Label><Input id="bs-online" type="number" value={f.online} onChange={(e) => set('online', e.target.value)} /></div>
+                <div className="space-y-1.5"><Label htmlFor="bs-cash">{side === 'BUY' ? t('trade.cash_paid') : t('trade.cash_recd')}</Label><Input id="bs-cash" type="number" value={f.cash} onChange={(e) => set('cash', e.target.value)} /></div>
+                <div className="space-y-1.5"><Label htmlFor="bs-online">{t('udhari.online')}</Label><Input id="bs-online" type="number" value={f.online} onChange={(e) => set('online', e.target.value)} /></div>
                 {n(f.online) > 0 && (
-                  <div className="space-y-1.5"><Label>Bank</Label>
-                    <Select value={f.bankAccountId} onValueChange={(v) => set('bankAccountId', v)}><SelectTrigger aria-label="Bank account"><SelectValue placeholder="Bank" /></SelectTrigger>
+                  <div className="space-y-1.5"><Label>{t('bill.bank')}</Label>
+                    <Select value={f.bankAccountId} onValueChange={(v) => set('bankAccountId', v)}><SelectTrigger aria-label="Bank account"><SelectValue placeholder={t('bill.bank')} /></SelectTrigger>
                       <SelectContent>{banks?.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.bankName} · {b.accountNo}</SelectItem>)}</SelectContent></Select>
                   </div>
                 )}
@@ -220,28 +222,28 @@ export function NewBuySell() {
             </div>
             <SplitToggle id="bs-split" checked={split} onChange={setSplit} />
             {split && <SplitPaymentTable rows={pays} onChange={setPays} />}
-            <div className="space-y-1.5"><Label htmlFor="bs-narr">Narration</Label><Input id="bs-narr" value={f.narration} onChange={(e) => set('narration', e.target.value)} /></div>
+            <div className="space-y-1.5"><Label htmlFor="bs-narr">{t('udhari.col_narration')}</Label><Input id="bs-narr" value={f.narration} onChange={(e) => set('narration', e.target.value)} /></div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Summary</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{t('dash.col_summary')}</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm tabular-nums">
-            <div className="flex justify-between"><span className="text-muted-foreground">Total weight</span><span>{totalWeight.toFixed(3)} g</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Gross</span><span>{inr(gross)}</span></div>
-            <div className="flex justify-between border-t pt-1 font-semibold"><span>Amount</span><span>{inr(totalAmount)}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Paid</span><span>{inr(paid)}</span></div>
-            {!!advance && <div className="flex justify-between"><span className="text-muted-foreground">Booking advance</span><span>−{inr(advance)}</span></div>}
-            <div className="flex justify-between font-medium"><span>Balance ({side === 'BUY' ? 'shop owes' : 'party owes'})</span><span>{inr(Math.abs(balance))}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">{t('trade.total_weight')}</span><span>{totalWeight.toFixed(3)} g</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">{t('stock.col_gross')}</span><span>{inr(gross)}</span></div>
+            <div className="flex justify-between border-t pt-1 font-semibold"><span>{t('bill.amount')}</span><span>{inr(totalAmount)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">{t('bill.paid')}</span><span>{inr(paid)}</span></div>
+            {!!advance && <div className="flex justify-between"><span className="text-muted-foreground">{t('trade.booking_advance')}</span><span>−{inr(advance)}</span></div>}
+            <div className="flex justify-between font-medium"><span>{t('trade.balance_who', { who: side === 'BUY' ? t('trade.shop_owes') : t('trade.party_owes') })}</span><span>{inr(Math.abs(balance))}</span></div>
             <div className="flex justify-end pt-2">
               <Button className="w-full" disabled={!valid || pending} onClick={() => void submit().catch(() => {})}>
-                {pending ? 'Saving…' : editing ? 'Save changes' : `Save ${side === 'BUY' ? 'purchase' : 'sale'}`}
+                {pending ? t('bill.saving') : editing ? t('party.save_changes') : t('trade.save_kind', { kind: side === 'BUY' ? t('trade.kind_purchase') : t('trade.kind_sale') })}
               </Button>
             </div>
           </CardContent>
         </Card>
       </div>
-      <MpinDialog open={askMpin} title={`Save changes to trade #${editing?.buySellNo ?? ''}`} onConfirm={saveEdit} onClose={() => setAskMpin(false)} />
+      <MpinDialog open={askMpin} title={t('trade.bs.save_changes_title', { no: editing?.buySellNo ?? '' })} onConfirm={saveEdit} onClose={() => setAskMpin(false)} />
     </div>
   )
 }

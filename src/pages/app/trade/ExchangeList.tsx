@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAuth } from '@/lib/auth'
 import { downloadCsv } from '@/lib/csv'
+import { useT } from '@/lib/i18n'
 import { fetchAllPaged, qs } from '@/lib/queries'
 import { useDeleteExchange, useExchanges } from '@/lib/tradeQueries'
 import { businessDayISO, METALS, PARTY_TYPES, TRADE_SIDES, type ExchangeDto } from '@/shared'
@@ -24,6 +25,7 @@ const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
 const time = (s: string) => new Date(s).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
 
 export function ExchangeList() {
+  const t = useT()
   const { can, activeBranch } = useAuth()
   const canDelete = can('exchange.entry', 'delete')
   const canProcess = can('exchange.entry', 'edit')
@@ -60,31 +62,31 @@ export function ExchangeList() {
     if (!canProcess || e.side !== 'BUY' || e.processed) return null
     const here = activeBranch === String(e.branch.id)
     return (
-      <Button variant="ghost" size="sm" disabled={!here} title={here ? undefined : `Switch to branch ${e.branch.name} to process`} onClick={() => setMelting(e)}>
-        <Flame className="size-4" aria-hidden />Send to melt
+      <Button variant="ghost" size="sm" disabled={!here} title={here ? undefined : t('trade.switch_branch_process', { name: e.branch.name })} onClick={() => setMelting(e)}>
+        <Flame className="size-4" aria-hidden />{t('trade.ex.send_to_melt')}
       </Button>
     )
   }
 
   const columns: ColumnDef<ExchangeDto, unknown>[] = [
-    { header: 'No', cell: ({ row }) => <span className="font-medium">#{row.original.exchangeNo}</span> },
-    { header: 'Date', cell: ({ row }) => <div className="whitespace-nowrap">{date(row.original.txnDate)}<div className="text-xs text-muted-foreground">{time(row.original.createdAt)}</div></div> },
-    { header: 'Side', cell: ({ row }) => <Badge variant="secondary">{row.original.side}</Badge> },
-    { header: 'Party', cell: ({ row }) => <div>{row.original.party.name}<div className="text-xs text-muted-foreground tabular-nums">{row.original.party.mobile}</div></div> },
-    { header: 'Metal', cell: ({ row }) => row.original.metal },
-    { header: 'Fine before adj.', cell: ({ row }) => <span className="tabular-nums">{row.original.totalFine} g</span> },
-    { header: '± Adj.', cell: ({ row }) => <span className="tabular-nums">{Number(row.original.diffFine) > 0 ? '+' : ''}{row.original.diffFine} g</span> },
-    { header: 'Fine', cell: ({ row }) => `${row.original.afterFine} g` },
-    { header: 'Amount', cell: ({ row }) => (Number(row.original.rate) > 0 ? inr(row.original.finalAmount) : '— metal') },
-    { header: 'Balance', cell: ({ row }) => (Number(row.original.rate) > 0 ? inr(row.original.balance) : `${row.original.afterFine}g`) },
-    { header: 'Processed', cell: ({ row }) => (row.original.side !== 'BUY' ? '—' : row.original.processed ? <Badge>Processed</Badge> : <Badge variant="outline">In kacha</Badge>) },
+    { header: t('trade.col_no'), cell: ({ row }) => <span className="font-medium">#{row.original.exchangeNo}</span> },
+    { header: t('udhari.date'), cell: ({ row }) => <div className="whitespace-nowrap">{date(row.original.txnDate)}<div className="text-xs text-muted-foreground">{time(row.original.createdAt)}</div></div> },
+    { header: t('trade.side'), cell: ({ row }) => <Badge variant="secondary">{row.original.side}</Badge> },
+    { header: t('udhari.party'), cell: ({ row }) => <div>{row.original.party.name}<div className="text-xs text-muted-foreground tabular-nums">{row.original.party.mobile}</div></div> },
+    { header: t('udhari.metal'), cell: ({ row }) => row.original.metal },
+    { header: t('trade.ex.col_fine_before'), cell: ({ row }) => <span className="tabular-nums">{row.original.totalFine} g</span> },
+    { header: t('trade.ex.col_adj'), cell: ({ row }) => <span className="tabular-nums">{Number(row.original.diffFine) > 0 ? '+' : ''}{row.original.diffFine} g</span> },
+    { header: t('stock.col_fine'), cell: ({ row }) => `${row.original.afterFine} g` },
+    { header: t('bill.amount'), cell: ({ row }) => (Number(row.original.rate) > 0 ? inr(row.original.finalAmount) : t('trade.ex.metal_only')) },
+    { header: t('bill.balance'), cell: ({ row }) => (Number(row.original.rate) > 0 ? inr(row.original.balance) : `${row.original.afterFine}g`) },
+    { header: t('trade.ex.processed'), cell: ({ row }) => (row.original.side !== 'BUY' ? '—' : row.original.processed ? <Badge>{t('trade.ex.processed')}</Badge> : <Badge variant="outline">{t('trade.ex.in_kacha')}</Badge>) },
     { id: 'actions', header: '', cell: ({ row }) => (
       <div className="flex justify-end gap-1">
         {meltAction(row.original)}
-        <Button asChild variant="ghost" size="sm"><Link to={`/app/exchange/${row.original.id}/print`}><Printer className="size-4" aria-hidden />Print</Link></Button>
-        {canProcess && !row.original.processed && <Button asChild variant="ghost" size="sm"><Link to={`/app/exchange/new?edit=${row.original.id}`}><Pencil className="size-4" aria-hidden />Edit</Link></Button>}
-        <Button variant="ghost" size="sm" onClick={() => setHistory(row.original)}><History className="size-4" aria-hidden />History</Button>
-        {canDelete && <Button variant="ghost" size="sm" onClick={() => setDeleting(row.original)}>Delete</Button>}
+        <Button asChild variant="ghost" size="sm"><Link to={`/app/exchange/${row.original.id}/print`}><Printer className="size-4" aria-hidden />{t('bill.print')}</Link></Button>
+        {canProcess && !row.original.processed && <Button asChild variant="ghost" size="sm"><Link to={`/app/exchange/new?edit=${row.original.id}`}><Pencil className="size-4" aria-hidden />{t('common.edit')}</Link></Button>}
+        <Button variant="ghost" size="sm" onClick={() => setHistory(row.original)}><History className="size-4" aria-hidden />{t('girvi.history')}</Button>
+        {canDelete && <Button variant="ghost" size="sm" onClick={() => setDeleting(row.original)}>{t('common.delete')}</Button>}
       </div>
     ) },
   ]
@@ -115,42 +117,42 @@ export function ExchangeList() {
   return (
     <div className="space-y-8">
       <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {tile('Entries', data ? String(data.total) : '—', 'Matching current filters', ArrowLeftRight)}
-        {tile('Gold fine on this page', data ? `${goldFine.toFixed(3)} g` : '—', data ? `${goldRows.length} of ${items.length} shown` : undefined, Coins)}
-        {tile('Silver fine on this page', data ? `${silverFine.toFixed(3)} g` : '—', data ? `${silverRows.length} of ${items.length} shown` : undefined, Scale)}
-        {tile('Value on this page', data ? inr(String(moneyTotal)) : '—', data ? `${moneyRows.length} settled in money` : undefined, IndianRupee)}
+        {tile(t('table.entries'), data ? String(data.total) : '—', t('inv.shortage.rows_listed_sub'), ArrowLeftRight)}
+        {tile(t('trade.ex.tile_gold'), data ? `${goldFine.toFixed(3)} g` : '—', data ? t('payments.confirmed_sub', { n: goldRows.length, total: items.length }) : undefined, Coins)}
+        {tile(t('trade.ex.tile_silver'), data ? `${silverFine.toFixed(3)} g` : '—', data ? t('payments.confirmed_sub', { n: silverRows.length, total: items.length }) : undefined, Scale)}
+        {tile(t('trade.ex.tile_value'), data ? inr(String(moneyTotal)) : '—', data ? t('trade.ex.tile_value_sub', { n: moneyRows.length }) : undefined, IndianRupee)}
       </div>
 
       <Card>
         <CardContent className="flex flex-wrap items-end gap-3 pt-6">
-          <Input className="max-w-xs" placeholder="Search no / party / mobile…" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
+          <Input className="max-w-xs" placeholder={t('trade.search_ph')} value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
           <Select value={side || 'all'} onValueChange={(v) => { setSide(v === 'all' ? '' : v); setPage(1) }}>
             <SelectTrigger className="w-32" aria-label="Side"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="all">All sides</SelectItem>{TRADE_SIDES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+            <SelectContent><SelectItem value="all">{t('trade.all_sides')}</SelectItem>{TRADE_SIDES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
           </Select>
           <Select value={metal || 'all'} onValueChange={(v) => { setMetal(v === 'all' ? '' : v); setPage(1) }}>
             <SelectTrigger className="w-32" aria-label="Metal"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="all">All metals</SelectItem>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+            <SelectContent><SelectItem value="all">{t('trade.all_metals')}</SelectItem>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
           </Select>
           <Select value={ptype || 'all'} onValueChange={(v) => { setPtype(v === 'all' ? '' : v); setPage(1) }}>
             <SelectTrigger className="w-40" aria-label="Party type"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="all">All party types</SelectItem>{PARTY_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+            <SelectContent><SelectItem value="all">{t('trade.ex.all_ptypes')}</SelectItem>{PARTY_TYPES.map((pt) => <SelectItem key={pt} value={pt}>{pt}</SelectItem>)}</SelectContent>
           </Select>
           <Select value={processed || 'all'} onValueChange={(v) => { setProcessed(v === 'all' ? '' : v); setPage(1) }}>
             <SelectTrigger className="w-40" aria-label="Processing"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="all">Any processing</SelectItem><SelectItem value="true">Sent to melt</SelectItem><SelectItem value="false">Not sent to melt</SelectItem></SelectContent>
+            <SelectContent><SelectItem value="all">{t('trade.ex.any_processing')}</SelectItem><SelectItem value="true">{t('trade.ex.sent_to_melt')}</SelectItem><SelectItem value="false">{t('trade.ex.not_sent')}</SelectItem></SelectContent>
           </Select>
           <DateRangeFilter from={from} to={to} onChange={(a, b) => { setFrom(a); setTo(b); setPage(1) }} />
-          <Button variant="outline" className="ml-auto" disabled={exporting} onClick={() => void exportCsv()}><Download className="size-4" aria-hidden />{exporting ? 'Exporting…' : 'Export CSV'}</Button>
-          <Button asChild variant="outline"><Link to={`/app/exchange/print${qs({ ...filters, ptype: ptype || undefined })}`}><FileDown className="size-4" aria-hidden />Download PDF</Link></Button>
+          <Button variant="outline" className="ml-auto" disabled={exporting} onClick={() => void exportCsv()}><Download className="size-4" aria-hidden />{exporting ? t('bill.exporting') : t('common.export_csv')}</Button>
+          <Button asChild variant="outline"><Link to={`/app/exchange/print${qs({ ...filters, ptype: ptype || undefined })}`}><FileDown className="size-4" aria-hidden />{t('bill.download_pdf')}</Link></Button>
         </CardContent>
       </Card>
 
       <Card className="p-4">
-        <DataTable columns={columns} data={items} isLoading={isLoading} emptyText="No exchanges" pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: setPageSize } : undefined} />
+        <DataTable columns={columns} data={items} isLoading={isLoading} emptyText={t('trade.ex.empty')} pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: setPageSize } : undefined} />
       </Card>
-      <MpinDialog open={!!deleting} title={`Delete exchange #${deleting?.exchangeNo ?? ''}`} onConfirm={(mpin) => del.mutateAsync({ id: deleting!.id, mpin })} onClose={() => setDeleting(null)} />
-      <HistoryDialog kind="exchange" id={history?.id} title={`History of exchange #${history?.exchangeNo ?? ''}`} onClose={() => setHistory(null)} />
+      <MpinDialog open={!!deleting} title={t('trade.ex.delete_title', { no: deleting?.exchangeNo ?? '' })} onConfirm={(mpin) => del.mutateAsync({ id: deleting!.id, mpin })} onClose={() => setDeleting(null)} />
+      <HistoryDialog kind="exchange" id={history?.id} title={t('trade.ex.history_title', { no: history?.exchangeNo ?? '' })} onClose={() => setHistory(null)} />
       {melting && <ProcessKachaDialog metal={melting.metal} source={{ id: melting.id, exchangeNo: melting.exchangeNo, fine: melting.afterFine }} onClose={() => setMelting(null)} />}
     </div>
   )
