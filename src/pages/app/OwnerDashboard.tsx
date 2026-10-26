@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ShopRateCard } from '@/pages/app/ShopRateCard'
+import { useOccasions } from '@/lib/appQueries'
 import { useT } from '@/lib/i18n'
 import { plural } from '@/lib/plural'
 import { useActivity, useDashboard } from '@/lib/reportsQueries'
@@ -107,6 +108,24 @@ function ActivityFeed() {
   )
 }
 
+function OccasionsCard() {
+  const { data } = useOccasions(7)
+  if (!data || data.length === 0) return null
+  return (
+    <Card>
+      <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Upcoming occasions</CardTitle></CardHeader>
+      <CardContent className="space-y-1 text-sm">
+        {data.map((o) => (
+          <div key={`${o.party.id}-${o.kind}`} className="flex justify-between gap-2">
+            <span><span className="font-medium">{o.party.name}</span> · {o.kind === 'BIRTHDAY' ? 'Birthday' : 'Anniversary'}{o.party.mobile ? ` · ${o.party.mobile}` : ''}</span>
+            <span className="whitespace-nowrap text-muted-foreground">{o.daysAway === 0 ? 'Today' : `in ${plural(o.daysAway, 'day')}`} · {new Date(o.date).toLocaleDateString('en-IN')}</span>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  )
+}
+
 export function OwnerDashboard() {
   const t = useT()
   const { data, isLoading, isError } = useDashboard()
@@ -133,6 +152,8 @@ export function OwnerDashboard() {
       </div>
 
       <ShopRateCard />
+
+      <OccasionsCard />
 
       <Card>
         <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">{t('dash.stock_on_hand')}</CardTitle></CardHeader>

@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 
 const TABS = [
   { to: '/app/daybook', label: 'Summary', key: 'daybook.all_in_one', end: true },
+  { to: '/app/daybook/all-in-one', label: 'All-in-One', key: 'daybook.all_in_one' },
   { to: '/app/daybook/money', label: 'Money', key: 'daybook.money' },
   { to: '/app/daybook/gold', label: 'Gold', key: 'daybook.gold' },
   { to: '/app/daybook/silver', label: 'Silver', key: 'daybook.silver' },

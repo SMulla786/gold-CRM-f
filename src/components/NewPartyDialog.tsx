@@ -66,6 +66,9 @@ export function NewPartyDialog({ open, onClose, defaultType = 'CUSTOMER', defaul
 
   const [isSub, setIsSub] = useState(false)
   const [parent, setParent] = useState<PartyRefDto | null>(null)
+  // birthday/anniversary are z.coerce.date() in the contract → keep as local YYYY-MM-DD strings (like the other date forms), inject on submit.
+  const [birthday, setBirthday] = useState('')
+  const [anniversary, setAnniversary] = useState('')
 
   useEffect(() => {
     if (party) {
@@ -75,7 +78,11 @@ export function NewPartyDialog({ open, onClose, defaultType = 'CUSTOMER', defaul
         pan: party.pan ?? undefined, gstin: party.gstin ?? undefined, shopName: party.shopName ?? undefined,
         stateId: party.stateId ?? undefined, districtId: party.districtId ?? undefined, area: party.area ?? undefined,
         specialty: party.specialty ?? undefined, parentId: party.parent?.id,
+        licenseNo: party.licenseNo ?? undefined, regNo: party.regNo ?? undefined, logoTitle: party.logoTitle ?? undefined,
+        shopAddress: party.shopAddress ?? undefined, pinCode: party.pinCode ?? undefined,
       })
+      setBirthday(party.birthday ?? '')
+      setAnniversary(party.anniversary ?? '')
       if (party.parent) {
         setIsSub(true)
         setParent({ id: party.parent.id, name: party.parent.name, type: 'CUSTOMER', mobile: '', shopName: null })
@@ -84,11 +91,13 @@ export function NewPartyDialog({ open, onClose, defaultType = 'CUSTOMER', defaul
   }, [party, reset])
 
   const onSubmit = handleSubmit(async (values) => {
-    const body = { ...values, parentId: isSub ? parent?.id : undefined }
+    const body = { ...values, parentId: isSub ? parent?.id : undefined, birthday: birthday || undefined, anniversary: anniversary || undefined }
     const saved = party ? await update.mutateAsync({ id: party.id, body }) : await create.mutateAsync(body)
     reset()
     setIsSub(false)
     setParent(null)
+    setBirthday('')
+    setAnniversary('')
     onSaved?.(saved as PartyDto)
     onClose()
   })
@@ -155,6 +164,11 @@ export function NewPartyDialog({ open, onClose, defaultType = 'CUSTOMER', defaul
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
+            <Field label="Birthday"><Input type="date" value={birthday} onChange={(e) => setBirthday(e.target.value)} /></Field>
+            <Field label="Anniversary"><Input type="date" value={anniversary} onChange={(e) => setAnniversary(e.target.value)} /></Field>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
             <Field label={t('party.state')}>
               <Select value={stateId ? String(stateId) : ''} onValueChange={(v) => { setValue('stateId', Number(v)); setValue('districtId', undefined) }}>
                 <SelectTrigger aria-label="State">
@@ -195,6 +209,15 @@ export function NewPartyDialog({ open, onClose, defaultType = 'CUSTOMER', defaul
               <Input {...register('shopName')} />
             </Field>
           )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="License no."><Input {...register('licenseNo')} /></Field>
+            <Field label="Registration no."><Input {...register('regNo')} /></Field>
+            <Field label="Logo title"><Input {...register('logoTitle')} /></Field>
+            <Field label="Area"><Input {...register('area')} /></Field>
+            <Field label="Pin code" error={errors.pinCode?.message}><Input {...register('pinCode')} /></Field>
+          </div>
+          <Field label="Shop address"><Input {...register('shopAddress')} /></Field>
 
           <p className="text-xs text-muted-foreground">{t('party.photo_note')}</p>
 

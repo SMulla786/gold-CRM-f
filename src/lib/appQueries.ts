@@ -9,6 +9,7 @@ import type {
   CurrentRatesDto,
   HsnDto,
   KaratDto,
+  OccasionDto,
   Paged,
   PartyDto,
   PartyListItemDto,
@@ -19,6 +20,8 @@ import type {
 } from '@/shared'
 
 // ───── Parties ─────
+export const useOccasions = (days = 7) =>
+  useQuery({ queryKey: ['occasions', days], queryFn: () => api.get<OccasionDto[]>(`/app/parties/occasions?days=${days}`) })
 export const useParties = (params: { page?: number; q?: string; type?: string; active?: string }) =>
   useQuery({ queryKey: ['parties', params], queryFn: () => api.get<Paged<PartyListItemDto>>(`/app/parties${qs(params)}`) })
 export const useParty = (id?: number) =>

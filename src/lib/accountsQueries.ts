@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { api } from '@/lib/api'
 import { qs, useApiMutation } from '@/lib/queries'
-import type { DayBookDto, IncomeExpenseDailySummaryDto, IncomeExpenseDto, LedgerPageDto, Paged } from '@/shared'
+import type { DayBookAllInOneRowDto, DayBookDto, IncomeExpenseDailySummaryDto, IncomeExpenseDto, LedgerPageDto, Paged } from '@/shared'
 
 // ───── Income / Expense ─────
 export const useIncomeExpense = (params: Record<string, string | number | undefined>, enabled = true) =>
@@ -31,6 +31,8 @@ export const useLedger = (params: Record<string, string | number | undefined>) =
   useQuery({ queryKey: ['ledger', params], queryFn: () => api.get<LedgerPageDto>(`/app/ledgers${qs(params)}`) })
 export const useDayBook = (params: Record<string, string | number | undefined>) =>
   useQuery({ queryKey: ['day-book', params], queryFn: () => api.get<DayBookDto>(`/app/day-book${qs(params)}`) })
+export const useDayBookAllInOne = (params: Record<string, string | number | undefined>) =>
+  useQuery({ queryKey: ['day-book-aio', params], queryFn: () => api.get<Paged<DayBookAllInOneRowDto>>(`/app/day-book/all-in-one${qs(params)}`) })
 
 // TASK-80: open / close a branch-day (MPIN). A closed day blocks all ledger postings (403 DAY_CLOSED).
 type DayStatus = { date: string; status: 'OPEN' | 'CLOSED' }

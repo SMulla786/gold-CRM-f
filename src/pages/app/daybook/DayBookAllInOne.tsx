@@ -1,0 +1,75 @@
+import { useState } from 'react'
+
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { useDayBookAllInOne } from '@/lib/accountsQueries'
+import { LEDGER_ASSETS, LEDGER_SOURCES, businessDayISO } from '@/shared'
+
+const today = businessDayISO
+const amt = (s: string) => (Number(s) ? Number(s).toLocaleString('en-IN') : '—')
+
+export function DayBookAllInOne() {
+  const [from, setFrom] = useState(today())
+  const [to, setTo] = useState(today())
+  const [source, setSource] = useState('')
+  const [page, setPage] = useState(1)
+  const { data, isLoading } = useDayBookAllInOne({ from, to, source: source || undefined, page })
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="space-y-1.5"><Label htmlFor="aio-from">From</Label><Input id="aio-from" type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1) }} /></div>
+        <div className="space-y-1.5"><Label htmlFor="aio-to">To</Label><Input id="aio-to" type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1) }} /></div>
+        <div className="space-y-1.5">
+          <Label>Source</Label>
+          <Select value={source || 'all'} onValueChange={(v) => { setSource(v === 'all' ? '' : v); setPage(1) }}>
+            <SelectTrigger className="w-48" aria-label="Source"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All sources</SelectItem>
+              {LEDGER_SOURCES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Date</TableHead><TableHead>Source</TableHead><TableHead>Party</TableHead>
+              {LEDGER_ASSETS.map((a) => <TableHead key={a} className="text-right">{a} in/out</TableHead>)}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? <TableRow><TableCell colSpan={3 + LEDGER_ASSETS.length} className="h-16 text-center text-muted-foreground">Loading…</TableCell></TableRow>
+              : data?.items.length ? data.items.map((r, i) => (
+                <TableRow key={`${r.source}-${r.sourceId}-${i}`}>
+                  <TableCell className="whitespace-nowrap">{new Date(r.txnDate).toLocaleDateString('en-IN')}</TableCell>
+                  <TableCell className="whitespace-nowrap text-sm">{r.source}</TableCell>
+                  <TableCell className="text-sm">{r.party?.name ?? '—'}</TableCell>
+                  {LEDGER_ASSETS.map((a) => (
+                    <TableCell key={a} className="whitespace-nowrap text-right tabular-nums">
+                      <span className="text-green-600 dark:text-green-500">{amt(r.assets[a].in)}</span>
+                      <span className="mx-1 text-muted-foreground">/</span>
+                      <span className="text-destructive">{amt(r.assets[a].out)}</span>
+                    </TableCell>
+                  ))}
+                </TableRow>
+              )) : <TableRow><TableCell colSpan={3 + LEDGER_ASSETS.length} className="h-16 text-center text-muted-foreground">No activity</TableCell></TableRow>}
+          </TableBody>
+        </Table>
+      </div>
+
+      {data && data.total > data.pageSize && (
+        <div className="flex items-center justify-end gap-2 text-sm">
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</Button>
+          <span>Page {data.page}</span>
+          <Button variant="outline" size="sm" disabled={page * data.pageSize >= data.total} onClick={() => setPage((p) => p + 1)}>Next</Button>
+        </div>
+      )}
+    </div>
+  )
+}

@@ -45,6 +45,7 @@ const ScanMatch = lazy(() => import('@/pages/app/inventory/ScanMatch').then((m) 
 const IncomeExpense = lazy(() => import('@/pages/app/IncomeExpense').then((m) => ({ default: m.IncomeExpense })))
 const DayBookLayout = lazy(() => import('@/pages/app/daybook/DayBookLayout').then((m) => ({ default: m.DayBookLayout })))
 const DayBookSummary = lazy(() => import('@/pages/app/daybook/DayBookSummary').then((m) => ({ default: m.DayBookSummary })))
+const DayBookAllInOne = lazy(() => import('@/pages/app/daybook/DayBookAllInOne').then((m) => ({ default: m.DayBookAllInOne })))
 const AssetLedger = lazy(() => import('@/pages/app/daybook/AssetLedger').then((m) => ({ default: m.AssetLedger })))
 const BillingLayout = lazy(() => import('@/pages/app/billing/BillingLayout').then((m) => ({ default: m.BillingLayout })))
 const SellBill = lazy(() => import('@/pages/app/billing/SellBill').then((m) => ({ default: m.SellBill })))
@@ -166,6 +167,7 @@ export default function App() {
             <Route path="income_expense" element={<IncomeExpense />} />
             <Route path="daybook" element={<DayBookLayout />}>
               <Route index element={<DayBookSummary />} />
+              <Route path="all-in-one" element={<DayBookAllInOne />} />
               <Route path=":asset" element={<AssetLedger />} />
             </Route>
             <Route path="billing" element={<BillingLayout />}>
