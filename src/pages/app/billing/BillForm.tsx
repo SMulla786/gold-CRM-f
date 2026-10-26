@@ -1,4 +1,4 @@
-import { Columns3 } from 'lucide-react'
+import { ChevronDown, Columns3 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -137,6 +137,9 @@ const payFromDto = (p: BillPaymentDto): PayRow => ({
   gross: p.gross ?? '', less: p.gross && p.net ? String(Number(p.gross) - Number(p.net)) : '0', tunch: p.tunch ?? '', rate: p.rate ?? '', remark: p.remark ?? '',
 })
 
+const ITC_OPTS = [['ELIGIBLE', 'Eligible'], ['BLOCKED_17_5', 'Blocked u/s 17(5)'], ['INELIGIBLE', 'Ineligible']] as const
+const SUPPLY_OPTS = [['TAXABLE', 'Taxable'], ['ZERO_RATED', 'Zero rated (export / SEZ)'], ['NIL_EXEMPT', 'Nil rated / exempt'], ['NON_GST', 'Non-GST supply']] as const
+
 export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDto }) {
   const t = useT()
   const navigate = useNavigate()
@@ -160,6 +163,12 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
   const [pays, setPays] = useState<PayRow[]>(editBill ? editBill.payments.filter((p) => p.isActive).map(payFromDto) : [])
   const [keepAs, setKeepAs] = useState<string>(editBill ? editBill.keepBalanceAs : 'MONEY')
   const [keepRate, setKeepRate] = useState(editBill?.keepRate ?? '')
+  // TASK-97 GST reporting fields (no calc effect); the block is collapsed and its inputs are only mounted when opened
+  const [gstOpen, setGstOpen] = useState(false)
+  const [gst, setGst] = useState({
+    itcEligibility: editBill?.itcEligibility ?? 'ELIGIBLE', itcBlockReason: editBill?.itcBlockReason ?? '', supplierInvoiceNo: editBill?.supplierInvoiceNo ?? '',
+    supplyCategory: editBill?.supplyCategory ?? 'TAXABLE', reverseCharge: editBill?.reverseCharge ?? false,
+  })
   const [rateLimitLine, setRateLimitLine] = useState<number | null>(null)
   const [panOpen, setPanOpen] = useState(false)
   const [pan, setPan] = useState('')
@@ -311,6 +320,9 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
       pan: panValue || undefined,
       draftId: !editBill && kind === 'SELL' ? draftId ?? undefined : undefined,
       orderId: !editBill && kind === 'SELL' ? orderId ?? undefined : undefined,
+      ...(billType !== 'GST' ? {} : kind === 'PURCHASE'
+        ? { itcEligibility: gst.itcEligibility, itcBlockReason: gst.itcEligibility === 'ELIGIBLE' ? '' : gst.itcBlockReason, supplierInvoiceNo: gst.supplierInvoiceNo, reverseCharge: gst.reverseCharge }
+        : { supplyCategory: gst.supplyCategory }),
     }
     try {
       const saved = editBill
@@ -699,6 +711,52 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
           </Button>
         </Card>
       </div>
+
+      {billType === 'GST' && (
+        <Card className="p-0">
+          <button type="button" className="flex w-full items-center gap-2 px-6 py-4 text-left text-sm font-semibold" aria-expanded={gstOpen} aria-controls="bf-gst-details" onClick={() => setGstOpen((o) => !o)}>
+            GST details
+            <ChevronDown className={`ml-auto size-4 text-muted-foreground transition-transform ${gstOpen ? 'rotate-180' : ''}`} aria-hidden />
+          </button>
+          {gstOpen && (
+            <div id="bf-gst-details" className="flex flex-wrap items-end gap-4 border-t px-6 py-4">
+              {kind === 'PURCHASE' ? (
+                <>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="bf-itc">ITC eligibility</Label>
+                    <Select value={gst.itcEligibility} onValueChange={(v) => setGst((g) => ({ ...g, itcEligibility: v as typeof g.itcEligibility }))}>
+                      <SelectTrigger id="bf-itc" className="w-48"><SelectValue /></SelectTrigger>
+                      <SelectContent>{ITC_OPTS.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  {gst.itcEligibility !== 'ELIGIBLE' && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="bf-itc-reason">Block reason</Label>
+                      <Input id="bf-itc-reason" className="w-56" maxLength={200} placeholder="e.g. personal use" value={gst.itcBlockReason} onChange={(e) => setGst((g) => ({ ...g, itcBlockReason: e.target.value }))} />
+                    </div>
+                  )}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="bf-sup-inv">Supplier invoice no.</Label>
+                    <Input id="bf-sup-inv" className="w-44" maxLength={40} value={gst.supplierInvoiceNo} onChange={(e) => setGst((g) => ({ ...g, supplierInvoiceNo: e.target.value }))} />
+                  </div>
+                  <div className="flex items-center gap-2 pb-2">
+                    <Checkbox id="bf-rcm" checked={gst.reverseCharge} onCheckedChange={(v) => setGst((g) => ({ ...g, reverseCharge: !!v }))} />
+                    <Label htmlFor="bf-rcm">Reverse charge</Label>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-1.5">
+                  <Label htmlFor="bf-supply">Supply category</Label>
+                  <Select value={gst.supplyCategory} onValueChange={(v) => setGst((g) => ({ ...g, supplyCategory: v as typeof g.supplyCategory }))}>
+                    <SelectTrigger id="bf-supply" className="w-56"><SelectValue /></SelectTrigger>
+                    <SelectContent>{SUPPLY_OPTS.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* Mobile sticky totals + Save bar (desktop uses the Save in the summary card). */}
       <div className="sticky bottom-0 z-10 -mx-6 flex items-center gap-3 border-t bg-card/95 px-6 pt-3 shadow-[0_-4px_16px_rgb(0_0_0/0.06)] pb-[calc(0.75rem+env(safe-area-inset-bottom))] tabular-nums backdrop-blur lg:hidden">

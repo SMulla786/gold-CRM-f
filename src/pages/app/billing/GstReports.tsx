@@ -23,6 +23,8 @@ import { Gstr3bReport } from './Gstr3bReport'
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
+const ITC_LABEL: Record<string, string> = { ELIGIBLE: 'Eligible', BLOCKED_17_5: 'Blocked 17(5)', INELIGIBLE: 'Ineligible' }
+const itcText = (x: GstRegisterRowDto) => ITC_LABEL[x.itcEligibility ?? 'ELIGIBLE'] + (x.itcBlockReason ? ` (${x.itcBlockReason})` : '')
 
 // TASK-97: report / kind / group live in the URL (?report=hsn, ?report=register&kind=PURCHASE, ?report=summary&group=QUARTER) so each report is linkable.
 const MODES = ['dashboard', 'register', 'hsn', 'summary', 'gstr1', 'gstr3b', 'itc', 'reconcile'] as const
@@ -54,8 +56,9 @@ export function GstReports() {
     setExporting(true)
     try {
       const all = await fetchAllPaged<GstRegisterRowDto>('/app/gst/register', { ...r, kind, q: q || undefined })
-      const header = ['Bill', 'Date', 'Party', 'GSTIN', 'HSN', 'GST %', 'Taxable', 'CGST', 'SGST', 'IGST', 'Total']
-      const body = all.map((x) => [x.billNo, date(x.billDate), x.party.name, x.party.gstin ?? '', x.hsnCodes.join(' '), x.gstPercent ?? '', x.taxable, x.cgst, x.sgst, x.igst, x.total])
+      const pur = kind === 'PURCHASE'
+      const header = ['Bill', 'Date', 'Party', 'GSTIN', ...(pur ? ['Supplier inv. no.', 'ITC'] : []), 'HSN', 'GST %', 'Taxable', 'CGST', 'SGST', 'IGST', 'Total']
+      const body = all.map((x) => [x.billNo, date(x.billDate), x.party.name, x.party.gstin ?? '', ...(pur ? [x.supplierInvoiceNo ?? '', itcText(x)] : []), x.hsnCodes.join(' '), x.gstPercent ?? '', x.taxable, x.cgst, x.sgst, x.igst, x.total])
       downloadCsv(`gst-register-${kind.toLowerCase()}.csv`, [header, ...body])
     } finally {
       setExporting(false)
@@ -83,6 +86,10 @@ export function GstReports() {
     { header: t('udhari.date'), cell: ({ row }) => date(row.original.billDate) },
     { header: t('udhari.party'), cell: ({ row }) => row.original.party.name },
     { header: 'GSTIN', cell: ({ row }) => <span className="font-mono text-xs">{row.original.party.gstin ?? '—'}</span> },
+    ...(kind === 'PURCHASE' ? [
+      { id: 'supInv', header: 'Supplier inv. no.', cell: ({ row }) => row.original.supplierInvoiceNo || '—' },
+      { id: 'itc', header: 'ITC', cell: ({ row }) => itcText(row.original) },
+    ] satisfies ColumnDef<GstRegisterRowDto, unknown>[] : []),
     { header: 'HSN', cell: ({ row }) => row.original.hsnCodes.join(', ') || '—' },
     { header: 'GST %', cell: ({ row }) => (row.original.gstPercent != null ? `${row.original.gstPercent}%` : '—') },
     { header: t('gst.taxable'), cell: ({ row }) => inr(row.original.taxable) },
