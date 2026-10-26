@@ -13,7 +13,7 @@ export function sourceHref(source: string, sourceId: string): string | null {
     case 'PURCHASE_BILL':
     case 'ORDER_SELL_BILL':
     case 'ORDER_PURCHASE_BILL':
-      return `/app/billing/view/${sourceId}`
+      return `/app/billing/view/${parseInt(sourceId, 10)}` // payment/advance rows carry '<billId>-P<n>' / '<billId>-A'
     case 'UDHAR':
       return `/app/udhari/txn/${sourceId}`
     default:
