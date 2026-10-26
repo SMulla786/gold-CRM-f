@@ -1,13 +1,16 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { ColumnDef } from '@tanstack/react-table'
+import { ArrowDownLeft, ArrowUpRight, Plus, TrendingUp } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
 import { DataTable } from '@/components/DataTable'
+import { KpiTile } from '@/components/KpiTile'
 import { MpinDialog } from '@/components/MpinDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -134,7 +137,7 @@ function IEDialog({ entry, onClose }: { entry?: IncomeExpenseDto; onClose: () =>
   )
 }
 
-const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
+const inr = (s: string | number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
 
 export function IncomeExpense() {
@@ -154,6 +157,8 @@ export function IncomeExpense() {
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<IncomeExpenseDto | null>(null)
   const [deleting, setDeleting] = useState<IncomeExpenseDto | null>(null)
+
+  const sum = (k: 'cashIn' | 'cashOut' | 'profit') => (summary ?? []).reduce((t, d) => t + Number(d[k]), 0)
 
   const columns: ColumnDef<IncomeExpenseDto, unknown>[] = [
     { accessorKey: 'txnDate', header: 'Date', cell: ({ row }) => date(row.original.txnDate) },
@@ -183,72 +188,85 @@ export function IncomeExpense() {
   ]
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-semibold">Income / Expense</h1>
-        {canList && (
-          <>
-            <Select value={type || 'all'} onValueChange={(v) => { setType(v === 'all' ? '' : v); setPage(1) }}>
-              <SelectTrigger className="w-36" aria-label="Filter by type">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="INCOME">Income</SelectItem>
-                <SelectItem value="EXPENSE">Expense</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={sourceType || 'all'} onValueChange={(v) => { setSourceType(v === 'all' ? '' : v); setPage(1) }}>
-              <SelectTrigger className="w-40" aria-label="Filter by source">
-                <SelectValue placeholder="All sources" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All sources</SelectItem>
-                {IE_SOURCE_TYPES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Input className="w-40" type="date" aria-label="From" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1) }} />
-            <Input className="w-40" type="date" aria-label="To" value={to} onChange={(e) => { setTo(e.target.value); setPage(1) }} />
-            <Button variant="outline" onClick={() => setSummaryView((v) => !v)}>{summaryView ? 'Entries' : 'Daily summary'}</Button>
-          </>
-        )}
+    <div className="space-y-8">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1>Income / Expense</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Record shop income and expenses in cash, online or metal.</p>
+        </div>
         {canEdit && (
-          <Button className="ml-auto" onClick={() => setCreating(true)}>
-            New entry
+          <Button onClick={() => setCreating(true)}>
+            <Plus aria-hidden />New entry
           </Button>
         )}
-      </div>
+      </header>
+
+      {canList && (
+        <Card className="flex flex-wrap items-center gap-3 p-4">
+          <Select value={type || 'all'} onValueChange={(v) => { setType(v === 'all' ? '' : v); setPage(1) }}>
+            <SelectTrigger className="w-36" aria-label="Filter by type">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="INCOME">Income</SelectItem>
+              <SelectItem value="EXPENSE">Expense</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={sourceType || 'all'} onValueChange={(v) => { setSourceType(v === 'all' ? '' : v); setPage(1) }}>
+            <SelectTrigger className="w-40" aria-label="Filter by source">
+              <SelectValue placeholder="All sources" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All sources</SelectItem>
+              {IE_SOURCE_TYPES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Input className="w-40" type="date" aria-label="From" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1) }} />
+          <Input className="w-40" type="date" aria-label="To" value={to} onChange={(e) => { setTo(e.target.value); setPage(1) }} />
+          <Button variant="outline" className="ml-auto" onClick={() => setSummaryView((v) => !v)}>{summaryView ? 'Entries' : 'Daily summary'}</Button>
+        </Card>
+      )}
 
       {!canList ? (
-        <p className="text-sm text-muted-foreground">You can add entries; viewing the list needs the Income / Expense List permission.</p>
+        <Card className="p-6 text-sm text-muted-foreground">You can add entries; viewing the list needs the Income / Expense List permission.</Card>
       ) : summaryView ? (
-        <div className="overflow-x-auto rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead className="text-right">Cash in</TableHead>
-                <TableHead className="text-right">Cash out</TableHead>
-                <TableHead className="text-right">Profit</TableHead>
-                <TableHead className="text-right">Gold net</TableHead>
-                <TableHead className="text-right">Silver net</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {summaryLoading ? <TableRow><TableCell colSpan={6} className="h-16 text-center text-muted-foreground">Loading…</TableCell></TableRow>
-                : summary?.length ? summary.map((d) => (
-                  <TableRow key={d.date}>
-                    <TableCell className="font-medium">{date(d.date)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{inr(d.cashIn)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{inr(d.cashOut)}</TableCell>
-                    <TableCell className={`text-right tabular-nums font-medium ${Number(d.profit) < 0 ? 'text-destructive' : ''}`}>{inr(d.profit)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{Number(d.goldNet) ? `${d.goldNet}g` : '—'}</TableCell>
-                    <TableCell className="text-right tabular-nums">{Number(d.silverNet) ? `${d.silverNet}g` : '—'}</TableCell>
-                  </TableRow>
-                )) : <TableRow><TableCell colSpan={6} className="h-16 text-center text-muted-foreground">No activity</TableCell></TableRow>}
-            </TableBody>
-          </Table>
-        </div>
+        <>
+          {!!summary?.length && (
+            <div className="stagger grid gap-4 sm:grid-cols-3">
+              <KpiTile icon={ArrowDownLeft} label="Cash in" value={inr(sum('cashIn'))} />
+              <KpiTile icon={ArrowUpRight} tone="slate" label="Cash out" value={inr(sum('cashOut'))} />
+              <KpiTile icon={TrendingUp} label="Profit" value={inr(sum('profit'))} valueClassName={sum('profit') < 0 ? 'text-destructive' : undefined} />
+            </div>
+          )}
+          <Card className="overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-6">Date</TableHead>
+                  <TableHead className="text-right">Cash in</TableHead>
+                  <TableHead className="text-right">Cash out</TableHead>
+                  <TableHead className="text-right">Profit</TableHead>
+                  <TableHead className="text-right">Gold net</TableHead>
+                  <TableHead className="pr-6 text-right">Silver net</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {summaryLoading ? <TableRow><TableCell colSpan={6} className="h-16 text-center text-muted-foreground">Loading…</TableCell></TableRow>
+                  : summary?.length ? summary.map((d) => (
+                    <TableRow key={d.date}>
+                      <TableCell className="pl-6 font-medium">{date(d.date)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{inr(d.cashIn)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{inr(d.cashOut)}</TableCell>
+                      <TableCell className={`text-right tabular-nums font-medium ${Number(d.profit) < 0 ? 'text-destructive' : ''}`}>{inr(d.profit)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{Number(d.goldNet) ? `${d.goldNet}g` : '—'}</TableCell>
+                      <TableCell className="pr-6 text-right tabular-nums">{Number(d.silverNet) ? `${d.silverNet}g` : '—'}</TableCell>
+                    </TableRow>
+                  )) : <TableRow><TableCell colSpan={6} className="h-16 text-center text-muted-foreground">No activity</TableCell></TableRow>}
+              </TableBody>
+            </Table>
+          </Card>
+        </>
       ) : (
         <DataTable
           columns={columns}

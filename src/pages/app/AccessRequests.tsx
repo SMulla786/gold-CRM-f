@@ -1,7 +1,9 @@
+import { KeyRound } from 'lucide-react'
 import { useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -43,10 +45,10 @@ function RequestAccessDialog({ defaultKey, onClose }: { defaultKey?: string; onC
               <SelectContent>{PAGES.map((p) => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <div className="flex gap-4">
-            <label className="flex items-center gap-2 text-sm"><Checkbox checked={view} onCheckedChange={(v) => setView(v === true)} aria-label="View" /> View</label>
-            <label className="flex items-center gap-2 text-sm"><Checkbox checked={edit} onCheckedChange={(v) => setEdit(v === true)} aria-label="Edit" /> Edit</label>
-            <label className="flex items-center gap-2 text-sm"><Checkbox checked={del} onCheckedChange={(v) => setDel(v === true)} aria-label="Delete" /> Delete</label>
+          <div className="flex flex-wrap gap-2">
+            <label className="flex items-center gap-2 rounded-xl border px-3 py-2 text-sm has-[[data-state=checked]]:border-brand has-[[data-state=checked]]:bg-brand/10"><Checkbox checked={view} onCheckedChange={(v) => setView(v === true)} aria-label="View" /> View</label>
+            <label className="flex items-center gap-2 rounded-xl border px-3 py-2 text-sm has-[[data-state=checked]]:border-brand has-[[data-state=checked]]:bg-brand/10"><Checkbox checked={edit} onCheckedChange={(v) => setEdit(v === true)} aria-label="Edit" /> Edit</label>
+            <label className="flex items-center gap-2 rounded-xl border px-3 py-2 text-sm has-[[data-state=checked]]:border-brand has-[[data-state=checked]]:bg-brand/10"><Checkbox checked={del} onCheckedChange={(v) => setDel(v === true)} aria-label="Delete" /> Delete</label>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="ar-reason">Reason (optional)</Label>
@@ -65,22 +67,25 @@ export function AccessRequests() {
   const { data, isLoading } = useMyEnquiries()
   const [open, setOpen] = useState(false)
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Access requests</h1>
-        <Button onClick={() => setOpen(true)}>Request access</Button>
-      </div>
+    <div className="space-y-8">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1>Access requests</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Ask your admin for more page permissions and follow each request's status.</p>
+        </div>
+        <Button onClick={() => setOpen(true)}><KeyRound aria-hidden />Request access</Button>
+      </header>
 
-      <div className="overflow-x-auto rounded-md border">
+      <Card className="overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow><TableHead>Page</TableHead><TableHead>Requested</TableHead><TableHead>Status</TableHead><TableHead>Decision</TableHead><TableHead>Date</TableHead></TableRow>
+            <TableRow><TableHead className="pl-6">Page</TableHead><TableHead>Requested</TableHead><TableHead>Status</TableHead><TableHead>Decision</TableHead><TableHead>Date</TableHead></TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? <TableRow><TableCell colSpan={5} className="h-16 text-center text-muted-foreground">Loading…</TableCell></TableRow>
               : data?.length ? data.map((e) => (
                 <TableRow key={e.id}>
-                  <TableCell className="font-medium">{e.permissionLabel}</TableCell>
+                  <TableCell className="pl-6 font-medium">{e.permissionLabel}</TableCell>
                   <TableCell>{acts(e)}</TableCell>
                   <TableCell><Badge variant={statusVariant(e.status)}>{e.status}</Badge></TableCell>
                   <TableCell className="text-sm text-muted-foreground">{e.decidedBy ? `${e.decidedBy}${e.decisionNote ? ` — ${e.decisionNote}` : ''}` : '—'}</TableCell>
@@ -89,7 +94,7 @@ export function AccessRequests() {
               )) : <TableRow><TableCell colSpan={5} className="h-16 text-center text-muted-foreground">No requests yet.</TableCell></TableRow>}
           </TableBody>
         </Table>
-      </div>
+      </Card>
 
       {open && <RequestAccessDialog onClose={() => setOpen(false)} />}
     </div>

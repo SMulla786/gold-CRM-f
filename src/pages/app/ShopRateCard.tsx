@@ -1,7 +1,8 @@
+import { Pencil } from 'lucide-react'
 import { useState } from 'react'
 
+import { SectionCard } from '@/components/SectionCard'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -47,7 +48,10 @@ function EditRatesDialog({ onClose }: { onClose: () => void }) {
 
   const section = (metal: 'gold' | 'silver', rows: EditRow[]) => (
     <div className="space-y-2">
-      <div className="text-sm font-medium capitalize">{metal} ({data ? UNIT[data[metal].rateUnit] : ''})</div>
+      <div className="flex items-center gap-2 text-sm font-semibold capitalize">
+        <span aria-hidden className={metal === 'gold' ? 'size-2 rounded-full bg-brand' : 'size-2 rounded-full bg-slate-400'} />
+        {metal} ({data ? UNIT[data[metal].rateUnit] : ''})
+      </div>
       {rows.map((r, i) => (
         <div key={r.karatCode} className="flex items-center gap-2">
           <span className="w-16 text-sm">{r.title}</span>
@@ -86,33 +90,37 @@ export function ShopRateCard() {
   const rows = (metal: 'gold' | 'silver') =>
     data[metal].rows.map((r) => (
       <TableRow key={`${metal}-${r.karatCode}`}>
-        <TableCell className="font-medium">{metal === 'gold' ? 'Gold' : 'Silver'} {r.title}</TableCell>
-        <TableCell className="text-right">₹{show(metal, r.sellRate)}</TableCell>
-        <TableCell className="text-right">₹{show(metal, r.buyRate)}</TableCell>
+        <TableCell className="pl-6 font-medium">
+          <span className="inline-flex items-center gap-2.5">
+            <span aria-hidden className={metal === 'gold' ? 'size-2.5 rounded-full bg-brand shadow-[0_0_8px_var(--color-brand)]' : 'size-2.5 rounded-full bg-slate-400'} />
+            {metal === 'gold' ? 'Gold' : 'Silver'} {r.title}
+          </span>
+        </TableCell>
+        <TableCell className="text-right font-bold">₹{show(metal, r.sellRate)}</TableCell>
+        <TableCell className="pr-6 text-right text-muted-foreground">₹{show(metal, r.buyRate)}</TableCell>
       </TableRow>
     ))
 
   const unitLabel = to === null ? `Gold ${UNIT[data.gold.rateUnit]} · Silver ${UNIT[data.silver.rateUnit]}` : DISPLAY_UNITS.find((u) => u.key === unit)!.label
 
   return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium">Today's rates <span className="font-normal text-muted-foreground">({unitLabel})</span></CardTitle>
-        <div className="flex items-center gap-2">
+    <SectionCard
+      title={<>Today's rates <span className="text-sm font-normal text-muted-foreground">({unitLabel})</span></>}
+      actions={
+        <>
           <Select value={unit} onValueChange={setUnit}>
-            <SelectTrigger className="h-8 w-32" aria-label="Rate unit"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 w-32 rounded-xl" aria-label="Rate unit"><SelectValue /></SelectTrigger>
             <SelectContent>{DISPLAY_UNITS.map((u) => <SelectItem key={u.key} value={u.key}>{u.label}</SelectItem>)}</SelectContent>
           </Select>
-          {can('settings.misc', 'edit') && <Button size="sm" variant="outline" onClick={() => setEdit(true)}>Edit rates</Button>}
-        </div>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader><TableRow><TableHead>Metal</TableHead><TableHead className="text-right">Sell</TableHead><TableHead className="text-right">Buy</TableHead></TableRow></TableHeader>
-          <TableBody>{rows('gold')}{rows('silver')}</TableBody>
-        </Table>
-      </CardContent>
+          {can('settings.misc', 'edit') && <Button size="sm" variant="outline" onClick={() => setEdit(true)}><Pencil aria-hidden />Edit rates</Button>}
+        </>
+      }
+    >
+      <Table>
+        <TableHeader><TableRow><TableHead className="pl-6">Metal</TableHead><TableHead className="text-right">Sell</TableHead><TableHead className="pr-6 text-right">Buy</TableHead></TableRow></TableHeader>
+        <TableBody>{rows('gold')}{rows('silver')}</TableBody>
+      </Table>
       {edit && <EditRatesDialog onClose={() => setEdit(false)} />}
-    </Card>
+    </SectionCard>
   )
 }
