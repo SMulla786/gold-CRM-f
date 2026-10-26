@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { api } from '@/lib/api'
 import { qs, useApiMutation } from '@/lib/queries'
-import type { GirviBatchDto, GirviListItemDto, Paged } from '@/shared'
+import type { GirviBatchDto, GirviListItemDto, GirviTransferDto, Paged } from '@/shared'
 
 const GIRVI_KEYS = [['girvi'], ['girvi-batch'], ['ledger'], ['day-book'], ['dashboard']]
 
@@ -27,3 +27,14 @@ export const useGirviRelease = () =>
 
 export const useDeleteGirvi = () =>
   useApiMutation(({ id, mpin }: { id: number; mpin: string }) => api.del(`/app/girvi/${id}`, { mpin }), { invalidate: GIRVI_KEYS, success: 'Loan deleted' })
+
+// Phase 9b — transfers (re-pledge to a lender): girvi.transfer view/edit
+export const useGirviTransfers = (params: Record<string, string | number | undefined>) =>
+  useQuery({ queryKey: ['girvi-transfers', params], queryFn: () => api.get<Paged<GirviTransferDto>>(`/app/girvi/transfers${qs(params)}`) })
+export const useCreateGirviTransfer = () =>
+  useApiMutation((body: Record<string, unknown>) => api.post<GirviTransferDto>('/app/girvi/transfers', body), { invalidate: [['girvi-transfers'], ...GIRVI_KEYS], success: 'Items transferred to lender' })
+export const useReturnGirviTransfer = () =>
+  useApiMutation(({ id, body }: { id: number; body: Record<string, unknown> }) => api.post<GirviTransferDto>(`/app/girvi/transfers/${id}/return`, body), {
+    invalidate: [['girvi-transfers'], ...GIRVI_KEYS],
+    success: 'Items received back',
+  })

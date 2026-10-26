@@ -394,6 +394,7 @@
   "girvi.subtitle": "सोने-तारण कर्ज — नवीन कर्ज द्या, व्याजाचा मागोवा घ्या आणि खाते बंद करा.",
   "girvi.tab_new": "नवीन कर्ज",
   "girvi.tab_loans": "कर्जे",
+  "girvi.tab_transfers": "ट्रान्सफर",
   "girvi.col_issued": "दिले",
   "girvi.col_return_by": "परतीची तारीख",
   "girvi.col_items": "वस्तू",
@@ -664,5 +665,18 @@
   "udhari.search_bills": "बिल क्र., पक्ष, मोबाइल शोधा…",
   "udhari.col_time": "वेळ",
   "udhari.col_paid": "भरलेले",
-  "udhari.col_bill_date": "बिल दिनांक"
+  "udhari.col_bill_date": "बिल दिनांक",
+
+  "ie.search": "कारण / शेरा शोधा…",
+  "draft.search": "ड्राफ्ट क्र., ग्राहक, मोबाइल, नोंद शोधा…",
+  "draft.col_approved_disc": "मंजूर सवलत",
+  "draft.col_note": "नोंद",
+  "gst.search": "बिल क्र., पक्ष, GSTIN शोधा…",
+
+  "daybook.col_type": "प्रकार",
+  "daybook.col_account": "माध्यम / खाते",
+  "daybook.shop_cash": "दुकान रोख",
+  "daybook.all_accounts": "सर्व खाती",
+  "daybook.col_total_cost": "एकूण किंमत",
+  "daybook.search_ref": "Ref / ID, तपशील शोधा…"
 }

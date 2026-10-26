@@ -74,6 +74,7 @@ const RepairLedger = lazy(() => import('@/pages/app/repair/RepairLedger').then((
 const RepairSlip = lazy(() => import('@/pages/app/repair/RepairSlip').then((m) => ({ default: m.RepairSlip })))
 const GirviLayout = lazy(() => import('@/pages/app/girvi/GirviLayout').then((m) => ({ default: m.GirviLayout })))
 const NewGirvi = lazy(() => import('@/pages/app/girvi/NewGirvi').then((m) => ({ default: m.NewGirvi })))
+const GirviTransfers = lazy(() => import('@/pages/app/girvi/GirviTransfers').then((m) => ({ default: m.GirviTransfers })))
 const GirviList = lazy(() => import('@/pages/app/girvi/GirviList').then((m) => ({ default: m.GirviList })))
 const GirviDetail = lazy(() => import('@/pages/app/girvi/GirviDetail').then((m) => ({ default: m.GirviDetail })))
 const GirviDefaults = lazy(() => import('@/pages/app/settings/GirviDefaults').then((m) => ({ default: m.GirviDefaults })))
@@ -237,6 +238,7 @@ export default function App() {
             <Route path="girvi" element={<GirviLayout />}>
               <Route index element={<GirviList />} />
               <Route path="new" element={<NewGirvi />} />
+              <Route path="transfers" element={<GirviTransfers />} />
               <Route path=":id" element={<GirviDetail />} />
             </Route>
             <Route path="udhari" element={<UdhariLayout />}>

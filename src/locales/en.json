@@ -394,6 +394,7 @@
   "girvi.subtitle": "Gold-loan pledges — issue new loans, track interest and close them out.",
   "girvi.tab_new": "New Loan",
   "girvi.tab_loans": "Loans",
+  "girvi.tab_transfers": "Transfers",
   "girvi.col_issued": "Issued",
   "girvi.col_return_by": "Return by",
   "girvi.col_items": "Items",
@@ -664,5 +665,18 @@
   "udhari.search_bills": "Search bill no., party, mobile…",
   "udhari.col_time": "Time",
   "udhari.col_paid": "Paid",
-  "udhari.col_bill_date": "Bill date"
+  "udhari.col_bill_date": "Bill date",
+
+  "ie.search": "Search reason / remark…",
+  "draft.search": "Search draft no., customer, mobile, note…",
+  "draft.col_approved_disc": "Approved disc.",
+  "draft.col_note": "Note",
+  "gst.search": "Search bill no., party, GSTIN…",
+
+  "daybook.col_type": "Type",
+  "daybook.col_account": "Mode / Account",
+  "daybook.shop_cash": "Shop cash",
+  "daybook.all_accounts": "All accounts",
+  "daybook.col_total_cost": "Total cost",
+  "daybook.search_ref": "Search Ref / ID, narration…"
 }

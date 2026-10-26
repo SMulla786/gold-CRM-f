@@ -394,6 +394,7 @@
   "girvi.subtitle": "सोना-गिरवी ऋण — नया ऋण दें, ब्याज देखें और खाता बंद करें।",
   "girvi.tab_new": "नया ऋण",
   "girvi.tab_loans": "ऋण",
+  "girvi.tab_transfers": "ट्रांसफ़र",
   "girvi.col_issued": "जारी",
   "girvi.col_return_by": "वापसी तक",
   "girvi.col_items": "वस्तुएँ",
@@ -664,5 +665,18 @@
   "udhari.search_bills": "बिल नं., पक्ष, मोबाइल खोजें…",
   "udhari.col_time": "समय",
   "udhari.col_paid": "भुगतान",
-  "udhari.col_bill_date": "बिल तारीख"
+  "udhari.col_bill_date": "बिल तारीख",
+
+  "ie.search": "कारण / टिप्पणी खोजें…",
+  "draft.search": "ड्राफ्ट नं., ग्राहक, मोबाइल, नोट खोजें…",
+  "draft.col_approved_disc": "स्वीकृत छूट",
+  "draft.col_note": "नोट",
+  "gst.search": "बिल नं., पक्ष, GSTIN खोजें…",
+
+  "daybook.col_type": "प्रकार",
+  "daybook.col_account": "माध्यम / खाता",
+  "daybook.shop_cash": "दुकान नकद",
+  "daybook.all_accounts": "सभी खाते",
+  "daybook.col_total_cost": "कुल लागत",
+  "daybook.search_ref": "Ref / ID, विवरण खोजें…"
 }

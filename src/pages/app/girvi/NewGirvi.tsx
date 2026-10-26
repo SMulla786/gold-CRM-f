@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { PartyPicker } from '@/components/PartyPicker'
 import { TABLE_EDGES } from '@/components/SectionCard'
@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { useBankAccounts, useSettings } from '@/lib/appQueries'
+import { useBankAccounts, useParty, useSettings } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { useCreateGirvi } from '@/lib/girviQueries'
 import { useT } from '@/lib/i18n'
@@ -39,6 +39,12 @@ export function NewGirvi() {
   const categories = def?.categories ?? ['Gold', 'Silver']
 
   const [party, setParty] = useState<PartyRefDto | null>(null)
+  // ?partyId=… (from a customer's girvi list) pre-selects the customer once
+  const prefillId = Number(useSearchParams()[0].get('partyId')) || undefined
+  const { data: prefill } = useParty(prefillId)
+  useEffect(() => {
+    if (prefill && !party) setParty({ id: prefill.id, type: prefill.type, name: prefill.name, mobile: prefill.mobile, shopName: prefill.shopName ?? null })
+  }, [prefill]) // eslint-disable-line react-hooks/exhaustive-deps
   const [issueDate, setIssueDate] = useState(today())
   const [rows, setRows] = useState<Row[]>([blankRow('Gold')])
   const [terms, setTerms] = useState({ ratePercent: '', ratePeriod: '', interestType: '', ciPeriod: '', method: '', tenureMonths: '' })
