@@ -1,3 +1,4 @@
+import { FileDown, Printer } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 
 import { Badge } from '@/components/ui/badge'
@@ -28,18 +29,23 @@ export function JustBillView() {
   const summary = `${shopName}\nBill ${bill.billNo} · ${date(bill.billDate)}\nTotal ${inr(bill.final)} · Paid ${inr(bill.paid)} · Balance ${inr(bill.balance)}`
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3 print:hidden">
-        <Link to="/app/billing/just" className="text-sm text-primary hover:underline">← Just Bills</Link>
-        {bill.status === 'DELETED' && <Badge variant="secondary">Deleted</Badge>}
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4 print:hidden">
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <Link to="/app/billing/just" className="text-sm font-medium text-brand-strong hover:underline">← Just Bills</Link>
+            {bill.status === 'DELETED' && <Badge variant="secondary">Deleted</Badge>}
+          </div>
+          <p className="text-sm text-muted-foreground">Printable copy of this Just Bill. Share, print or save it as a PDF.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" onClick={() => shareOnWhatsApp(bill.mobile ?? '', summary)}>Share</Button>
-          <Button variant="outline" onClick={() => window.print()}>Print</Button>
-          <Button variant="outline" onClick={downloadPdf}>Download PDF</Button>
+          <Button variant="outline" onClick={downloadPdf}><FileDown aria-hidden />Download PDF</Button>
+          <Button onClick={() => window.print()}><Printer aria-hidden />Print</Button>
         </div>
       </div>
 
-      <div className="print-area space-y-4 rounded-md border p-6 text-sm">
+      <div className="print-area space-y-4 text-sm rounded-3xl border border-white/80 bg-card p-6 shadow-sm sm:p-10 dark:border-border print:rounded-none print:border-0 print:bg-transparent print:shadow-none">
         <header className="text-center">
           <div className="text-lg font-bold">{shopName}</div>
           {business?.address && <div>{business.address}</div>}
@@ -48,7 +54,7 @@ export function JustBillView() {
           <div className="mt-1 font-medium">{bill.gstPercent !== '0' ? 'TAX INVOICE' : 'BILL'}</div>
         </header>
 
-        <div className="flex justify-between border-y py-2">
+        <div className="flex justify-between rounded-2xl bg-muted/50 px-4 py-3 print:rounded-none print:border-y print:bg-transparent print:px-0">
           <div><span className="text-muted-foreground">Bill:</span> {bill.billNo}<br /><span className="text-muted-foreground">Date:</span> {date(bill.billDate)}</div>
           <div className="text-right"><div className="font-medium">{who}</div>{bill.mobile && <div>{bill.mobile}</div>}</div>
         </div>
@@ -76,7 +82,7 @@ export function JustBillView() {
           {Number(bill.discountAmount) > 0 && <Line label="Discount" value={`− ${inr(bill.discountAmount)}`} />}
           {bill.gstPercent !== '0' && (bill.interState ? <Line label={`IGST (${bill.gstPercent}%)`} value={inr(bill.igst)} /> : <><Line label="CGST" value={inr(bill.cgst)} /><Line label="SGST" value={inr(bill.sgst)} /></>)}
           {Number(bill.round) !== 0 && <Line label="Round off" value={bill.round} />}
-          <div className="flex justify-between border-t pt-1 text-base font-semibold"><span>Final</span><span>{inr(bill.final)}</span></div>
+          <div className="flex justify-between border-t-2 border-brand pt-1 text-base font-bold"><span>Final</span><span>{inr(bill.final)}</span></div>
           <Line label="Paid" value={inr(bill.paid)} />
           <div className="flex justify-between font-medium"><span>Balance</span><span>{inr(bill.balance)}</span></div>
         </div>

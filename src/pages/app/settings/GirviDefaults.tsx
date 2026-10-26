@@ -32,13 +32,19 @@ export function GirviDefaults() {
   }
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="max-w-5xl space-y-8">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl">Girvi defaults</h2>
+          <p className="text-sm text-muted-foreground">Starting values prefilled on every new girvi loan</p>
+        </div>
+      </div>
+
       <Card>
-        <CardHeader className="flex-row items-center justify-between">
-          <CardTitle>Girvi defaults</CardTitle>
-          {can('settings.misc', 'edit') && <Button size="sm" onClick={() => setMpinOpen(true)}>Save (MPIN)</Button>}
+        <CardHeader>
+          <CardTitle>Interest calculation</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
+        <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div className="space-y-1.5"><Label htmlFor="gd-rate">Interest %</Label><Input id="gd-rate" type="number" step="0.01" value={cur.ratePercent} onChange={(e) => set('ratePercent', Number(e.target.value))} /></div>
           <div className="space-y-1.5"><Label>Per</Label>
             <Select value={cur.ratePeriod} onValueChange={(nv) => set('ratePeriod', nv as Defaults['ratePeriod'])}><SelectTrigger aria-label="Rate period"><SelectValue /></SelectTrigger>
@@ -56,11 +62,25 @@ export function GirviDefaults() {
             <Select value={cur.method} onValueChange={(nv) => set('method', nv as Defaults['method'])}><SelectTrigger aria-label="Day count method"><SelectValue /></SelectTrigger>
               <SelectContent><SelectItem value="FULL_MONTH">Full month</SelectItem><SelectItem value="DAY_WISE">Day-wise</SelectItem></SelectContent></Select>
           </div>
-          <div className="space-y-1.5"><Label htmlFor="gd-std">Loan % of valuation</Label><Input id="gd-std" type="number" value={cur.stdPercent} onChange={(e) => set('stdPercent', Number(e.target.value))} /></div>
-          <div className="space-y-1.5"><Label htmlFor="gd-tenure">Default tenure (months)</Label><Input id="gd-tenure" type="number" value={cur.tenureMonths} onChange={(e) => set('tenureMonths', Number(e.target.value))} /></div>
-          <div className="space-y-1.5 sm:col-span-2"><Label htmlFor="gd-cats">Pledge categories (comma-separated)</Label><Input id="gd-cats" value={catValue} onChange={(e) => setCatText(e.target.value)} /></div>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Loan terms</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="space-y-1.5"><Label htmlFor="gd-std">Loan % of valuation</Label><Input id="gd-std" type="number" value={cur.stdPercent} onChange={(e) => set('stdPercent', Number(e.target.value))} /></div>
+          <div className="space-y-1.5"><Label htmlFor="gd-tenure">Default tenure (months)</Label><Input id="gd-tenure" type="number" value={cur.tenureMonths} onChange={(e) => set('tenureMonths', Number(e.target.value))} /></div>
+          <div className="space-y-1.5 sm:col-span-2 lg:col-span-1"><Label htmlFor="gd-cats">Pledge categories (comma-separated)</Label><Input id="gd-cats" value={catValue} onChange={(e) => setCatText(e.target.value)} /></div>
+        </CardContent>
+      </Card>
+
+      {can('settings.misc', 'edit') && (
+        <div className="flex justify-end">
+          <Button size="sm" onClick={() => setMpinOpen(true)}>Save (MPIN)</Button>
+        </div>
+      )}
       <MpinDialog open={mpinOpen} title="Authenticate & save girvi defaults" onConfirm={async (mpin) => { await onSave(mpin); setMpinOpen(false) }} onClose={() => setMpinOpen(false)} />
     </div>
   )

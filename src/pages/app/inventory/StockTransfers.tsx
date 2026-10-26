@@ -1,8 +1,10 @@
 import type { ColumnDef } from '@tanstack/react-table'
+import { ArrowLeftRight, Gem, Package, Route, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 
 import { DataTable } from '@/components/DataTable'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -31,7 +33,7 @@ function NewTransferDialog({ branches, onClose }: { branches: BranchRef[]; onClo
         <DialogHeader>
           <DialogTitle>New stock transfer</DialogTitle>
         </DialogHeader>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label>From branch</Label>
             <Select value={fromBranchId} onValueChange={(v) => { setFrom(v); setPicked(new Set()) }}>
@@ -61,7 +63,7 @@ function NewTransferDialog({ branches, onClose }: { branches: BranchRef[]; onClo
         </div>
 
         {fromBranchId && (
-          <div className="rounded-md border">
+          <div className="overflow-x-auto rounded-xl border">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -167,18 +169,52 @@ export function StockTransfers() {
     { accessorKey: 'createdBy', header: 'By', cell: ({ row }) => row.original.createdBy ?? '—' },
   ]
 
+  // Summary numbers derived from the page already fetched (no extra requests).
+  const rows = data?.items ?? []
+  const itemsMoved = rows.reduce((sum, t) => sum + t.itemCount, 0)
+  const fineMoved = rows.reduce((sum, t) => sum + Number(t.fine), 0)
+  const grossMoved = rows.reduce((sum, t) => sum + Number(t.gross), 0)
+  const routes = new Set(rows.map((t) => `${t.fromBranch.id}-${t.toBranch.id}`)).size
+
+  const tile = (label: string, value: string, sub: string | undefined, Icon: LucideIcon) => (
+    <Card className="gap-2 hover:-translate-y-1">
+      <CardHeader className="flex flex-row items-center justify-between pb-1">
+        <CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</CardTitle>
+        <span className="icon-chip"><Icon className="size-5" aria-hidden /></span>
+      </CardHeader>
+      <CardContent>
+        <div className="text-3xl font-extrabold tracking-tight tabular-nums">{value}</div>
+        {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
+      </CardContent>
+    </Card>
+  )
+
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
+    <div className="space-y-8">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl">Stock transfers</h2>
+          <p className="text-sm text-muted-foreground">Move whole items between your branches</p>
+        </div>
         <Button onClick={() => setCreating(true)}>New transfer</Button>
       </div>
-      <DataTable
-        columns={columns}
-        data={data?.items ?? []}
-        isLoading={isLoading}
-        emptyText="No transfers"
-        pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined}
-      />
+
+      <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {tile('Transfers', data ? String(data.total) : '—', 'Across branches you can see', ArrowLeftRight)}
+        {tile('Items moved', data ? String(itemsMoved) : '—', data ? `On this page (${rows.length} shown)` : undefined, Package)}
+        {tile('Fine moved', data ? `${fineMoved.toFixed(3)} g` : '—', data ? `Gross ${grossMoved.toFixed(3)} g on this page` : undefined, Gem)}
+        {tile('Routes', data ? String(routes) : '—', 'Distinct branch pairs on this page', Route)}
+      </div>
+
+      <Card className="p-4">
+        <DataTable
+          columns={columns}
+          data={data?.items ?? []}
+          isLoading={isLoading}
+          emptyText="No transfers"
+          pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined}
+        />
+      </Card>
       {creating && <NewTransferDialog branches={branches} onClose={() => setCreating(false)} />}
       {detailId && <DetailDialog id={detailId} onClose={() => setDetailId(null)} />}
     </div>

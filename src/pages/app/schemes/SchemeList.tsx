@@ -118,7 +118,7 @@ export function SchemeList({ kind = 'SAVING' }: { kind?: SchemeKind }) {
         {canEdit && <NewSchemeDialog kind={kind} />}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {tile('Total schemes', data ? String(data.total) : '—', 'Matching current filters', Layers)}
         {tile('Active on page', data ? String(items.filter((s) => s.isActive).length) : '—', `of ${items.length} shown`, BadgeCheck)}
         {tile('Enrolled members', data ? String(items.reduce((sum, s) => sum + s.memberCount, 0)) : '—', 'Across schemes shown', Users)}

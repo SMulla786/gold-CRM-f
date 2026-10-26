@@ -1,4 +1,5 @@
 import type { ColumnDef } from '@tanstack/react-table'
+import { Boxes, Gem, History, Layers, Scale, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
@@ -7,6 +8,7 @@ import { DataTable } from '@/components/DataTable'
 import { MpinDialog } from '@/components/MpinDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -52,7 +54,7 @@ function StockEditDialog({ item, onClose }: { item: StockItemDto; onClose: () =>
         <DialogHeader>
           <DialogTitle>Edit {item.tagNo ?? item.itemName.name}</DialogTitle>
         </DialogHeader>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           {NUM_FIELDS.map((f) => (
             <div key={f} className="space-y-1.5">
               <Label htmlFor={`e-${f}`}>{LABELS[f]}</Label>
@@ -102,7 +104,7 @@ function BulkEditDialog({ ids, onClose }: { ids: number[]; onClose: () => void }
           <DialogTitle>Edit {plural(ids.length, 'item')}</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">Only the fields you fill are applied to every selected item.</p>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           {(['rate', 'labour', 'wastage', 'stoneCharge', 'other'] as NumField[]).map((f) => (
             <div key={f} className="space-y-1.5">
               <Label htmlFor={`b-${f}`}>{LABELS[f]}</Label>
@@ -186,7 +188,10 @@ function StockDetailSheet({ item, onClose }: { item: StockItemDto; onClose: () =
                 </table>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">No movements.</p>
+              <div className="flex flex-col items-center justify-center gap-2 py-6 text-center">
+                <span className="icon-chip"><History className="size-5" aria-hidden /></span>
+                <p className="text-sm text-muted-foreground">No movements.</p>
+              </div>
             )}
           </div>
         </div>
@@ -245,6 +250,26 @@ export function StockList() {
     })
   const ids = [...selected]
 
+  // Summary numbers derived from the page already fetched (no extra requests).
+  const g3 = (n: number) => `${n.toFixed(3)} g`
+  const pcsOnPage = rows.reduce((sum, r) => sum + Number(r.pcs), 0)
+  const grossOnPage = rows.reduce((sum, r) => sum + Number(r.gross), 0)
+  const netOnPage = rows.reduce((sum, r) => sum + Number(r.net), 0)
+  const fineOnPage = rows.reduce((sum, r) => sum + Number(r.fine), 0)
+
+  const tile = (label: string, value: string, sub: string | undefined, Icon: LucideIcon) => (
+    <Card className="gap-2 hover:-translate-y-1">
+      <CardHeader className="flex flex-row items-center justify-between pb-1">
+        <CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</CardTitle>
+        <span className="icon-chip"><Icon className="size-5" aria-hidden /></span>
+      </CardHeader>
+      <CardContent>
+        <div className="text-3xl font-extrabold tracking-tight tabular-nums">{value}</div>
+        {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
+      </CardContent>
+    </Card>
+  )
+
   const columns: ColumnDef<StockItemDto, unknown>[] = [
     ...(canEdit || canDelete || canCheckout
       ? [{
@@ -285,37 +310,46 @@ export function StockList() {
   ]
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <Input className="max-w-xs" placeholder={t('stock.search')} value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
-        <Select value={stockClass || 'all'} onValueChange={(v) => { setStockClass(v === 'all' ? '' : v); setPage(1) }}>
-          <SelectTrigger className="w-36" aria-label="Stock class">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t('stock.all_classes')}</SelectItem>
-            {STOCK_CLASSES.map((c) => (
-              <SelectItem key={c} value={c}>{t(`class.${c}`)}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={status} onValueChange={(v) => { setStatus(v); setPage(1) }}>
-          <SelectTrigger className="w-36" aria-label="Status">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {STOCK_STATUSES.map((s) => (
-              <SelectItem key={s} value={s}>{s}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button className="ml-auto" variant="outline" disabled={exporting} onClick={exportCsv}>
-          {exporting ? 'Exporting…' : t('common.export_csv')}
-        </Button>
+    <div className="space-y-8">
+      <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {tile('Matching items', data ? String(data.total) : '—', 'With current filters', Boxes)}
+        {tile('Pieces on this page', data ? String(pcsOnPage) : '—', data ? `${rows.length} rows shown` : undefined, Layers)}
+        {tile('Gross wt on this page', data ? g3(grossOnPage) : '—', data ? `Net ${g3(netOnPage)}` : undefined, Scale)}
+        {tile('Fine wt on this page', data ? g3(fineOnPage) : '—', 'All classes combined', Gem)}
       </div>
 
+      <Card>
+        <CardContent className="flex flex-wrap items-end gap-3 pt-6">
+          <Input className="max-w-xs" placeholder={t('stock.search')} value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
+          <Select value={stockClass || 'all'} onValueChange={(v) => { setStockClass(v === 'all' ? '' : v); setPage(1) }}>
+            <SelectTrigger className="w-36" aria-label="Stock class">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t('stock.all_classes')}</SelectItem>
+              {STOCK_CLASSES.map((c) => (
+                <SelectItem key={c} value={c}>{t(`class.${c}`)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={status} onValueChange={(v) => { setStatus(v); setPage(1) }}>
+            <SelectTrigger className="w-36" aria-label="Status">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STOCK_STATUSES.map((s) => (
+                <SelectItem key={s} value={s}>{s}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button className="ml-auto" variant="outline" disabled={exporting} onClick={exportCsv}>
+            {exporting ? 'Exporting…' : t('common.export_csv')}
+          </Button>
+        </CardContent>
+      </Card>
+
       {ids.length > 0 && (
-        <div className="flex items-center gap-3 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border bg-muted/40 px-4 py-3 text-sm">
           <span>{t('stock.selected', { n: ids.length })}</span>
           {canCheckout && <Button size="sm" onClick={() => setCheckout(true)}>{t('stock.add_to_cart')}</Button>}
           {canEdit && <Button size="sm" variant="outline" onClick={() => setBulkEditing(true)}>{t('stock.edit_selected')}</Button>}
@@ -324,13 +358,15 @@ export function StockList() {
         </div>
       )}
 
-      <DataTable
-        columns={columns}
-        data={rows}
-        isLoading={isLoading}
-        emptyText={t('stock.no_items')}
-        pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined}
-      />
+      <Card className="p-4">
+        <DataTable
+          columns={columns}
+          data={rows}
+          isLoading={isLoading}
+          emptyText={t('stock.no_items')}
+          pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined}
+        />
+      </Card>
 
       {checkout && <CheckoutDraftDialog stockItemIds={ids} onClose={() => setCheckout(false)} onDone={() => { setCheckout(false); setSelected(new Set()) }} />}
       {viewing && <StockDetailSheet item={viewing} onClose={() => setViewing(null)} />}

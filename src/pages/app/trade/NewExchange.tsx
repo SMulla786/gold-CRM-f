@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { PartyPicker } from '@/components/PartyPicker'
 import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -64,49 +65,56 @@ export function NewExchange() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-8">
       {!branchReady && <SelectBranchForTxn note="An exchange is booked at one branch. Select a branch." />}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="space-y-1.5">
-          <Label>Side</Label>
-          <Select value={side} onValueChange={setSide}>
-            <SelectTrigger aria-label="Side"><SelectValue /></SelectTrigger>
-            <SelectContent>{TRADE_SIDES.map((s) => <SelectItem key={s} value={s}>{s === 'BUY' ? 'Buy (old metal in)' : 'Sell (kacha out)'}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5 lg:col-span-2"><Label htmlFor="ex-party">Party</Label><PartyPicker value={party} onChange={setParty} placeholder="Search name / mobile" id="ex-party" ariaLabel="Party" /></div>
-        <div className="space-y-1.5">
-          <Label>Metal</Label>
-          <Select value={metal} onValueChange={setMetal}>
-            <SelectTrigger aria-label="Metal"><SelectValue /></SelectTrigger>
-            <SelectContent>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5"><Label htmlFor="ex-date">Date</Label><Input id="ex-date" type="date" value={txnDate} onChange={(e) => setTxnDate(e.target.value)} /></div>
-      </div>
+      <Card>
+        <CardHeader><CardTitle>Transaction details</CardTitle></CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="space-y-1.5">
+            <Label>Side</Label>
+            <Select value={side} onValueChange={setSide}>
+              <SelectTrigger aria-label="Side"><SelectValue /></SelectTrigger>
+              <SelectContent>{TRADE_SIDES.map((s) => <SelectItem key={s} value={s}>{s === 'BUY' ? 'Buy (old metal in)' : 'Sell (kacha out)'}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5 lg:col-span-2"><Label htmlFor="ex-party">Party</Label><PartyPicker value={party} onChange={setParty} placeholder="Search name / mobile" id="ex-party" ariaLabel="Party" /></div>
+          <div className="space-y-1.5">
+            <Label>Metal</Label>
+            <Select value={metal} onValueChange={setMetal}>
+              <SelectTrigger aria-label="Metal"><SelectValue /></SelectTrigger>
+              <SelectContent>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5"><Label htmlFor="ex-date">Date</Label><Input id="ex-date" type="date" value={txnDate} onChange={(e) => setTxnDate(e.target.value)} /></div>
+        </CardContent>
+      </Card>
 
-      <div className="overflow-x-auto rounded-md border">
-        <Table>
-          <TableHeader><TableRow><TableHead>Weight (g)</TableHead><TableHead>Touch %</TableHead><TableHead>Fine</TableHead><TableHead>Serial</TableHead><TableHead /></TableRow></TableHeader>
-          <TableBody>
-            {rows.map((r, i) => (
-              <TableRow key={r.key}>
-                <TableCell><Input className="w-24" type="number" step="0.001" aria-label="Weight" value={r.weight} onChange={(e) => setRow(i, 'weight', e.target.value)} /></TableCell>
-                <TableCell><Input className="w-20" type="number" step="0.01" aria-label="Touch" value={r.touch} onChange={(e) => setRow(i, 'touch', e.target.value)} /></TableCell>
-                <TableCell className="whitespace-nowrap tabular-nums text-muted-foreground">{fineOf(r).toFixed(3)}</TableCell>
-                <TableCell><Input className="w-28" aria-label="Serial" value={r.serialNo} onChange={(e) => setRow(i, 'serialNo', e.target.value)} /></TableCell>
-                <TableCell><Button variant="ghost" size="sm" aria-label="Remove line" disabled={rows.length === 1} onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))}>✕</Button></TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-      <Button variant="outline" size="sm" onClick={() => setRows((rs) => [...rs, blankRow()])}>+ Add line</Button>
+      <section className="space-y-3">
+        <h2 className="text-xl">Metal lines</h2>
+        <Card className="overflow-x-auto p-2">
+          <Table>
+            <TableHeader><TableRow><TableHead>Weight (g)</TableHead><TableHead>Touch %</TableHead><TableHead>Fine</TableHead><TableHead>Serial</TableHead><TableHead /></TableRow></TableHeader>
+            <TableBody>
+              {rows.map((r, i) => (
+                <TableRow key={r.key}>
+                  <TableCell><Input className="w-24" type="number" step="0.001" aria-label="Weight" value={r.weight} onChange={(e) => setRow(i, 'weight', e.target.value)} /></TableCell>
+                  <TableCell><Input className="w-20" type="number" step="0.01" aria-label="Touch" value={r.touch} onChange={(e) => setRow(i, 'touch', e.target.value)} /></TableCell>
+                  <TableCell className="whitespace-nowrap tabular-nums text-muted-foreground">{fineOf(r).toFixed(3)}</TableCell>
+                  <TableCell><Input className="w-28" aria-label="Serial" value={r.serialNo} onChange={(e) => setRow(i, 'serialNo', e.target.value)} /></TableCell>
+                  <TableCell><Button variant="ghost" size="sm" aria-label="Remove line" disabled={rows.length === 1} onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))}>✕</Button></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+        <Button variant="outline" size="sm" onClick={() => setRows((rs) => [...rs, blankRow()])}>+ Add line</Button>
+      </section>
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        <div className="space-y-3 rounded-md border p-4">
-          <div className="grid grid-cols-2 gap-3">
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader><CardTitle>Settlement</CardTitle></CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1.5"><Label htmlFor="ex-diff">± Fine adjust</Label><Input id="ex-diff" type="number" step="0.001" value={f.diffFine} onChange={(e) => set('diffFine', e.target.value)} /></div>
             <div className="space-y-1.5"><Label htmlFor="ex-rate">Rate ({metal === 'GOLD' ? '/10g' : '/kg'})</Label><Input id="ex-rate" type="number" value={f.rate} onChange={(e) => set('rate', e.target.value)} /></div>
             {moneyMode && <>
@@ -115,32 +123,38 @@ export function NewExchange() {
               <div className="space-y-1.5"><Label htmlFor="ex-cash">{side === 'BUY' ? 'Cash paid ₹' : 'Cash recd ₹'}</Label><Input id="ex-cash" type="number" value={f.cash} onChange={(e) => set('cash', e.target.value)} /></div>
               <div className="space-y-1.5"><Label htmlFor="ex-online">Online ₹</Label><Input id="ex-online" type="number" value={f.online} onChange={(e) => set('online', e.target.value)} /></div>
               {n(f.online) > 0 && (
-                <div className="col-span-2 space-y-1.5"><Label>Bank</Label>
+                <div className="space-y-1.5 sm:col-span-2"><Label>Bank</Label>
                   <Select value={f.bankAccountId} onValueChange={(v) => set('bankAccountId', v)}><SelectTrigger aria-label="Bank account"><SelectValue placeholder="Bank" /></SelectTrigger>
                     <SelectContent>{banks?.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.bankName} · {b.accountNo}</SelectItem>)}</SelectContent></Select>
                 </div>
               )}
             </>}
-          </div>
-          <div className="space-y-1.5"><Label htmlFor="ex-remark">Remark</Label><Input id="ex-remark" value={f.remark} onChange={(e) => set('remark', e.target.value)} /></div>
-        </div>
+            <div className="space-y-1.5 sm:col-span-2 lg:col-span-3"><Label htmlFor="ex-remark">Remark</Label><Input id="ex-remark" value={f.remark} onChange={(e) => set('remark', e.target.value)} /></div>
+          </CardContent>
+        </Card>
 
-        <div className="space-y-2 rounded-md border p-4 text-sm tabular-nums">
-          <div className="flex justify-between"><span className="text-muted-foreground">Total fine</span><span>{totalFine.toFixed(3)} g</span></div>
-          <div className="flex justify-between"><span className="text-muted-foreground">After adjust</span><span className="font-medium">{afterFine.toFixed(3)} g</span></div>
-          {moneyMode ? (
-            <>
-              <div className="flex justify-between border-t pt-1 font-semibold"><span>Final amount</span><span>{inr(finalAmount)}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Paid</span><span>{inr(paid)}</span></div>
-              <div className="flex justify-between font-medium"><span>Balance ({side === 'BUY' ? 'shop owes' : 'party owes'})</span><span>{inr(Math.abs(balance))}</span></div>
-            </>
-          ) : (
-            <p className="text-xs text-muted-foreground">Rate 0 → settled as metal: {side === 'BUY' ? 'shop owes' : 'party owes'} {afterFine.toFixed(3)} g {metal} on the party account.</p>
-          )}
-          <Button className="w-full" disabled={!valid || create.isPending} onClick={() => void submit().catch(() => {})}>
-            {create.isPending ? 'Saving…' : `Save ${side === 'BUY' ? 'purchase' : 'sale'}`}
-          </Button>
-        </div>
+        <Card className="h-fit">
+          <CardHeader><CardTitle>Summary</CardTitle></CardHeader>
+          <CardContent className="space-y-2 text-sm tabular-nums">
+            <div className="flex justify-between"><span className="text-muted-foreground">Total fine</span><span>{totalFine.toFixed(3)} g</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">After adjust</span><span className="font-medium">{afterFine.toFixed(3)} g</span></div>
+            {moneyMode ? (
+              <>
+                <div className="flex justify-between border-t pt-2 text-base font-semibold"><span>Final amount</span><span>{inr(finalAmount)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Paid</span><span>{inr(paid)}</span></div>
+                <div className="flex justify-between font-medium"><span>Balance ({side === 'BUY' ? 'shop owes' : 'party owes'})</span><span>{inr(Math.abs(balance))}</span></div>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground">Rate 0 → settled as metal: {side === 'BUY' ? 'shop owes' : 'party owes'} {afterFine.toFixed(3)} g {metal} on the party account.</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="flex justify-end">
+        <Button className="w-full sm:w-auto" disabled={!valid || create.isPending} onClick={() => void submit().catch(() => {})}>
+          {create.isPending ? 'Saving…' : `Save ${side === 'BUY' ? 'purchase' : 'sale'}`}
+        </Button>
       </div>
     </div>
   )

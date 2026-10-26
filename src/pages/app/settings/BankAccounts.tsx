@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { Building2, CircleCheck, CircleOff, Landmark, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -6,6 +7,7 @@ import { z } from 'zod'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -61,7 +63,7 @@ function BankDialog({ account, onClose }: { account?: BankAccountDto; onClose: (
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="bank">Bank name</Label>
               <Input id="bank" {...register('bankName')} />
@@ -118,38 +120,75 @@ export function BankAccounts() {
   const [editing, setEditing] = useState<BankAccountDto | null>(null)
   const [removing, setRemoving] = useState<BankAccountDto | null>(null)
 
+  // Summary numbers derived from the list already fetched (no extra requests).
+  const accounts = data ?? []
+  const activeCount = accounts.filter((a) => a.isActive).length
+  const allBranchCount = accounts.filter((a) => a.branchId === 0).length
+
+  const tile = (label: string, value: string, sub: string | undefined, Icon: LucideIcon) => (
+    <Card className="gap-2 hover:-translate-y-1">
+      <CardHeader className="flex flex-row items-center justify-between pb-1">
+        <CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</CardTitle>
+        <span className="icon-chip"><Icon className="size-5" aria-hidden /></span>
+      </CardHeader>
+      <CardContent>
+        <div className="text-3xl font-extrabold tracking-tight tabular-nums">{value}</div>
+        {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
+      </CardContent>
+    </Card>
+  )
+
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
+    <div className="space-y-8">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl">Your banks</h2>
+          <p className="text-sm text-muted-foreground">Accounts used to receive and record payments</p>
+        </div>
         {canEdit && <Button onClick={() => setCreating(true)}>New bank account</Button>}
       </div>
+
+      <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {tile('Accounts on file', data ? String(accounts.length) : '—', 'Including deactivated', Landmark)}
+        {tile('In use', data ? String(activeCount) : '—', data ? `of ${accounts.length} accounts` : undefined, CircleCheck)}
+        {tile('Deactivated', data ? String(accounts.length - activeCount) : '—', 'Kept for history', CircleOff)}
+        {tile('Every branch', data ? String(allBranchCount) : '—', 'Shared across all branches', Building2)}
+      </div>
+
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : (
-        <div className="space-y-2">
-          {data?.length === 0 && <p className="text-sm text-muted-foreground">No bank accounts</p>}
-          {data?.map((a) => (
-            <div key={a.id} className="flex flex-wrap items-center gap-3 rounded-md border p-3 text-sm">
-              <span className="font-medium">{a.bankName}</span>
-              <span className="text-muted-foreground">{a.accountNo} · {a.ifsc}</span>
-              <Badge variant="secondary">{APPLY_LABEL[a.applyTo]}</Badge>
-              <span className="text-muted-foreground">{a.branchId === 0 ? 'All branches' : a.branchName ?? `Branch ${a.branchId}`}</span>
-              {!a.isActive && <Badge variant="destructive">Inactive</Badge>}
-              <div className="ml-auto flex gap-2">
-                {canEdit && (
-                  <Button variant="outline" size="sm" onClick={() => setEditing(a)}>
-                    Edit
-                  </Button>
-                )}
-                {canDelete && (
-                  <Button variant="ghost" size="sm" onClick={() => setRemoving(a)}>
-                    Remove
-                  </Button>
-                )}
-              </div>
+        <Card className="p-2">
+          {data?.length === 0 && (
+            <div className="flex flex-col items-center gap-3 py-10 text-center">
+              <span className="icon-chip"><Landmark className="size-5" aria-hidden /></span>
+              <p className="text-sm text-muted-foreground">No bank accounts</p>
             </div>
-          ))}
-        </div>
+          )}
+          <div className="divide-y">
+            {data?.map((a) => (
+              <div key={a.id} className="flex flex-wrap items-center gap-3 rounded-xl p-3 text-sm transition-colors hover:bg-muted/50">
+                <span className="font-medium">{a.bankName}</span>
+                <span className="text-muted-foreground tabular-nums">{a.accountNo} · {a.ifsc}</span>
+                <Badge variant="secondary">{APPLY_LABEL[a.applyTo]}</Badge>
+                <span className="text-muted-foreground">{a.branchId === 0 ? 'All branches' : a.branchName ?? `Branch ${a.branchId}`}</span>
+                {!a.isActive && <Badge variant="destructive">Inactive</Badge>}
+                <div className="ml-auto flex gap-2">
+                  {canEdit && (
+                    <Button variant="outline" size="sm" onClick={() => setEditing(a)}>
+                      Edit
+                    </Button>
+                  )}
+                  {canDelete && (
+                    <Button variant="ghost" size="sm" onClick={() => setRemoving(a)}>
+                      Remove
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
       )}
       {creating && <BankDialog onClose={() => setCreating(false)} />}
       {editing && <BankDialog account={editing} onClose={() => setEditing(null)} />}

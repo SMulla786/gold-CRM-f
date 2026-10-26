@@ -1,9 +1,11 @@
 import type { ColumnDef } from '@tanstack/react-table'
+import { Filter } from 'lucide-react'
 import { useState } from 'react'
 
 import { DataTable } from '@/components/DataTable'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useCancelDraft, useDrafts } from '@/lib/draftsQueries'
 import { DRAFT_STATUSES, type SalesDraftDto } from '@/shared'
@@ -20,7 +22,7 @@ export function Drafts() {
   const cancel = useCancelDraft()
 
   const columns: ColumnDef<SalesDraftDto, unknown>[] = [
-    { header: 'Draft', cell: ({ row }) => <span className="font-medium">#{row.original.draftNo}</span> },
+    { header: 'Draft', cell: ({ row }) => <span className="font-semibold">#{row.original.draftNo}</span> },
     { header: 'When', cell: ({ row }) => dt(row.original.createdAt) },
     { header: 'Salesman', cell: ({ row }) => row.original.salesman.name },
     { header: 'Customer', cell: ({ row }) => row.original.party?.name ?? row.original.customerName },
@@ -40,14 +42,18 @@ export function Drafts() {
   ]
 
   return (
-    <div className="space-y-4">
-      <Select value={status || 'all'} onValueChange={(v) => { setStatus(v === 'all' ? '' : v); setPage(1) }}>
-        <SelectTrigger className="w-48" aria-label="Draft status"><SelectValue /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All statuses</SelectItem>
-          {DRAFT_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-        </SelectContent>
-      </Select>
+    <div className="space-y-6">
+      <p className="text-sm text-muted-foreground">Showroom drafts sent for discount approval, and where each one stands.</p>
+      <Card className="flex flex-wrap items-center gap-3 p-4">
+        <Filter className="size-4 text-muted-foreground" aria-hidden />
+        <Select value={status || 'all'} onValueChange={(v) => { setStatus(v === 'all' ? '' : v); setPage(1) }}>
+          <SelectTrigger className="w-48" aria-label="Draft status"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            {DRAFT_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </Card>
 
       <DataTable
         columns={columns}

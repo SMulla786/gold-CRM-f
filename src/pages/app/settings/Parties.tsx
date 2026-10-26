@@ -1,4 +1,5 @@
 import type { ColumnDef } from '@tanstack/react-table'
+import { Network, UserCheck, UserX, Users, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -6,6 +7,7 @@ import { DataTable } from '@/components/DataTable'
 import { NewPartyDialog } from '@/components/NewPartyDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useDeleteParty, useParties, useParty } from '@/lib/appQueries'
@@ -53,37 +55,75 @@ export function Parties() {
     },
   ]
 
+  // Summary numbers derived from the page already fetched (no extra requests).
+  const items = data?.items ?? []
+  const activeRows = items.filter((p) => p.isActive).length
+  const inactiveRows = items.length - activeRows
+  const familyHeads = items.filter((p) => p.memberCount > 0)
+  const linkedMembers = familyHeads.reduce((sum, p) => sum + p.memberCount, 0)
+
+  const tile = (label: string, value: string, sub: string | undefined, Icon: LucideIcon) => (
+    <Card className="gap-2 hover:-translate-y-1">
+      <CardHeader className="flex flex-row items-center justify-between pb-1">
+        <CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</CardTitle>
+        <span className="icon-chip"><Icon className="size-5" aria-hidden /></span>
+      </CardHeader>
+      <CardContent>
+        <div className="text-3xl font-extrabold tracking-tight tabular-nums">{value}</div>
+        {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
+      </CardContent>
+    </Card>
+  )
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <Input className="max-w-xs" placeholder="Search name / mobile / shop…" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
-        <Select value={type || 'all'} onValueChange={(v) => { setType(v === 'all' ? '' : v); setPage(1) }}>
-          <SelectTrigger className="w-40" aria-label="Filter by type">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All types</SelectItem>
-            {PARTY_TYPES.map((t) => (
-              <SelectItem key={t} value={t}>
-                {t.charAt(0) + t.slice(1).toLowerCase()}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+    <div className="space-y-8">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl">Contact directory</h2>
+          <p className="text-sm text-muted-foreground">Customers, suppliers, karigars and wholesalers in one place</p>
+        </div>
         {canEdit && (
-          <Button className="ml-auto" onClick={() => setCreating(true)}>
+          <Button onClick={() => setCreating(true)}>
             New party
           </Button>
         )}
       </div>
 
-      <DataTable
-        columns={columns}
-        data={data?.items ?? []}
-        isLoading={isLoading}
-        emptyText="No parties"
-        pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined}
-      />
+      <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {tile('Contacts', data ? String(data.total) : '—', 'Matching current filters', Users)}
+        {tile('Active on this page', data ? String(activeRows) : '—', data ? `of ${items.length} shown` : undefined, UserCheck)}
+        {tile('Inactive on this page', data ? String(inactiveRows) : '—', 'Deactivated, can be re-added', UserX)}
+        {tile('Family heads on this page', data ? String(familyHeads.length) : '—', data ? `${linkedMembers} linked sub-profiles` : undefined, Network)}
+      </div>
+
+      <Card>
+        <CardContent className="flex flex-wrap items-end gap-3 pt-6">
+          <Input className="max-w-xs" placeholder="Search name / mobile / shop…" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
+          <Select value={type || 'all'} onValueChange={(v) => { setType(v === 'all' ? '' : v); setPage(1) }}>
+            <SelectTrigger className="w-40" aria-label="Filter by type">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All types</SelectItem>
+              {PARTY_TYPES.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {t.charAt(0) + t.slice(1).toLowerCase()}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+
+      <Card className="p-4">
+        <DataTable
+          columns={columns}
+          data={data?.items ?? []}
+          isLoading={isLoading}
+          emptyText="No parties"
+          pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined}
+        />
+      </Card>
 
       {creating && <NewPartyDialog open onClose={() => setCreating(false)} defaultType={(type || 'CUSTOMER') as PartyType} />}
       {editId && editParty && <NewPartyDialog open party={editParty} onClose={() => setEditId(null)} />}

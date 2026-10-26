@@ -1,8 +1,10 @@
 import type { ColumnDef } from '@tanstack/react-table'
+import { Boxes, IndianRupee, Layers, Scale, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 
 import { DataTable } from '@/components/DataTable'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useGroupStock } from '@/lib/inventoryQueries'
 import { downloadCsv } from '@/lib/csv'
@@ -32,25 +34,58 @@ export function GroupStock() {
     downloadCsv(`group-stock${stockClass ? `-${stockClass.toLowerCase()}` : ''}.csv`, [header, ...body])
   }
 
+  // Summary numbers derived from the rows already fetched (no extra requests).
+  const rows = data ?? []
+  const totalItems = rows.reduce((sum, g) => sum + g.items, 0)
+  const totalPcs = rows.reduce((sum, g) => sum + g.pcs, 0)
+  const totalFine = rows.reduce((sum, g) => sum + Number(g.fine), 0)
+  const totalValue = rows.reduce((sum, g) => sum + Number(g.value), 0)
+  const scope = stockClass ? `${CLASS_LABEL[stockClass]} only` : 'Every class included'
+
+  const tile = (label: string, value: string, sub: string | undefined, Icon: LucideIcon) => (
+    <Card className="gap-2 hover:-translate-y-1">
+      <CardHeader className="flex flex-row items-center justify-between pb-1">
+        <CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</CardTitle>
+        <span className="icon-chip"><Icon className="size-5" aria-hidden /></span>
+      </CardHeader>
+      <CardContent>
+        <div className="text-3xl font-extrabold tracking-tight tabular-nums">{value}</div>
+        {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
+      </CardContent>
+    </Card>
+  )
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <Select value={stockClass || 'all'} onValueChange={(v) => setStockClass(v === 'all' ? '' : v)}>
-          <SelectTrigger className="w-40" aria-label="Stock class">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All classes</SelectItem>
-            {STOCK_CLASSES.map((c) => (
-              <SelectItem key={c} value={c}>
-                {CLASS_LABEL[c]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button className="ml-auto" variant="outline" disabled={!data?.length} onClick={exportCsv}>Export CSV</Button>
+    <div className="space-y-8">
+      <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {tile('Groups listed', data ? String(rows.length) : '—', scope, Layers)}
+        {tile('Total pieces', data ? String(totalPcs) : '—', data ? `${totalItems} stock entries` : undefined, Boxes)}
+        {tile('Fine weight', data ? `${totalFine.toFixed(3)} g` : '—', 'Sum over listed groups', Scale)}
+        {tile('Total value', data ? inr(String(totalValue)) : '—', 'Sum over listed groups', IndianRupee)}
       </div>
-      <DataTable columns={columns} data={data ?? []} isLoading={isLoading} emptyText="No stock" />
+
+      <Card>
+        <CardContent className="flex flex-wrap items-end gap-3 pt-6">
+          <Select value={stockClass || 'all'} onValueChange={(v) => setStockClass(v === 'all' ? '' : v)}>
+            <SelectTrigger className="w-40" aria-label="Stock class">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All classes</SelectItem>
+              {STOCK_CLASSES.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {CLASS_LABEL[c]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button className="ml-auto" variant="outline" disabled={!data?.length} onClick={exportCsv}>Export CSV</Button>
+        </CardContent>
+      </Card>
+
+      <Card className="p-4">
+        <DataTable columns={columns} data={data ?? []} isLoading={isLoading} emptyText="No stock" />
+      </Card>
     </div>
   )
 }

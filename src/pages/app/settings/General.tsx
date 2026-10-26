@@ -22,15 +22,15 @@ export function General() {
   const [mpinAction, setMpinAction] = useState<MpinAction | null>(null)
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {settings ? (
-        <>
+        <div className="stagger grid gap-4 xl:grid-cols-3">
           <CalcBasisCard settings={settings} ask={setMpinAction} />
           <RateUnitsCard settings={settings} ask={setMpinAction} />
           <PrintCard settings={settings} ask={setMpinAction} />
-        </>
+        </div>
       ) : (
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <p className="py-6 text-center text-sm text-muted-foreground">Loading…</p>
       )}
       <KaratCard ask={setMpinAction} />
 
@@ -43,7 +43,7 @@ function SaveSettingCard({ title, children, onSave, ask }: { title: string; chil
   const { can } = useAuth()
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between">
+      <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
         <CardTitle>{title}</CardTitle>
         {can('settings.misc', 'edit') && (
           <Button size="sm" onClick={() => ask({ title: 'Authenticate & save', run: onSave })}>
@@ -193,7 +193,7 @@ function KaratCard({ ask }: { ask: (a: MpinAction) => void }) {
       </CardHeader>
       <CardContent className="space-y-3">
         {karats?.map((k: KaratDto) => (
-          <div key={k.id} className="flex flex-wrap items-center gap-3 text-sm">
+          <div key={k.id} className="flex flex-wrap items-center gap-3 rounded-xl border bg-muted/40 px-4 py-2 text-sm">
             <span className="w-16 font-medium">{k.title}</span>
             <Badge variant="secondary">{k.metal}</Badge>
             <span className="text-muted-foreground">{k.code}</span>
@@ -221,7 +221,7 @@ function KaratCard({ ask }: { ask: (a: MpinAction) => void }) {
         ))}
 
         {canEdit && (
-        <div className="flex flex-wrap items-end gap-2 border-t pt-3">
+        <div className="flex flex-wrap items-end gap-3 border-t pt-4">
           <div className="space-y-1">
             <Label className="text-xs">Metal</Label>
             <Select value={add.metal} onValueChange={(v) => setAdd({ ...add, metal: v })}>

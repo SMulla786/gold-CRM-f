@@ -1,3 +1,4 @@
+import { Check, CheckCircle2, X } from 'lucide-react'
 import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -58,31 +59,37 @@ export function DraftApprovals() {
   const [rejecting, setRejecting] = useState<SalesDraftDto | null>(null)
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-sm font-medium text-muted-foreground">Pending discount requests</h2>
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl">Pending discount requests</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Review the discounts salespeople have asked for, then approve or reject each one.</p>
+      </div>
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : data?.items.length ? (
-        <div className="grid gap-3">
+        <div className="grid gap-4 lg:grid-cols-2">
           {data.items.map((d) => (
-            <Card key={d.id}>
-              <CardHeader className="flex-row items-start justify-between gap-3 pb-2">
-                <CardTitle className="text-sm">Draft #{d.draftNo} · {d.party?.name ?? d.customerName}</CardTitle>
+            <Card key={d.id} className="overflow-hidden">
+              <CardHeader className="flex-row flex-wrap items-center justify-between gap-3 border-b bg-muted/40 py-4">
+                <CardTitle className="text-base font-bold">Draft #{d.draftNo} · {d.party?.name ?? d.customerName}</CardTitle>
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={() => setApproving(d)}>Approve</Button>
-                  <Button size="sm" variant="outline" onClick={() => setRejecting(d)}>Reject</Button>
+                  <Button size="sm" onClick={() => setApproving(d)}><Check aria-hidden />Approve</Button>
+                  <Button size="sm" variant="outline" onClick={() => setRejecting(d)}><X aria-hidden />Reject</Button>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-1 text-sm text-muted-foreground">
+              <CardContent className="space-y-1.5 pt-4 text-sm text-muted-foreground">
                 <div>{dt(d.createdAt)} · by {d.salesman.name} · {d.items.length} items · est. {inr(d.estTotal)}</div>
-                <div>Requested discount: {d.requestedDiscountUnit === 'PERCENT' ? `${d.requestedDiscount}%` : inr(d.requestedDiscount)}</div>
+                <div className="font-semibold text-foreground">Requested discount: {d.requestedDiscountUnit === 'PERCENT' ? `${d.requestedDiscount}%` : inr(d.requestedDiscount)}</div>
                 {d.note && <div>Note: {d.note}</div>}
               </CardContent>
             </Card>
           ))}
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground">No pending approvals.</p>
+        <Card className="flex items-center gap-4 border-dashed p-6 text-sm text-muted-foreground">
+          <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-muted"><CheckCircle2 className="size-5" aria-hidden /></span>
+          No pending approvals.
+        </Card>
       )}
 
       {approving && <ApproveDialog draft={approving} onClose={() => setApproving(null)} />}

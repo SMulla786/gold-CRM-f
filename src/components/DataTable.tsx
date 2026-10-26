@@ -21,7 +21,7 @@ export function DataTable<T>({ columns, data, isLoading, emptyText, pagination }
 
   return (
     <div className="space-y-3">
-      <div className="rounded-md border">
+      <div className="overflow-hidden rounded-3xl border border-white/80 bg-card shadow-sm dark:border-border [&_td:first-child]:pl-6 [&_td:last-child]:pr-6 [&_th:first-child]:pl-6 [&_th:last-child]:pr-6">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((hg) => (

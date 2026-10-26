@@ -66,7 +66,7 @@ export function MemberList() {
 
   return (
     <div className="space-y-8">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {tile('Members', data ? String(data.total) : '—', 'Matching current filters', Users)}
         {tile('Due on this page', data ? String(dueRows.length) : '—', data ? `${dueEmis} EMIs pending` : undefined, CalendarClock)}
         {tile('Active on this page', data ? String(activeRows) : '—', data ? `of ${items.length} shown` : undefined, UserCheck)}

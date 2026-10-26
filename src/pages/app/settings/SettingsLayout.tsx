@@ -20,7 +20,10 @@ export function SettingsLayout() {
   const tabs = TABS.filter((t) => can(t.key, 'view'))
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Settings</h1>
+      <header>
+        <h1>Settings</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Business masters and defaults: parties, banks, HSN codes, invoice layout, rates and opening balances.</p>
+      </header>
       <nav className="flex gap-1 border-b">
         {tabs.map((t) => (
           <NavLink

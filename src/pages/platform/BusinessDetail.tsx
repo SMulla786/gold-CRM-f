@@ -1,3 +1,4 @@
+import { BadgeIndianRupee, Building2, CreditCard, Layers, Receipt, Users, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -35,7 +36,7 @@ function AssignSubDialog({ businessId, onClose }: { businessId: number; onClose:
         <DialogHeader>
           <DialogTitle>Assign subscription</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="grid gap-4">
           <div className="space-y-1.5">
             <Label>Plan</Label>
             <Select value={planId} onValueChange={setPlanId}>
@@ -85,7 +86,7 @@ function RecordPaymentDialog({ businessId, onClose }: { businessId: number; onCl
         <DialogHeader>
           <DialogTitle>Record payment</DialogTitle>
         </DialogHeader>
-        <form onSubmit={onSubmit} className="space-y-4">
+        <form onSubmit={onSubmit} className="grid gap-4">
           <div className="space-y-1.5">
             <Label htmlFor="amount">Amount (₹)</Label>
             <Input id="amount" type="number" step="0.01" {...register('amount', { valueAsNumber: true, required: true })} />
@@ -131,7 +132,7 @@ function ImpersonateDialog({ businessId, onClose }: { businessId: number; onClos
         <DialogHeader>
           <DialogTitle>Login as owner (support)</DialogTitle>
         </DialogHeader>
-        <div className="space-y-2">
+        <div className="grid gap-1.5">
           <Label htmlFor="reason">Reason (audit-logged)</Label>
           <Input id="reason" value={reason} onChange={(e) => setReason(e.target.value)} />
         </div>
@@ -167,12 +168,35 @@ export function BusinessDetail() {
 
   if (isLoading || !b) return <p className="text-sm text-muted-foreground">Loading…</p>
 
+  // Summary numbers derived from the business already fetched (no extra requests).
+  const activeSub = b.subscriptions.find((s) => s.status === 'ACTIVE')
+  const confirmedPayments = b.payments.filter((p) => p.status === 'CONFIRMED')
+  const collected = confirmedPayments.reduce((sum, p) => sum + Number(p.amount), 0)
+
+  const tile = (label: string, value: string, sub: string | undefined, Icon: LucideIcon) => (
+    <Card className="gap-2 hover:-translate-y-1">
+      <CardHeader className="flex flex-row items-center justify-between pb-1">
+        <CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</CardTitle>
+        <span className="icon-chip"><Icon className="size-5" aria-hidden /></span>
+      </CardHeader>
+      <CardContent>
+        <div className="text-3xl font-extrabold tracking-tight tabular-nums">{value}</div>
+        {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
+      </CardContent>
+    </Card>
+  )
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-semibold">{b.name}</h1>
-        <Badge variant={b.status === 'ACTIVE' ? 'default' : 'destructive'}>{b.status}</Badge>
-        <div className="ml-auto flex gap-2">
+    <div className="space-y-8">
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1>{b.name}</h1>
+            <Badge variant={b.status === 'ACTIVE' ? 'default' : 'destructive'}>{b.status}</Badge>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">Tenant account — owner details, plan history and billing.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setDialog('impersonate')}>
             Login as owner
           </Button>
@@ -183,9 +207,16 @@ export function BusinessDetail() {
             {b.status === 'ACTIVE' ? 'Suspend' : 'Activate'}
           </Button>
         </div>
+      </header>
+
+      <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {tile('Current plan', activeSub ? activeSub.planName : '—', activeSub ? `Ends ${date(activeSub.endsAt)}` : 'No active plan', CreditCard)}
+        {tile('Branch count', String(b.branchCount), activeSub ? `Limit ${activeSub.maxBranches}` : undefined, Building2)}
+        {tile('User count', String(b.userCount), activeSub ? `Limit ${activeSub.maxUsers}` : undefined, Users)}
+        {tile('Collected', inr(String(collected)), `${confirmedPayments.length} confirmed of ${b.payments.length} listed`, BadgeIndianRupee)}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="stagger grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Overview</CardTitle>
@@ -203,28 +234,33 @@ export function BusinessDetail() {
         </Card>
 
         <Card>
-          <CardHeader className="flex-row items-center justify-between">
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Subscriptions</CardTitle>
             <Button size="sm" onClick={() => setDialog('assign')}>
               Assign / extend
             </Button>
           </CardHeader>
           <CardContent className="space-y-3">
-            {b.subscriptions.length === 0 && <p className="text-sm text-muted-foreground">No subscriptions</p>}
+            {b.subscriptions.length === 0 && (
+              <div className="flex flex-col items-center gap-3 py-8 text-center">
+                <span className="icon-chip"><Layers className="size-5" aria-hidden /></span>
+                <p className="text-sm text-muted-foreground">No subscriptions</p>
+              </div>
+            )}
             {b.subscriptions.map((s) => (
-              <div key={s.id} className="rounded-md border p-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">{s.planName}</span>
+              <div key={s.id} className="rounded-2xl border bg-muted/40 p-4 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-semibold">{s.planName}</span>
                   <Badge variant={s.status === 'ACTIVE' ? 'default' : 'secondary'}>{s.status}</Badge>
                 </div>
-                <div className="mt-1 text-muted-foreground">
+                <div className="mt-1 tabular-nums text-muted-foreground">
                   {date(s.startsAt)} → {date(s.endsAt)} · {s.maxBranches} br · {s.maxUsers} users · {s.modules.length} modules
                 </div>
                 {s.status === 'ACTIVE' && (
                   <Button
                     variant="outline"
                     size="sm"
-                    className="mt-2"
+                    className="mt-3"
                     onClick={() => updateSub.mutate({ id: s.id, body: { status: 'CANCELLED' } })}
                   >
                     Cancel
@@ -237,21 +273,26 @@ export function BusinessDetail() {
       </div>
 
       <Card>
-        <CardHeader className="flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Payments</CardTitle>
           <Button size="sm" onClick={() => setDialog('payment')}>
             Record payment
           </Button>
         </CardHeader>
         <CardContent className="space-y-2">
-          {b.payments.length === 0 && <p className="text-sm text-muted-foreground">No payments</p>}
+          {b.payments.length === 0 && (
+            <div className="flex flex-col items-center gap-3 py-8 text-center">
+              <span className="icon-chip"><Receipt className="size-5" aria-hidden /></span>
+              <p className="text-sm text-muted-foreground">No payments</p>
+            </div>
+          )}
           {b.payments.map((p) => (
-            <div key={p.id} className="flex items-center justify-between border-b py-1.5 text-sm last:border-0">
-              <span>{date(p.paidAt)}</span>
+            <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 border-b py-2 text-sm last:border-0">
+              <span className="tabular-nums">{date(p.paidAt)}</span>
               <span>{p.method}</span>
               <span className="text-muted-foreground">{p.utr ?? '—'}</span>
               <Badge variant={p.status === 'CONFIRMED' ? 'default' : p.status === 'PENDING' ? 'secondary' : 'destructive'}>{p.status}</Badge>
-              <span className="font-medium">{inr(p.amount)}</span>
+              <span className="font-semibold tabular-nums">{inr(p.amount)}</span>
             </div>
           ))}
         </CardContent>

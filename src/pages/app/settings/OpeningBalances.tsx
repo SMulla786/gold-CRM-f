@@ -1,3 +1,4 @@
+import { Banknote, CircleCheck, History, Landmark, Layers, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 
 import { MpinDialog } from '@/components/MpinDialog'
@@ -59,75 +60,106 @@ export function OpeningBalances() {
     setCash(''); setBankRows([]); setMetalRows([]); setPartyRows([]); setRemark('')
   }
 
+  // Summary numbers derived from the batches already fetched (no extra requests).
+  const allBatches = batches ?? []
+  const liveBatches = allBatches.filter((b) => !b.reversed)
+  const cashTotal = liveBatches.reduce((sum, b) => sum + n(b.cash), 0)
+  const bankTotal = liveBatches.reduce((sum, b) => sum + b.bank.reduce((s, x) => s + n(x.amount), 0), 0)
+
+  const tile = (label: string, value: string, sub: string | undefined, Icon: LucideIcon) => (
+    <Card className="gap-2 hover:-translate-y-1">
+      <CardHeader className="flex flex-row items-center justify-between pb-1">
+        <CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</CardTitle>
+        <span className="icon-chip"><Icon className="size-5" aria-hidden /></span>
+      </CardHeader>
+      <CardContent>
+        <div className="text-3xl font-extrabold tracking-tight tabular-nums">{value}</div>
+        {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
+      </CardContent>
+    </Card>
+  )
+
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="space-y-8">
+      <div>
+        <h2 className="text-xl">Opening balances</h2>
+        <p className="text-sm text-muted-foreground">Cash, bank and metal carried over from your old books</p>
+      </div>
+
       {!branchReady && <SelectBranchForTxn note="Opening balances are recorded per branch. Select a branch." />}
 
+      <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {tile('Batches recorded', batches ? String(allBatches.length) : '—', 'All saved batches', Layers)}
+        {tile('Active batches', batches ? String(liveBatches.length) : '—', batches ? `of ${allBatches.length} recorded` : undefined, CircleCheck)}
+        {tile('Cash posted', batches ? inr(String(cashTotal)) : '—', 'Active batches only', Banknote)}
+        {tile('Bank posted', batches ? inr(String(bankTotal)) : '—', 'Active batches only', Landmark)}
+      </div>
+
       {canEdit && (
-        <Card>
-          <CardHeader className="flex-row items-center justify-between">
-            <CardTitle>New opening balance</CardTitle>
-            <Button size="sm" disabled={!branchReady || entryCount === 0 || create.isPending} onClick={() => setMpinOpen(true)}>Save (MPIN)</Button>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="flex flex-wrap items-end gap-3">
+        <section className="space-y-4">
+          <Card>
+            <CardHeader><CardTitle>New opening balance</CardTitle></CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-1.5"><Label htmlFor="ob-date">As of date</Label><Input id="ob-date" type="date" value={txnDate} onChange={(e) => setTxnDate(e.target.value)} /></div>
-              <div className="flex-1 space-y-1.5"><Label htmlFor="ob-remark">Remark</Label><Input id="ob-remark" value={remark} onChange={(e) => setRemark(e.target.value)} /></div>
-            </div>
+              <div className="space-y-1.5"><Label htmlFor="ob-remark">Remark</Label><Input id="ob-remark" value={remark} onChange={(e) => setRemark(e.target.value)} /></div>
+              <div className="space-y-1.5"><Label htmlFor="ob-cash">Cash in hand ₹</Label><Input id="ob-cash" type="number" value={cash} onChange={(e) => setCash(e.target.value)} /></div>
+            </CardContent>
+          </Card>
 
-            <div className="space-y-1.5 sm:max-w-xs"><Label htmlFor="ob-cash">Cash in hand ₹</Label><Input id="ob-cash" type="number" value={cash} onChange={(e) => setCash(e.target.value)} /></div>
+          <Section title="Bank balances" onAdd={() => setBankRows((r) => [...r, { key: key(), bankAccountId: '', amount: '' }])}>
+            {bankRows.map((b, i) => (
+              <div key={b.key} className="flex flex-wrap items-end gap-3">
+                <Select value={b.bankAccountId} onValueChange={(v) => setBankRows((rs) => rs.map((x, j) => j === i ? { ...x, bankAccountId: v } : x))}>
+                  <SelectTrigger className="w-56" aria-label="Bank account"><SelectValue placeholder="Bank" /></SelectTrigger>
+                  <SelectContent>{banks?.map((ba) => <SelectItem key={ba.id} value={String(ba.id)}>{ba.bankName} · {ba.accountNo}</SelectItem>)}</SelectContent>
+                </Select>
+                <Input className="w-32" type="number" placeholder="Amount ₹" aria-label="Bank amount" value={b.amount} onChange={(e) => setBankRows((rs) => rs.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))} />
+                <Button variant="ghost" size="sm" aria-label="Remove bank row" onClick={() => setBankRows((rs) => rs.filter((_, j) => j !== i))}>✕</Button>
+              </div>
+            ))}
+          </Section>
 
-            <Section title="Bank balances" onAdd={() => setBankRows((r) => [...r, { key: key(), bankAccountId: '', amount: '' }])}>
-              {bankRows.map((b, i) => (
-                <div key={b.key} className="flex flex-wrap items-end gap-2">
-                  <Select value={b.bankAccountId} onValueChange={(v) => setBankRows((rs) => rs.map((x, j) => j === i ? { ...x, bankAccountId: v } : x))}>
-                    <SelectTrigger className="w-56" aria-label="Bank account"><SelectValue placeholder="Bank" /></SelectTrigger>
-                    <SelectContent>{banks?.map((ba) => <SelectItem key={ba.id} value={String(ba.id)}>{ba.bankName} · {ba.accountNo}</SelectItem>)}</SelectContent>
-                  </Select>
-                  <Input className="w-32" type="number" placeholder="Amount ₹" aria-label="Bank amount" value={b.amount} onChange={(e) => setBankRows((rs) => rs.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))} />
-                  <Button variant="ghost" size="sm" aria-label="Remove bank row" onClick={() => setBankRows((rs) => rs.filter((_, j) => j !== i))}>✕</Button>
-                </div>
-              ))}
-            </Section>
+          <Section title="Bullion / loose metal (fine g)" onAdd={() => setMetalRows((r) => [...r, { key: key(), metal: 'GOLD', metalForm: 'BULLION', fine: '' }])}>
+            {metalRows.map((m, i) => (
+              <div key={m.key} className="flex flex-wrap items-end gap-3">
+                <Select value={m.metal} onValueChange={(v) => setMetalRows((rs) => rs.map((x, j) => j === i ? { ...x, metal: v } : x))}>
+                  <SelectTrigger className="w-28" aria-label="Metal"><SelectValue /></SelectTrigger>
+                  <SelectContent>{METALS.map((mm) => <SelectItem key={mm} value={mm}>{mm}</SelectItem>)}</SelectContent>
+                </Select>
+                <Select value={m.metalForm} onValueChange={(v) => setMetalRows((rs) => rs.map((x, j) => j === i ? { ...x, metalForm: v } : x))}>
+                  <SelectTrigger className="w-28" aria-label="Metal form"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="BULLION">Bullion</SelectItem><SelectItem value="KACHA">Kacha</SelectItem></SelectContent>
+                </Select>
+                <Input className="w-28" type="number" step="0.001" placeholder="Fine g" aria-label="Fine weight" value={m.fine} onChange={(e) => setMetalRows((rs) => rs.map((x, j) => j === i ? { ...x, fine: e.target.value } : x))} />
+                <Button variant="ghost" size="sm" aria-label="Remove metal row" onClick={() => setMetalRows((rs) => rs.filter((_, j) => j !== i))}>✕</Button>
+              </div>
+            ))}
+          </Section>
 
-            <Section title="Bullion / loose metal (fine g)" onAdd={() => setMetalRows((r) => [...r, { key: key(), metal: 'GOLD', metalForm: 'BULLION', fine: '' }])}>
-              {metalRows.map((m, i) => (
-                <div key={m.key} className="flex flex-wrap items-end gap-2">
-                  <Select value={m.metal} onValueChange={(v) => setMetalRows((rs) => rs.map((x, j) => j === i ? { ...x, metal: v } : x))}>
-                    <SelectTrigger className="w-28" aria-label="Metal"><SelectValue /></SelectTrigger>
-                    <SelectContent>{METALS.map((mm) => <SelectItem key={mm} value={mm}>{mm}</SelectItem>)}</SelectContent>
-                  </Select>
-                  <Select value={m.metalForm} onValueChange={(v) => setMetalRows((rs) => rs.map((x, j) => j === i ? { ...x, metalForm: v } : x))}>
-                    <SelectTrigger className="w-28" aria-label="Metal form"><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="BULLION">Bullion</SelectItem><SelectItem value="KACHA">Kacha</SelectItem></SelectContent>
-                  </Select>
-                  <Input className="w-28" type="number" step="0.001" placeholder="Fine g" aria-label="Fine weight" value={m.fine} onChange={(e) => setMetalRows((rs) => rs.map((x, j) => j === i ? { ...x, fine: e.target.value } : x))} />
-                  <Button variant="ghost" size="sm" aria-label="Remove metal row" onClick={() => setMetalRows((rs) => rs.filter((_, j) => j !== i))}>✕</Button>
-                </div>
-              ))}
-            </Section>
+          <Section title="Party balances (+ owes shop, − shop owes)" onAdd={() => setPartyRows((r) => [...r, { key: key(), party: null, amount: '', gold: '', silver: '' }])}>
+            {partyRows.map((p, i) => (
+              <div key={p.key} className="flex flex-wrap items-end gap-3">
+                <div className="w-56"><PartyPicker value={p.party} onChange={(v) => setPartyRows((rs) => rs.map((x, j) => j === i ? { ...x, party: v } : x))} ariaLabel="Party" /></div>
+                <Input className="w-28" type="number" placeholder="₹" aria-label="Party amount" value={p.amount} onChange={(e) => setPartyRows((rs) => rs.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))} />
+                <Input className="w-24" type="number" step="0.001" placeholder="Gold g" aria-label="Party gold" value={p.gold} onChange={(e) => setPartyRows((rs) => rs.map((x, j) => j === i ? { ...x, gold: e.target.value } : x))} />
+                <Input className="w-24" type="number" step="0.001" placeholder="Silver g" aria-label="Party silver" value={p.silver} onChange={(e) => setPartyRows((rs) => rs.map((x, j) => j === i ? { ...x, silver: e.target.value } : x))} />
+                <Button variant="ghost" size="sm" aria-label="Remove party row" onClick={() => setPartyRows((rs) => rs.filter((_, j) => j !== i))}>✕</Button>
+              </div>
+            ))}
+          </Section>
 
-            <Section title="Party balances (+ owes shop, − shop owes)" onAdd={() => setPartyRows((r) => [...r, { key: key(), party: null, amount: '', gold: '', silver: '' }])}>
-              {partyRows.map((p, i) => (
-                <div key={p.key} className="flex flex-wrap items-end gap-2">
-                  <div className="w-56"><PartyPicker value={p.party} onChange={(v) => setPartyRows((rs) => rs.map((x, j) => j === i ? { ...x, party: v } : x))} ariaLabel="Party" /></div>
-                  <Input className="w-28" type="number" placeholder="₹" aria-label="Party amount" value={p.amount} onChange={(e) => setPartyRows((rs) => rs.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))} />
-                  <Input className="w-24" type="number" step="0.001" placeholder="Gold g" aria-label="Party gold" value={p.gold} onChange={(e) => setPartyRows((rs) => rs.map((x, j) => j === i ? { ...x, gold: e.target.value } : x))} />
-                  <Input className="w-24" type="number" step="0.001" placeholder="Silver g" aria-label="Party silver" value={p.silver} onChange={(e) => setPartyRows((rs) => rs.map((x, j) => j === i ? { ...x, silver: e.target.value } : x))} />
-                  <Button variant="ghost" size="sm" aria-label="Remove party row" onClick={() => setPartyRows((rs) => rs.filter((_, j) => j !== i))}>✕</Button>
-                </div>
-              ))}
-            </Section>
+          <div className="flex flex-wrap items-center justify-end gap-3">
             <p className="text-xs text-muted-foreground">{entryCount} entr{entryCount === 1 ? 'y' : 'ies'} ready. Saving posts opening ledger/party rows you can reverse later.</p>
-          </CardContent>
-        </Card>
+            <Button disabled={!branchReady || entryCount === 0 || create.isPending} onClick={() => setMpinOpen(true)}>Save (MPIN)</Button>
+          </div>
+        </section>
       )}
 
       <Card>
         <CardHeader><CardTitle>Past opening batches</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           {batches?.length ? batches.map((b) => (
-            <div key={b.sourceId} className="flex flex-wrap items-start gap-3 rounded-md border p-3 text-sm">
+            <div key={b.sourceId} className="flex flex-wrap items-start gap-3 rounded-md border p-3 text-sm transition-colors hover:bg-muted/50">
               <div className="flex-1 space-y-1">
                 <div className="font-medium">{date(b.txnDate)} · {b.branch.name} {b.reversed && <Badge variant="secondary">Reversed</Badge>}</div>
                 <div className="text-muted-foreground">
@@ -140,7 +172,12 @@ export function OpeningBalances() {
               </div>
               {canDelete && !b.reversed && <Button variant="ghost" size="sm" onClick={() => setReversing(b.sourceId)}>Reverse</Button>}
             </div>
-          )) : <p className="text-sm text-muted-foreground">No opening balances recorded yet.</p>}
+          )) : (
+            <div className="flex flex-col items-center justify-center gap-3 py-8 text-center">
+              <span className="icon-chip"><History className="size-5" aria-hidden /></span>
+              <p className="text-sm text-muted-foreground">No opening balances recorded yet.</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -152,12 +189,14 @@ export function OpeningBalances() {
 
 function Section({ title, onAdd, children }: { title: string; onAdd: () => void; children: React.ReactNode }) {
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
+    <Card>
+      <CardHeader className="flex flex-row items-center gap-2 space-y-0">
         <h3 className="text-sm font-medium">{title}</h3>
         <Button variant="outline" size="sm" className="ml-auto" onClick={onAdd}>+ Add</Button>
-      </div>
-      {children}
-    </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {children}
+      </CardContent>
+    </Card>
   )
 }

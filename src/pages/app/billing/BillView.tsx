@@ -1,5 +1,6 @@
 import { businessDayISO } from '@/shared'
 import { useState } from 'react'
+import { FileDown, Printer } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { Badge } from '@/components/ui/badge'
@@ -37,11 +38,16 @@ export function BillView() {
   const summary = `${shopName}\n${bill.kind === 'SELL' ? 'Bill' : 'Purchase'} ${bill.billNo} · ${new Date(bill.billDate).toLocaleDateString('en-IN')}\nTotal ${inr(bill.final)} · Paid ${inr(bill.paid)} · Balance ${inr(bill.balance)}`
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3 print:hidden">
-        <Link to="/app/billing/list" className="text-sm text-primary hover:underline">← Bills</Link>
-        {bill.status === 'DELETED' && <Badge variant="secondary">Deleted</Badge>}
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4 print:hidden">
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <Link to="/app/billing/list" className="text-sm font-medium text-brand-strong hover:underline">← Bills</Link>
+            {bill.status === 'DELETED' && <Badge variant="secondary">Deleted</Badge>}
+          </div>
+          <p className="text-sm text-muted-foreground">Preview the invoice, then print, download or share it.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           {editable && <Button variant="outline" onClick={() => navigate(`/app/billing/edit/${bill.id}`)}>Edit</Button>}
           <Button variant="outline" onClick={() => shareOnWhatsApp(bill.party.mobile, summary)}>Share</Button>
           <Select value={layout} onValueChange={setOverride}>
@@ -52,13 +58,15 @@ export function BillView() {
               <SelectItem value="THERMAL_80">Thermal 80 mm</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" onClick={() => window.print()}>Print</Button>
-          <Button variant="outline" onClick={downloadPdf}>Download PDF</Button>
+          <Button variant="outline" onClick={downloadPdf}><FileDown aria-hidden />Download PDF</Button>
+          <Button onClick={() => window.print()}><Printer aria-hidden />Print</Button>
         </div>
       </div>
 
-      <div className={cn('print-area rounded-md border p-6', thermal && 'print-thermal')}>
-        <BillInvoice bill={bill} shopName={shopName} business={business} stateName={stateName} terms={settings?.['invoice.content'].terms} thermal={thermal} media={settings?.['invoice.media']} columns={settings?.['invoice.content'].columns} watermarkOpacity={settings?.['invoice.content'].watermarkOpacity} />
+      <div className={cn('print-area rounded-3xl border border-white/80 bg-card p-6 shadow-sm sm:p-10 dark:border-border print:rounded-none print:border-0 print:bg-transparent print:shadow-none', thermal && 'print-thermal')}>
+        <div className="overflow-x-auto print:overflow-visible">
+          <BillInvoice bill={bill} shopName={shopName} business={business} stateName={stateName} terms={settings?.['invoice.content'].terms} thermal={thermal} media={settings?.['invoice.media']} columns={settings?.['invoice.content'].columns} watermarkOpacity={settings?.['invoice.content'].watermarkOpacity} />
+        </div>
       </div>
     </div>
   )

@@ -1,10 +1,12 @@
 import type { ColumnDef } from '@tanstack/react-table'
+import { Download, Search } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { DataTable } from '@/components/DataTable'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -88,7 +90,7 @@ export function BillList() {
   }
 
   const columns: ColumnDef<BillListItemDto, unknown>[] = [
-    { header: 'Bill', cell: ({ row }) => <Link to={`/app/billing/view/${row.original.id}`} className="font-medium text-primary hover:underline">{row.original.billNo}</Link> },
+    { header: 'Bill', cell: ({ row }) => <Link to={`/app/billing/view/${row.original.id}`} className="font-semibold text-brand-strong hover:underline">{row.original.billNo}</Link> },
     { header: 'Date', cell: ({ row }) => date(row.original.billDate) },
     { header: 'Party', cell: ({ row }) => row.original.party.name },
     { accessorKey: 'itemCount', header: 'Items' },
@@ -104,26 +106,32 @@ export function BillList() {
             {canEdit && row.original.billDate.slice(0, 10) === todayISO() && <Button variant="outline" size="sm" onClick={() => navigate(`/app/billing/edit/${row.original.id}`)}>Edit</Button>}
             {canEdit && Number(row.original.balance) !== 0 && <Button variant="outline" size="sm" onClick={() => setPaying(row.original)}>Add payment</Button>}
             <Button variant="ghost" size="sm" onClick={() => shareOnWhatsApp(row.original.party.mobile, `${row.original.kind === 'SELL' ? 'Bill' : 'Purchase'} ${row.original.billNo} · Total ${inr(row.original.final)} · Balance ${inr(row.original.balance)}`)}>Share</Button>
-            {canDelete && <Button variant="ghost" size="sm" onClick={() => setDeleting(row.original)}>Delete</Button>}
+            {canDelete && <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleting(row.original)}>Delete</Button>}
           </div>
         ) : <Badge variant="secondary">Deleted</Badge>,
     },
   ]
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">Search, filter and export your sell and purchase bills.</p>
+        <Button variant="outline" disabled={exporting} onClick={exportCsv}><Download aria-hidden />{exporting ? 'Exporting…' : 'Export CSV'}</Button>
+      </div>
+      <Card className="flex flex-wrap items-center gap-3 p-4">
         <Select value={kind} onValueChange={(v) => { setKind(v as BillKind); setPage(1) }}>
-          <SelectTrigger className="w-36" aria-label="Bill kind"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-full sm:w-36" aria-label="Bill kind"><SelectValue /></SelectTrigger>
           <SelectContent>{BILL_KINDS.map((k) => <SelectItem key={k} value={k}>{k === 'SELL' ? 'Sell' : 'Purchase'}</SelectItem>)}</SelectContent>
         </Select>
         <Select value={status} onValueChange={(v) => { setStatus(v); setPage(1) }}>
-          <SelectTrigger className="w-32" aria-label="Status"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-full sm:w-32" aria-label="Status"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="ACTIVE">Active</SelectItem><SelectItem value="DELETED">Deleted</SelectItem></SelectContent>
         </Select>
-        <Input className="max-w-xs" placeholder="Search bill / party / mobile…" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
-        <Button className="ml-auto" variant="outline" disabled={exporting} onClick={exportCsv}>{exporting ? 'Exporting…' : 'Export CSV'}</Button>
-      </div>
+        <div className="relative w-full sm:max-w-sm sm:flex-1">
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+          <Input className="pl-9" placeholder="Search bill / party / mobile…" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
+        </div>
+      </Card>
 
       <DataTable
         columns={columns}

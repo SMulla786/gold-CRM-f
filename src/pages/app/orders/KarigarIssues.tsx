@@ -1,3 +1,4 @@
+import { ClipboardList, Coins, Gem, Hourglass, Inbox, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
@@ -27,7 +28,7 @@ function ReceiveDialog({ issue, onClose }: { issue: KarigarIssueDto; onClose: ()
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader><DialogTitle>Receive from {issue.karigar.name} · issue #{issue.issueNo}</DialogTitle></DialogHeader>
-        <div className="overflow-x-auto rounded-md border">
+        <Card className="overflow-x-auto p-2">
           <Table>
             <TableHeader><TableRow><TableHead>Item</TableHead><TableHead>Ret. gross</TableHead><TableHead>Less</TableHead><TableHead>Touch</TableHead><TableHead>Ghat (g)</TableHead><TableHead>Labour ₹</TableHead><TableHead>Tag</TableHead></TableRow></TableHeader>
             <TableBody>
@@ -44,7 +45,7 @@ function ReceiveDialog({ issue, onClose }: { issue: KarigarIssueDto; onClose: ()
               ))}
             </TableBody>
           </Table>
-        </div>
+        </Card>
         <DialogFooter>
           <Button disabled={!ok || receive.isPending} onClick={async () => {
             await receive.mutateAsync({ id: issue.id, body: { items: items.map((r) => ({ orderItemId: r.orderItemId, returnedGross: n(r.returnedGross), returnedLess: n(r.returnedLess), touch: r.touch !== '' ? n(r.touch) : undefined, ghatAllowance: n(r.ghatAllowance), labour: n(r.labour), tagNo: r.tagNo || undefined })) } })
@@ -64,15 +65,46 @@ export function KarigarIssues() {
   const { data, isLoading } = useKarigarIssues({ status: status || undefined, page })
   const [receiving, setReceiving] = useState<KarigarIssueDto | null>(null)
 
+  // Summary numbers derived from the page already fetched (no extra requests).
+  const shown = data?.items ?? []
+  const openShown = shown.filter((iss) => iss.status === 'OPEN').length
+  const piecesShown = shown.reduce((sum, iss) => sum + iss.items.length, 0)
+  const goldShown = shown.reduce((sum, iss) => sum + n(iss.goldFine), 0)
+  const silverShown = shown.reduce((sum, iss) => sum + n(iss.silverFine), 0)
+
+  const tile = (label: string, value: string, sub: string | undefined, Icon: LucideIcon) => (
+    <Card className="gap-2 hover:-translate-y-1">
+      <CardHeader className="flex flex-row items-center justify-between pb-1">
+        <CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</CardTitle>
+        <span className="icon-chip"><Icon className="size-5" aria-hidden /></span>
+      </CardHeader>
+      <CardContent>
+        <div className="text-3xl font-extrabold tracking-tight tabular-nums">{value}</div>
+        {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
+      </CardContent>
+    </Card>
+  )
+
   return (
-    <div className="space-y-4">
-      <Select value={status || 'all'} onValueChange={(v) => { setStatus(v === 'all' ? '' : v); setPage(1) }}>
-        <SelectTrigger className="w-44" aria-label="Issue status"><SelectValue /></SelectTrigger>
-        <SelectContent><SelectItem value="all">All</SelectItem><SelectItem value="OPEN">Open</SelectItem><SelectItem value="RECEIVED">Received</SelectItem><SelectItem value="CANCELLED">Cancelled</SelectItem></SelectContent>
-      </Select>
+    <div className="space-y-8">
+      <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {tile('Issues', data ? String(data.total) : '—', 'Matching current filter', ClipboardList)}
+        {tile('Open on this page', data ? String(openShown) : '—', data ? `of ${shown.length} shown · ${piecesShown} pieces` : undefined, Hourglass)}
+        {tile('Gold fine on this page', data ? `${goldShown.toFixed(3)} g` : '—', 'Fine metal sent out', Coins)}
+        {tile('Silver fine on this page', data ? `${silverShown.toFixed(3)} g` : '—', 'Fine metal sent out', Gem)}
+      </div>
+
+      <Card>
+        <CardContent className="flex flex-wrap items-end gap-3 pt-6">
+          <Select value={status || 'all'} onValueChange={(v) => { setStatus(v === 'all' ? '' : v); setPage(1) }}>
+            <SelectTrigger className="w-44" aria-label="Issue status"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All</SelectItem><SelectItem value="OPEN">Open</SelectItem><SelectItem value="RECEIVED">Received</SelectItem><SelectItem value="CANCELLED">Cancelled</SelectItem></SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
 
       {isLoading ? <p className="text-sm text-muted-foreground">Loading…</p> : data?.items.length ? (
-        <div className="grid gap-3">
+        <div className="stagger grid gap-4">
           {data.items.map((iss) => (
             <Card key={iss.id}>
               <CardHeader className="flex-row items-start justify-between gap-3 pb-2">
@@ -86,7 +118,14 @@ export function KarigarIssues() {
             </Card>
           ))}
         </div>
-      ) : <p className="text-sm text-muted-foreground">No issues.</p>}
+      ) : (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+            <span className="icon-chip"><Inbox className="size-5" aria-hidden /></span>
+            <p className="text-sm text-muted-foreground">No issues.</p>
+          </CardContent>
+        </Card>
+      )}
 
       {receiving && <ReceiveDialog issue={receiving} onClose={() => setReceiving(null)} />}
     </div>

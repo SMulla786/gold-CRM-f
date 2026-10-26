@@ -1,9 +1,11 @@
 import type { ColumnDef } from '@tanstack/react-table'
+import { Boxes, Gem, Hash, Layers, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 
 import { DataTable } from '@/components/DataTable'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -36,7 +38,7 @@ function GroupDialog({ onClose }: { onClose: () => void }) {
           <DialogTitle>New item group(s)</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Stock class</Label>
               <Select value={stockClass} onValueChange={(v) => { setStockClass(v); setJewelleryTypeId('') }}>
@@ -148,7 +150,7 @@ function ItemNameDialog({ groups, onClose }: { groups: ItemGroupDto[]; onClose: 
             <Label htmlFor="n-name">Item name</Label>
             <Input id="n-name" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-1.5">
               <Label>Method</Label>
               <Select value={method} onValueChange={setMethod}>
@@ -214,28 +216,68 @@ export function ItemMasters() {
     { header: 'Tag', cell: ({ row }) => (row.original.tagPrefix ? `${row.original.tagPrefix} (${row.original.tagDigits})` : '—') },
   ]
 
+  // Summary numbers derived from the pages already fetched (no extra requests).
+  const groupItems = groupsQ.data?.items ?? []
+  const nameItems = namesQ.data?.items ?? []
+  const linkedTotal = groupItems.reduce((sum, g) => sum + g.itemCount, 0)
+  const numbered = nameItems.filter((n) => n.tagPrefix).length
+
+  const tile = (label: string, value: string, sub: string | undefined, Icon: LucideIcon) => (
+    <Card className="gap-2 hover:-translate-y-1">
+      <CardHeader className="flex flex-row items-center justify-between pb-1">
+        <CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</CardTitle>
+        <span className="icon-chip"><Icon className="size-5" aria-hidden /></span>
+      </CardHeader>
+      <CardContent>
+        <div className="text-3xl font-extrabold tracking-tight tabular-nums">{value}</div>
+        {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
+      </CardContent>
+    </Card>
+  )
+
   return (
-    <Tabs defaultValue="groups">
-      <TabsList>
-        <TabsTrigger value="groups">Item Groups</TabsTrigger>
-        <TabsTrigger value="names">Item Names</TabsTrigger>
-      </TabsList>
-      <TabsContent value="groups" className="space-y-4 pt-4">
-        <div className="flex justify-end">
-          <Button onClick={() => setNewGroup(true)}>New group</Button>
-        </div>
-        <DataTable columns={groupCols} data={groupsQ.data?.items ?? []} isLoading={groupsQ.isLoading} emptyText="No item groups" />
-      </TabsContent>
-      <TabsContent value="names" className="space-y-4 pt-4">
-        <div className="flex justify-end">
-          <Button onClick={() => setNewName(true)} disabled={!groupsQ.data?.items.length}>
-            New item name
-          </Button>
-        </div>
-        <DataTable columns={nameCols} data={namesQ.data?.items ?? []} isLoading={namesQ.isLoading} emptyText="No item names" />
-      </TabsContent>
-      {newGroup && <GroupDialog onClose={() => setNewGroup(false)} />}
-      {newName && <ItemNameDialog groups={groupsQ.data?.items ?? []} onClose={() => setNewName(false)} />}
-    </Tabs>
+    <div className="space-y-8">
+      <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {tile('Categories', groupsQ.data ? String(groupsQ.data.total) : '—', 'All master categories', Layers)}
+        {tile('Product names', namesQ.data ? String(namesQ.data.total) : '—', 'Across all categories', Gem)}
+        {tile('Linked entries', groupsQ.data ? String(linkedTotal) : '—', 'Across categories on this page', Boxes)}
+        {tile('Auto-numbered', namesQ.data ? String(numbered) : '—', namesQ.data ? `of ${nameItems.length} products on this page` : undefined, Hash)}
+      </div>
+
+      <Tabs defaultValue="groups">
+        <TabsList>
+          <TabsTrigger value="groups">Item Groups</TabsTrigger>
+          <TabsTrigger value="names">Item Names</TabsTrigger>
+        </TabsList>
+        <TabsContent value="groups" className="space-y-4 pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl">Category catalogue</h2>
+              <p className="text-sm text-muted-foreground">Organise products by metal, jewellery family and GST rate.</p>
+            </div>
+            <Button onClick={() => setNewGroup(true)}>New group</Button>
+          </div>
+          <Card className="p-4">
+            <DataTable columns={groupCols} data={groupsQ.data?.items ?? []} isLoading={groupsQ.isLoading} emptyText="No item groups" />
+          </Card>
+        </TabsContent>
+        <TabsContent value="names" className="space-y-4 pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl">Product catalogue</h2>
+              <p className="text-sm text-muted-foreground">Set how each product is entered and labelled for printing.</p>
+            </div>
+            <Button onClick={() => setNewName(true)} disabled={!groupsQ.data?.items.length}>
+              New item name
+            </Button>
+          </div>
+          <Card className="p-4">
+            <DataTable columns={nameCols} data={namesQ.data?.items ?? []} isLoading={namesQ.isLoading} emptyText="No item names" />
+          </Card>
+        </TabsContent>
+        {newGroup && <GroupDialog onClose={() => setNewGroup(false)} />}
+        {newName && <ItemNameDialog groups={groupsQ.data?.items ?? []} onClose={() => setNewName(false)} />}
+      </Tabs>
+    </div>
   )
 }

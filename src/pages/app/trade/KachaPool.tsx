@@ -1,3 +1,4 @@
+import { Coins, Flame, Recycle, TrendingDown, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 
 import { MpinDialog } from '@/components/MpinDialog'
@@ -26,18 +27,18 @@ function ProcessDialog({ metal, onClose }: { metal: string; onClose: () => void 
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader><DialogTitle>Process {metal} kacha</DialogTitle></DialogHeader>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5"><Label>Type</Label>
             <Select value={f.type} onValueChange={(v) => set('type', v)}><SelectTrigger aria-label="Process type"><SelectValue /></SelectTrigger>
               <SelectContent><SelectItem value="MELT">Melt</SelectItem><SelectItem value="REFINE">Refine</SelectItem></SelectContent></Select>
           </div>
-          <div />
+          <div className="hidden sm:block" />
           <div className="space-y-1.5"><Label htmlFor="kp-in">Kacha in (fine g)</Label><Input id="kp-in" type="number" step="0.001" value={f.inFine} onChange={(e) => set('inFine', e.target.value)} /></div>
           <div className="space-y-1.5"><Label htmlFor="kp-out">Bullion out (fine g)</Label><Input id="kp-out" type="number" step="0.001" value={f.outFine} onChange={(e) => set('outFine', e.target.value)} /></div>
           {f.type === 'REFINE' && <div className="space-y-1.5"><Label htmlFor="kp-raval">Raval back to kacha (g)</Label><Input id="kp-raval" type="number" step="0.001" value={f.ravalFine} onChange={(e) => set('ravalFine', e.target.value)} /></div>}
           <div className="space-y-1.5"><Label htmlFor="kp-remark">Remark</Label><Input id="kp-remark" value={f.remark} onChange={(e) => set('remark', e.target.value)} /></div>
         </div>
-        <p className="text-sm text-muted-foreground tabular-nums">Loss / difference: {difference.toFixed(3)} g</p>
+        <p className="rounded-xl bg-muted px-3 py-2 text-sm text-muted-foreground tabular-nums">Loss / difference: {difference.toFixed(3)} g</p>
         <MpinProcess proc={proc} metal={metal} f={f} ok={ok} onClose={onClose} />
       </DialogContent>
     </Dialog>
@@ -67,37 +68,77 @@ export function KachaPool() {
   const [processing, setProcessing] = useState(false)
   const [reverting, setReverting] = useState<number | null>(null)
 
+  // Summary numbers derived from the list already fetched (no extra requests).
+  const activeRows = (list?.items ?? []).filter((p) => !p.reverted)
+  const lossOnPage = activeRows.reduce((sum, p) => sum + n(p.difference), 0)
+
+  const tile = (label: string, value: string, sub: string | undefined, Icon: LucideIcon) => (
+    <Card className="gap-2 hover:-translate-y-1">
+      <CardHeader className="flex flex-row items-center justify-between pb-1">
+        <CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</CardTitle>
+        <span className="icon-chip"><Icon className="size-5" aria-hidden /></span>
+      </CardHeader>
+      <CardContent>
+        <div className="text-3xl font-extrabold tracking-tight tabular-nums">{value}</div>
+        {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
+      </CardContent>
+    </Card>
+  )
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <Select value={metal} onValueChange={setMetal}>
-          <SelectTrigger className="w-32" aria-label="Metal"><SelectValue /></SelectTrigger>
-          <SelectContent>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-        </Select>
-        {canEdit && <Button className="ml-auto" onClick={() => setProcessing(true)}>Melt / Refine</Button>}
+    <div className="space-y-8">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl">Kacha pool</h2>
+          <p className="text-sm text-muted-foreground">Old metal bought in, and the bullion it becomes after processing.</p>
+        </div>
+        {canEdit && <Button onClick={() => setProcessing(true)}>Melt / Refine</Button>}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Card><CardHeader className="pb-1"><CardTitle className="text-sm font-medium text-muted-foreground">Kacha (unprocessed) {metal}</CardTitle></CardHeader><CardContent><div className="text-2xl font-semibold tabular-nums">{bal?.kachaFine ?? '—'} g</div></CardContent></Card>
-        <Card><CardHeader className="pb-1"><CardTitle className="text-sm font-medium text-muted-foreground">Bullion (refined) {metal}</CardTitle></CardHeader><CardContent><div className="text-2xl font-semibold tabular-nums">{bal?.bullionFine ?? '—'} g</div></CardContent></Card>
+      <Card>
+        <CardContent className="flex flex-wrap items-end gap-3 pt-6">
+          <Select value={metal} onValueChange={setMetal}>
+            <SelectTrigger className="w-32" aria-label="Metal"><SelectValue /></SelectTrigger>
+            <SelectContent>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+
+      <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {tile(`Kacha (unprocessed) ${metal}`, `${bal?.kachaFine ?? '—'} g`, 'Fine grams awaiting processing', Recycle)}
+        {tile(`Bullion (refined) ${metal}`, `${bal?.bullionFine ?? '—'} g`, 'Fine grams after processing', Coins)}
+        {tile('Processing entries', list ? String(list.total) : '—', list ? `${activeRows.length} active on this page` : undefined, Flame)}
+        {tile('Loss on this page', list ? `${lossOnPage.toFixed(3)} g` : '—', 'Excludes reverted entries', TrendingDown)}
       </div>
 
-      <div className="overflow-x-auto rounded-md border">
-        <Table>
-          <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Type</TableHead><TableHead>In</TableHead><TableHead>Out</TableHead><TableHead>Raval</TableHead><TableHead>Loss</TableHead><TableHead>Status</TableHead><TableHead /></TableRow></TableHeader>
-          <TableBody>
-            {isLoading ? <TableRow><TableCell colSpan={8} className="h-16 text-center text-muted-foreground">Loading…</TableCell></TableRow>
-              : list?.items.length ? list.items.map((p) => (
-                <TableRow key={p.id}>
-                  <TableCell>{date(p.txnDate)}</TableCell><TableCell>{p.type}</TableCell>
-                  <TableCell className="tabular-nums">{p.inFine}</TableCell><TableCell className="tabular-nums">{p.outFine}</TableCell><TableCell className="tabular-nums">{p.ravalFine}</TableCell><TableCell className="tabular-nums">{p.difference}</TableCell>
-                  <TableCell>{p.reverted ? <Badge variant="secondary">Reverted</Badge> : <Badge>Done</Badge>}</TableCell>
-                  <TableCell>{canEdit && !p.reverted && <Button variant="ghost" size="sm" onClick={() => setReverting(p.id)}>Revert</Button>}</TableCell>
-                </TableRow>
-              )) : <TableRow><TableCell colSpan={8} className="h-16 text-center text-muted-foreground">No processing yet</TableCell></TableRow>}
-          </TableBody>
-        </Table>
-      </div>
+      <section className="space-y-3">
+        <h2 className="text-xl">Processing history</h2>
+        <Card className="overflow-x-auto p-2">
+          <Table>
+            <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Type</TableHead><TableHead>In</TableHead><TableHead>Out</TableHead><TableHead>Raval</TableHead><TableHead>Loss</TableHead><TableHead>Status</TableHead><TableHead /></TableRow></TableHeader>
+            <TableBody>
+              {isLoading ? <TableRow><TableCell colSpan={8} className="h-16 text-center text-muted-foreground">Loading…</TableCell></TableRow>
+                : list?.items.length ? list.items.map((p) => (
+                  <TableRow key={p.id}>
+                    <TableCell>{date(p.txnDate)}</TableCell><TableCell>{p.type}</TableCell>
+                    <TableCell className="tabular-nums">{p.inFine}</TableCell><TableCell className="tabular-nums">{p.outFine}</TableCell><TableCell className="tabular-nums">{p.ravalFine}</TableCell><TableCell className="tabular-nums">{p.difference}</TableCell>
+                    <TableCell>{p.reverted ? <Badge variant="secondary">Reverted</Badge> : <Badge>Done</Badge>}</TableCell>
+                    <TableCell>{canEdit && !p.reverted && <Button variant="ghost" size="sm" onClick={() => setReverting(p.id)}>Revert</Button>}</TableCell>
+                  </TableRow>
+                )) : (
+                  <TableRow>
+                    <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <span className="icon-chip"><Flame className="size-5" aria-hidden /></span>
+                        <span>No processing yet</span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+            </TableBody>
+          </Table>
+        </Card>
+      </section>
 
       {processing && <ProcessDialog metal={metal} onClose={() => setProcessing(false)} />}
       <MpinDialog open={reverting != null} title="Revert this process" onConfirm={(mpin) => revert.mutateAsync({ id: reverting!, mpin })} onClose={() => setReverting(null)} />

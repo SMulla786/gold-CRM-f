@@ -1,11 +1,13 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { ColumnDef } from '@tanstack/react-table'
+import { BadgeIndianRupee, CircleCheck, Layers, Users, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 
 import { DataTable } from '@/components/DataTable'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -52,7 +54,7 @@ function PlanDialog({ plan, trigger }: { plan?: PlanDto; trigger: React.ReactNod
         <DialogHeader>
           <DialogTitle>{plan ? 'Edit plan' : 'New plan'}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={onSubmit} className="space-y-4">
+        <form onSubmit={onSubmit} className="grid gap-4">
           <div className="space-y-1.5">
             <Label htmlFor="name">Name</Label>
             <Input id="name" {...register('name')} />
@@ -62,7 +64,7 @@ function PlanDialog({ plan, trigger }: { plan?: PlanDto; trigger: React.ReactNod
             <Label htmlFor="description">Description</Label>
             <Input id="description" {...register('description')} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="price">Price (₹)</Label>
               <Input id="price" type="number" step="0.01" {...register('price', { valueAsNumber: true })} />
@@ -82,7 +84,7 @@ function PlanDialog({ plan, trigger }: { plan?: PlanDto; trigger: React.ReactNod
           </div>
           <div className="space-y-2">
             <Label>Modules</Label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid gap-2 sm:grid-cols-2">
               {MODULES.map((m) => (
                 <label key={m.key} className="flex items-center gap-2 text-sm">
                   <Checkbox checked={modules.includes(m.key)} onCheckedChange={() => toggle(m.key)} />
@@ -121,13 +123,43 @@ export function Plans() {
     { id: 'actions', header: '', cell: ({ row }) => <PlanDialog plan={row.original} trigger={<Button variant="outline" size="sm">Edit</Button>} /> },
   ]
 
+  // Summary numbers derived from the plans already fetched (no extra requests).
+  const plans = data ?? []
+  const activePlans = plans.filter((p) => p.isActive)
+  const subscriptionTotal = plans.reduce((sum, p) => sum + p.activeSubscriptions, 0)
+  const lowestPrice = activePlans.length > 0 ? Math.min(...activePlans.map((p) => Number(p.price))) : null
+
+  const tile = (label: string, value: string, sub: string | undefined, Icon: LucideIcon) => (
+    <Card className="gap-2 hover:-translate-y-1">
+      <CardHeader className="flex flex-row items-center justify-between pb-1">
+        <CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</CardTitle>
+        <span className="icon-chip"><Icon className="size-5" aria-hidden /></span>
+      </CardHeader>
+      <CardContent>
+        <div className="text-3xl font-extrabold tracking-tight tabular-nums">{value}</div>
+        {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
+      </CardContent>
+    </Card>
+  )
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Plans</h1>
+    <div className="space-y-8">
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1>Plans</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Subscription tiers offered to businesses — pricing, limits and modules.</p>
+        </div>
         <PlanDialog trigger={<Button>New plan</Button>} />
+      </header>
+      <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {tile('Total tiers', data ? String(plans.length) : '—', 'All configured', Layers)}
+        {tile('Offered now', data ? String(activePlans.length) : '—', data ? `${plans.length - activePlans.length} switched off` : undefined, CircleCheck)}
+        {tile('Subscribers', data ? String(subscriptionTotal) : '—', 'Live subscriptions across tiers', Users)}
+        {tile('Entry price', lowestPrice !== null ? inr(String(lowestPrice)) : '—', 'Cheapest offered tier', BadgeIndianRupee)}
       </div>
-      <DataTable columns={columns} data={data ?? []} isLoading={isLoading} />
+      <Card className="p-4">
+        <DataTable columns={columns} data={data ?? []} isLoading={isLoading} />
+      </Card>
     </div>
   )
 }

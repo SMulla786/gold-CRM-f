@@ -22,7 +22,10 @@ export function InventoryLayout() {
   const tabs = TABS.filter((t) => can(t.key, 'view') && (!t.needsBranches || multiBranch))
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Inventory</h1>
+      <header>
+        <h1>Inventory</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Stock on hand, tagging and movement of pieces between branches.</p>
+      </header>
       <nav className="flex flex-wrap gap-1 border-b">
         {tabs.map((t) => (
           <NavLink

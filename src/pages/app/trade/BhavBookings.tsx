@@ -1,4 +1,5 @@
 import type { ColumnDef } from '@tanstack/react-table'
+import { Hourglass, Lock, Scale, Wallet, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 
 import { DataTable } from '@/components/DataTable'
@@ -7,6 +8,7 @@ import { PartyPicker } from '@/components/PartyPicker'
 import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -46,7 +48,7 @@ function NewBookingDialog() {
       <DialogContent>
         <DialogHeader><DialogTitle>Book a rate (bhav)</DialogTitle></DialogHeader>
         {!branchReady && <SelectBranchForTxn note="A booking is held at one branch. Select a branch." />}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5"><Label>Side</Label>
             <Select value={f.side} onValueChange={(v) => set('side', v)}><SelectTrigger aria-label="Side"><SelectValue /></SelectTrigger>
               <SelectContent>{TRADE_SIDES.map((s) => <SelectItem key={s} value={s}>{s === 'BUY' ? 'Buy (we buy later)' : 'Sell (we sell later)'}</SelectItem>)}</SelectContent></Select>
@@ -98,20 +100,59 @@ export function BhavBookings() {
     { id: 'actions', header: '', cell: ({ row }) => (canEdit && (row.original.status === 'PENDING' || row.original.status === 'PARTIAL') ? <Button variant="ghost" size="sm" onClick={() => setCancelling(row.original)}>Cancel</Button> : null) },
   ]
 
+  // Summary numbers derived from the page already fetched (no extra requests).
+  const items = data?.items ?? []
+  const openRows = items.filter((b) => b.status === 'PENDING' || b.status === 'PARTIAL')
+  const goldDue = openRows.filter((b) => b.metal === 'GOLD').reduce((sum, b) => sum + n(b.pendingWeight), 0)
+  const silverDue = openRows.filter((b) => b.metal === 'SILVER').reduce((sum, b) => sum + n(b.pendingWeight), 0)
+  const advanceTotal = items.reduce((sum, b) => sum + n(b.advance), 0)
+
+  const tile = (label: string, value: string, sub: string | undefined, Icon: LucideIcon) => (
+    <Card className="gap-2 hover:-translate-y-1">
+      <CardHeader className="flex flex-row items-center justify-between pb-1">
+        <CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</CardTitle>
+        <span className="icon-chip"><Icon className="size-5" aria-hidden /></span>
+      </CardHeader>
+      <CardContent>
+        <div className="text-3xl font-extrabold tracking-tight tabular-nums">{value}</div>
+        {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
+      </CardContent>
+    </Card>
+  )
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <Select value={side || 'all'} onValueChange={(v) => { setSide(v === 'all' ? '' : v); setPage(1) }}>
-          <SelectTrigger className="w-32" aria-label="Side"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="all">All sides</SelectItem>{TRADE_SIDES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-        </Select>
-        <Select value={status || 'all'} onValueChange={(v) => { setStatus(v === 'all' ? '' : v); setPage(1) }}>
-          <SelectTrigger className="w-40" aria-label="Status"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="all">All statuses</SelectItem>{BHAV_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-        </Select>
-        {canEdit && <div className="ml-auto"><NewBookingDialog /></div>}
+    <div className="space-y-8">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl">Rate locks</h2>
+          <p className="text-sm text-muted-foreground">Metal rates locked in advance for later delivery</p>
+        </div>
+        {canEdit && <NewBookingDialog />}
       </div>
-      <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} emptyText="No bookings" pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined} />
+
+      <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {tile('Locked rates', data ? String(data.total) : '—', 'Matching current filters', Lock)}
+        {tile('Open on this page', data ? String(openRows.length) : '—', data ? `of ${items.length} shown` : undefined, Hourglass)}
+        {tile('Gold due on this page', data ? `${goldDue.toFixed(3)} g` : '—', data ? `Silver ${silverDue.toFixed(3)} g` : undefined, Scale)}
+        {tile('Advances on this page', data ? inr(String(advanceTotal)) : '—', 'Taken against these locks', Wallet)}
+      </div>
+
+      <Card>
+        <CardContent className="flex flex-wrap items-end gap-3 pt-6">
+          <Select value={side || 'all'} onValueChange={(v) => { setSide(v === 'all' ? '' : v); setPage(1) }}>
+            <SelectTrigger className="w-32" aria-label="Side"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All sides</SelectItem>{TRADE_SIDES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={status || 'all'} onValueChange={(v) => { setStatus(v === 'all' ? '' : v); setPage(1) }}>
+            <SelectTrigger className="w-40" aria-label="Status"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All statuses</SelectItem>{BHAV_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+
+      <Card className="p-4">
+        <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} emptyText="No bookings" pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined} />
+      </Card>
       <MpinDialog open={!!cancelling} title={`Cancel booking #${cancelling?.bookingNo ?? ''}`} onConfirm={(mpin) => cancel.mutateAsync({ id: cancelling!.id, mpin })} onClose={() => setCancelling(null)} />
     </div>
   )

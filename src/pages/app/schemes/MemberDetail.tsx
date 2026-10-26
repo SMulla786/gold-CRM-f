@@ -85,7 +85,7 @@ export function MemberDetail() {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {tile('EMI', inr(e.emiAmount), IndianRupee)}
         {tile('Installments', `${e.emisPaid}/${e.scheme.tenureMonths}${e.emisDue > 0 ? ` · ${e.emisDue} due` : ''}`, ListChecks)}
         {tile('Next EMI', e.nextEmiNo ? `#${e.nextEmiNo} · ${date(e.nextEmiDate)}` : '—', CalendarClock)}

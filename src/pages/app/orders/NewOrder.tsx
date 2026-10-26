@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { PartyPicker } from '@/components/PartyPicker'
 import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -69,6 +70,7 @@ export function NewOrder() {
   const payAmount = (p: PayRow) => (p.mode === 'METAL' ? Number(metalToMoney(((n(p.gross) - n(p.less)) * n(p.tunch)) / 100, n(p.rate), metalRateUnitGrams(p.metal, settings))) : n(p.amount))
   const estTotal = rows.reduce((a, r) => a + Number(lineOf(r).total), 0)
   const advance = pays.reduce((a, p) => a + payAmount(p), 0)
+  const balanceAfterAdvance = estTotal - advance
 
   const valid = branchReady && !!party && rows.length > 0 && rows.every((r) => r.itemNameId && n(r.gross) > 0)
 
@@ -83,134 +85,154 @@ export function NewOrder() {
   }
 
   return (
-    <div className="space-y-5">
-      {!branchReady && <SelectBranchForTxn note="An order is placed at one branch. Select a branch." />}
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="space-y-1.5 lg:col-span-2">
-          <Label htmlFor="no-party">Customer</Label>
-          <PartyPicker value={party} onChange={setParty} placeholder="Search name / mobile" id="no-party" ariaLabel="Customer" />
+    <div className="space-y-8">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl">Place an order</h2>
+          <p className="text-sm text-muted-foreground">Book a made-to-order piece, take an advance and confirm the estimate.</p>
         </div>
-        <div className="space-y-1.5"><Label htmlFor="no-date">Order date</Label><Input id="no-date" type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} /></div>
-        <div className="space-y-1.5"><Label htmlFor="no-deliv">Delivery date</Label><Input id="no-deliv" type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} /></div>
-        <div className="space-y-1.5">
-          <Label>Rate type</Label>
-          <Select value={rateType} onValueChange={setRateType}>
-            <SelectTrigger aria-label="Rate type"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="ON_DELIVERY">On delivery</SelectItem><SelectItem value="FIXED">Fixed (today)</SelectItem></SelectContent>
-          </Select>
-        </div>
-        <label className="flex items-center gap-2 pt-6 text-sm"><Checkbox checked={isUrgent} onCheckedChange={(c) => setIsUrgent(Boolean(c))} /> Urgent</label>
       </div>
 
-      <div className="overflow-x-auto rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Metal</TableHead><TableHead className="min-w-40">Item</TableHead><TableHead>Karat</TableHead><TableHead>Size</TableHead><TableHead>Pcs</TableHead>
-              <TableHead>Gross</TableHead><TableHead>Less</TableHead><TableHead>Touch</TableHead><TableHead>Wst%</TableHead><TableHead>Net</TableHead><TableHead>Fine</TableHead>
-              <TableHead>Making</TableHead><TableHead>Unit</TableHead><TableHead>Other</TableHead><TableHead>Est.</TableHead><TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((r, i) => {
-              const lr = lineOf(r)
-              const itemOpts = (names?.items ?? []).filter((it) => it.group.stockClass === r.metal)
-              return (
-                <TableRow key={r.key}>
-                  <TableCell>
-                    <Select value={r.metal} onValueChange={(v) => setRow(i, 'metal', v)}>
+      {!branchReady && <SelectBranchForTxn note="An order is placed at one branch. Select a branch." />}
+
+      <Card>
+        <CardHeader><CardTitle>Order details</CardTitle></CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label htmlFor="no-party">Customer</Label>
+            <PartyPicker value={party} onChange={setParty} placeholder="Search name / mobile" id="no-party" ariaLabel="Customer" />
+          </div>
+          <div className="space-y-1.5"><Label htmlFor="no-date">Order date</Label><Input id="no-date" type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} /></div>
+          <div className="space-y-1.5"><Label htmlFor="no-deliv">Delivery date</Label><Input id="no-deliv" type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} /></div>
+          <div className="space-y-1.5">
+            <Label>Rate type</Label>
+            <Select value={rateType} onValueChange={setRateType}>
+              <SelectTrigger aria-label="Rate type"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="ON_DELIVERY">On delivery</SelectItem><SelectItem value="FIXED">Fixed (today)</SelectItem></SelectContent>
+            </Select>
+          </div>
+          <label className="flex items-center gap-2 text-sm sm:pt-6"><Checkbox checked={isUrgent} onCheckedChange={(c) => setIsUrgent(Boolean(c))} /> Urgent</label>
+          <div className="space-y-1.5 sm:col-span-2 lg:col-span-3"><Label htmlFor="no-remark">Remark</Label><Input id="no-remark" value={remark} onChange={(e) => setRemark(e.target.value)} /></div>
+        </CardContent>
+      </Card>
+
+      <section className="space-y-3">
+        <h2 className="text-xl">Pieces to make</h2>
+        <Card className="overflow-x-auto p-2">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Metal</TableHead><TableHead className="min-w-40">Item</TableHead><TableHead>Karat</TableHead><TableHead>Size</TableHead><TableHead>Pcs</TableHead>
+                <TableHead>Gross</TableHead><TableHead>Less</TableHead><TableHead>Touch</TableHead><TableHead>Wst%</TableHead><TableHead>Net</TableHead><TableHead>Fine</TableHead>
+                <TableHead>Making</TableHead><TableHead>Unit</TableHead><TableHead>Other</TableHead><TableHead>Est.</TableHead><TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((r, i) => {
+                const lr = lineOf(r)
+                const itemOpts = (names?.items ?? []).filter((it) => it.group.stockClass === r.metal)
+                return (
+                  <TableRow key={r.key}>
+                    <TableCell>
+                      <Select value={r.metal} onValueChange={(v) => setRow(i, 'metal', v)}>
+                        <SelectTrigger className="w-24" aria-label="Metal"><SelectValue /></SelectTrigger>
+                        <SelectContent>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <Select value={r.itemNameId} onValueChange={(v) => setRow(i, 'itemNameId', v)}>
+                        <SelectTrigger className="w-40" aria-label="Item name"><SelectValue placeholder="Item" /></SelectTrigger>
+                        <SelectContent>{itemOpts.map((it) => <SelectItem key={it.id} value={String(it.id)}>{it.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <Select value={r.karatCode} onValueChange={(v) => setRow(i, 'karatCode', v)}>
+                        <SelectTrigger className="w-20" aria-label="Karat"><SelectValue placeholder="—" /></SelectTrigger>
+                        <SelectContent>{karats?.filter((kt) => kt.metal === r.metal).map((kt) => <SelectItem key={kt.id} value={kt.code}>{kt.title}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell><Input className="w-16" aria-label="Size" value={r.size} onChange={(e) => setRow(i, 'size', e.target.value)} /></TableCell>
+                    <TableCell><Input className="w-14" type="number" aria-label="Pcs" value={r.pcs} onChange={(e) => setRow(i, 'pcs', e.target.value)} /></TableCell>
+                    <TableCell><Input className="w-20" type="number" step="0.001" aria-label="Gross" value={r.gross} onChange={(e) => setRow(i, 'gross', e.target.value)} /></TableCell>
+                    <TableCell><Input className="w-16" type="number" step="0.001" aria-label="Less" value={r.less} onChange={(e) => setRow(i, 'less', e.target.value)} /></TableCell>
+                    <TableCell><Input className="w-16" type="number" step="0.01" aria-label="Touch" value={r.touch} onChange={(e) => setRow(i, 'touch', e.target.value)} /></TableCell>
+                    <TableCell><Input className="w-14" type="number" step="0.01" aria-label="Wastage" value={r.wastage} onChange={(e) => setRow(i, 'wastage', e.target.value)} /></TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground tabular-nums">{lr.net}</TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground tabular-nums">{lr.fine}</TableCell>
+                    <TableCell><Input className="w-20" type="number" aria-label="Making" value={r.making} onChange={(e) => setRow(i, 'making', e.target.value)} /></TableCell>
+                    <TableCell>
+                      <Select value={r.makingUnit} onValueChange={(v) => setRow(i, 'makingUnit', v)}>
+                        <SelectTrigger className="w-28" aria-label="Making unit"><SelectValue /></SelectTrigger>
+                        <SelectContent>{CHARGE_UNITS.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell><Input className="w-20" type="number" aria-label="Other" value={r.other} onChange={(e) => setRow(i, 'other', e.target.value)} /></TableCell>
+                    <TableCell className="whitespace-nowrap tabular-nums">{lr.total}</TableCell>
+                    <TableCell><Button variant="ghost" size="sm" aria-label="Remove line" disabled={rows.length === 1} onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))}>✕</Button></TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        </Card>
+        <Button variant="outline" size="sm" onClick={() => setRows((rs) => [...rs, blankRow()])}>+ Add item</Button>
+      </section>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardContent className="space-y-3 pt-6">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-xl">Advance</h2>
+              <div className="ml-auto flex flex-wrap gap-1">
+                <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('CASH')])}>+ Cash</Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('ONLINE')])}>+ Online</Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('METAL')])}>+ Metal</Button>
+              </div>
+            </div>
+            {pays.map((p, i) => (
+              <div key={p.key} className="flex flex-wrap items-end gap-2 rounded-2xl border bg-muted/40 p-3 tabular-nums">
+                <span className="text-xs font-medium text-muted-foreground">{p.mode}</span>
+                {p.mode === 'METAL' ? (
+                  <>
+                    <Select value={p.metal} onValueChange={(v) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, metal: v } : x))}>
                       <SelectTrigger className="w-24" aria-label="Metal"><SelectValue /></SelectTrigger>
                       <SelectContent>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
                     </Select>
-                  </TableCell>
-                  <TableCell>
-                    <Select value={r.itemNameId} onValueChange={(v) => setRow(i, 'itemNameId', v)}>
-                      <SelectTrigger className="w-40" aria-label="Item name"><SelectValue placeholder="Item" /></SelectTrigger>
-                      <SelectContent>{itemOpts.map((it) => <SelectItem key={it.id} value={String(it.id)}>{it.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>
-                    <Select value={r.karatCode} onValueChange={(v) => setRow(i, 'karatCode', v)}>
-                      <SelectTrigger className="w-20" aria-label="Karat"><SelectValue placeholder="—" /></SelectTrigger>
-                      <SelectContent>{karats?.filter((kt) => kt.metal === r.metal).map((kt) => <SelectItem key={kt.id} value={kt.code}>{kt.title}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell><Input className="w-16" aria-label="Size" value={r.size} onChange={(e) => setRow(i, 'size', e.target.value)} /></TableCell>
-                  <TableCell><Input className="w-14" type="number" aria-label="Pcs" value={r.pcs} onChange={(e) => setRow(i, 'pcs', e.target.value)} /></TableCell>
-                  <TableCell><Input className="w-20" type="number" step="0.001" aria-label="Gross" value={r.gross} onChange={(e) => setRow(i, 'gross', e.target.value)} /></TableCell>
-                  <TableCell><Input className="w-16" type="number" step="0.001" aria-label="Less" value={r.less} onChange={(e) => setRow(i, 'less', e.target.value)} /></TableCell>
-                  <TableCell><Input className="w-16" type="number" step="0.01" aria-label="Touch" value={r.touch} onChange={(e) => setRow(i, 'touch', e.target.value)} /></TableCell>
-                  <TableCell><Input className="w-14" type="number" step="0.01" aria-label="Wastage" value={r.wastage} onChange={(e) => setRow(i, 'wastage', e.target.value)} /></TableCell>
-                  <TableCell className="whitespace-nowrap text-muted-foreground tabular-nums">{lr.net}</TableCell>
-                  <TableCell className="whitespace-nowrap text-muted-foreground tabular-nums">{lr.fine}</TableCell>
-                  <TableCell><Input className="w-20" type="number" aria-label="Making" value={r.making} onChange={(e) => setRow(i, 'making', e.target.value)} /></TableCell>
-                  <TableCell>
-                    <Select value={r.makingUnit} onValueChange={(v) => setRow(i, 'makingUnit', v)}>
-                      <SelectTrigger className="w-28" aria-label="Making unit"><SelectValue /></SelectTrigger>
-                      <SelectContent>{CHARGE_UNITS.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell><Input className="w-20" type="number" aria-label="Other" value={r.other} onChange={(e) => setRow(i, 'other', e.target.value)} /></TableCell>
-                  <TableCell className="whitespace-nowrap tabular-nums">{lr.total}</TableCell>
-                  <TableCell><Button variant="ghost" size="sm" aria-label="Remove line" disabled={rows.length === 1} onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))}>✕</Button></TableCell>
-                </TableRow>
-              )
-            })}
-          </TableBody>
-        </Table>
-      </div>
-      <Button variant="outline" size="sm" onClick={() => setRows((rs) => [...rs, blankRow()])}>+ Add item</Button>
+                    <Input className="w-20" type="number" placeholder="Gross" aria-label="Gross" value={p.gross} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, gross: e.target.value } : x))} />
+                    <Input className="w-16" type="number" placeholder="Tunch" aria-label="Tunch" value={p.tunch} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, tunch: e.target.value } : x))} />
+                    <Input className="w-24" type="number" placeholder="Rate" aria-label="Rate" value={p.rate} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, rate: e.target.value } : x))} />
+                    <span className="text-sm">= {inr(payAmount(p))}</span>
+                  </>
+                ) : (
+                  <>
+                    <Input className="w-28" type="number" placeholder="Amount" aria-label="Amount" value={p.amount} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))} />
+                    {p.mode === 'ONLINE' && (
+                      <Select value={p.bankAccountId} onValueChange={(v) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, bankAccountId: v } : x))}>
+                        <SelectTrigger className="w-44" aria-label="Bank account"><SelectValue placeholder="Bank" /></SelectTrigger>
+                        <SelectContent>{banks?.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.bankName} · {b.accountNo}</SelectItem>)}</SelectContent>
+                      </Select>
+                    )}
+                  </>
+                )}
+                <Button variant="ghost" size="sm" className="ml-auto" aria-label="Remove advance" onClick={() => setPays((ps) => ps.filter((_, j) => j !== i))}>✕</Button>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold">Advance</h2>
-            <div className="ml-auto flex gap-1">
-              <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('CASH')])}>+ Cash</Button>
-              <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('ONLINE')])}>+ Online</Button>
-              <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('METAL')])}>+ Metal</Button>
+        <Card>
+          <CardContent className="space-y-3 pt-6 text-sm tabular-nums">
+            <div className="flex flex-wrap items-baseline justify-between gap-2"><span className="text-muted-foreground">Estimated total</span><span className="text-2xl font-extrabold tracking-tight sm:text-3xl">{inr(estTotal)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Advance</span><span>{inr(advance)}</span></div>
+            <div className="flex justify-between border-t pt-3"><span className="text-muted-foreground">Balance after advance</span><span className="font-semibold">{inr(balanceAfterAdvance)}</span></div>
+            <p className="text-xs text-muted-foreground">Estimate uses today's rate; the server recomputes on create ({rateType === 'FIXED' ? 'rate fixed now' : 'final rate on delivery'}).</p>
+            <div className="flex justify-end pt-2">
+              <Button disabled={!valid || create.isPending} onClick={() => void submit().catch(() => {})}>
+                {create.isPending ? 'Saving…' : 'Create order'}
+              </Button>
             </div>
-          </div>
-          {pays.map((p, i) => (
-            <div key={p.key} className="flex flex-wrap items-end gap-2 rounded-md border p-2 tabular-nums">
-              <span className="text-xs font-medium text-muted-foreground">{p.mode}</span>
-              {p.mode === 'METAL' ? (
-                <>
-                  <Select value={p.metal} onValueChange={(v) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, metal: v } : x))}>
-                    <SelectTrigger className="w-24" aria-label="Metal"><SelectValue /></SelectTrigger>
-                    <SelectContent>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-                  </Select>
-                  <Input className="w-20" type="number" placeholder="Gross" aria-label="Gross" value={p.gross} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, gross: e.target.value } : x))} />
-                  <Input className="w-16" type="number" placeholder="Tunch" aria-label="Tunch" value={p.tunch} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, tunch: e.target.value } : x))} />
-                  <Input className="w-24" type="number" placeholder="Rate" aria-label="Rate" value={p.rate} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, rate: e.target.value } : x))} />
-                  <span className="text-sm">= {inr(payAmount(p))}</span>
-                </>
-              ) : (
-                <>
-                  <Input className="w-28" type="number" placeholder="Amount" aria-label="Amount" value={p.amount} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))} />
-                  {p.mode === 'ONLINE' && (
-                    <Select value={p.bankAccountId} onValueChange={(v) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, bankAccountId: v } : x))}>
-                      <SelectTrigger className="w-44" aria-label="Bank account"><SelectValue placeholder="Bank" /></SelectTrigger>
-                      <SelectContent>{banks?.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.bankName} · {b.accountNo}</SelectItem>)}</SelectContent>
-                    </Select>
-                  )}
-                </>
-              )}
-              <Button variant="ghost" size="sm" className="ml-auto" aria-label="Remove advance" onClick={() => setPays((ps) => ps.filter((_, j) => j !== i))}>✕</Button>
-            </div>
-          ))}
-          <div className="space-y-1.5"><Label htmlFor="no-remark">Remark</Label><Input id="no-remark" value={remark} onChange={(e) => setRemark(e.target.value)} /></div>
-        </div>
-
-        <div className="space-y-2 rounded-md border p-4 text-sm tabular-nums">
-          <div className="flex justify-between"><span className="text-muted-foreground">Estimated total</span><span className="font-semibold">{inr(estTotal)}</span></div>
-          <div className="flex justify-between"><span className="text-muted-foreground">Advance</span><span>{inr(advance)}</span></div>
-          <p className="text-xs text-muted-foreground">Estimate uses today's rate; the server recomputes on create ({rateType === 'FIXED' ? 'rate fixed now' : 'final rate on delivery'}).</p>
-          <Button className="w-full" disabled={!valid || create.isPending} onClick={() => void submit().catch(() => {})}>
-            {create.isPending ? 'Saving…' : 'Create order'}
-          </Button>
-        </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )

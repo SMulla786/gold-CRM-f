@@ -78,7 +78,7 @@ export function SchemeGroups() {
         {canEdit && <NewGroupDialog schemeId={schemeId ? Number(schemeId) : 0} schemes={schemeOpts} />}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {tile('Total groups', String(groupCount), schemeId ? 'In selected scheme' : 'Across all schemes', Layers)}
         {tile('Members enrolled', String(memberTotal), 'Across listed groups', Users)}
         {tile('Member capacity', limited.length ? String(capacity) : '—', `${limited.length} group${limited.length === 1 ? '' : 's'} with a limit`, Target)}
@@ -86,7 +86,7 @@ export function SchemeGroups() {
       </div>
 
       <Card>
-        <CardContent className="flex flex-wrap items-end gap-3">
+        <CardContent className="flex flex-wrap items-end gap-3 pt-6">
           <Select value={schemeId || 'all'} onValueChange={(v) => setSchemeId(v === 'all' ? '' : v)}>
             <SelectTrigger className="w-56" aria-label="Scheme filter"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="all">All schemes</SelectItem>{schemeOpts.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}</SelectContent>

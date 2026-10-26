@@ -1,7 +1,7 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { Outlet } from 'react-router-dom'
 
+import { PageTabs } from '@/components/PageTabs'
 import { useAuth } from '@/lib/auth'
-import { cn } from '@/lib/utils'
 
 const TABS = [
   { to: '/app/billing', label: 'Sell Bill', key: 'billing.sell_bill', end: true },
@@ -19,21 +19,11 @@ export function BillingLayout() {
   const tabs = TABS.filter((t) => can(t.key, 'view'))
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Billing</h1>
-      <nav className="flex flex-wrap gap-1 border-b print:hidden">
-        {tabs.map((t) => (
-          <NavLink
-            key={t.to}
-            to={t.to}
-            end={t.end}
-            className={({ isActive }) =>
-              cn('border-b-2 px-3 py-2 text-sm font-medium', isActive ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground')
-            }
-          >
-            {t.label}
-          </NavLink>
-        ))}
-      </nav>
+      <header className="print:hidden">
+        <h1>Billing</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Raise and review bills, approve showroom discounts and pull GST reports.</p>
+      </header>
+      <PageTabs tabs={tabs} />
       <Outlet />
     </div>
   )
