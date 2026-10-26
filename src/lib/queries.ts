@@ -146,6 +146,10 @@ export const useMoveBranch = () =>
 
 export const useCounters = (branchId?: number) =>
   useQuery({ queryKey: ['counters', branchId], queryFn: () => api.get<CounterDto[]>(`/admin/counters${qs({ branchId })}`) })
+export const useCreateCounter = () =>
+  useApiMutation((body: { branchId: number; name: string }) => api.post<CounterDto>('/admin/counters', body), { invalidate: [['counters']], success: 'Counter added' })
+export const useRenameCounter = () =>
+  useApiMutation(({ id, name }: { id: number; name: string }) => api.patch<CounterDto>(`/admin/counters/${id}`, { name }), { invalidate: [['counters']], success: 'Counter renamed' })
 
 export const useUsers = (params: { page?: number; pageSize?: number; q?: string; status?: string; branchId?: number }) =>
   useQuery({ queryKey: ['users', params], queryFn: () => api.get<Paged<UserDto>>(`/admin/users${qs(params)}`) })

@@ -12,6 +12,7 @@ const TABS = [
   { to: '/app/daybook/stone', label: 'Stone', key: 'daybook.stone' },
   { to: '/app/daybook/artificial', label: 'Artificial', key: 'daybook.artificial' },
   { to: '/app/daybook/franchise', label: 'Franchise', key: 'daybook.franchise' },
+  { to: '/app/daybook/old-metal', label: 'Old Metal', key: 'daybook.gold' },
 ]
 
 export function DayBookLayout() {

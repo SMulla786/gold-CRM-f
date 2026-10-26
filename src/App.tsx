@@ -19,6 +19,7 @@ const AdminDashboard = lazy(() => import('@/pages/admin/AdminDashboard').then((m
 const PermissionEnquiries = lazy(() => import('@/pages/admin/PermissionEnquiries').then((m) => ({ default: m.PermissionEnquiries })))
 const AccessRequests = lazy(() => import('@/pages/app/AccessRequests').then((m) => ({ default: m.AccessRequests })))
 const Branches = lazy(() => import('@/pages/admin/Branches').then((m) => ({ default: m.Branches })))
+const Counters = lazy(() => import('@/pages/admin/Counters').then((m) => ({ default: m.Counters })))
 const Users = lazy(() => import('@/pages/admin/Users').then((m) => ({ default: m.Users })))
 const Roles = lazy(() => import('@/pages/admin/Roles').then((m) => ({ default: m.Roles })))
 const BusinessProfile = lazy(() => import('@/pages/admin/BusinessProfile').then((m) => ({ default: m.BusinessProfile })))
@@ -46,6 +47,7 @@ const IncomeExpense = lazy(() => import('@/pages/app/IncomeExpense').then((m) =>
 const DayBookLayout = lazy(() => import('@/pages/app/daybook/DayBookLayout').then((m) => ({ default: m.DayBookLayout })))
 const DayBookSummary = lazy(() => import('@/pages/app/daybook/DayBookSummary').then((m) => ({ default: m.DayBookSummary })))
 const DayBookAllInOne = lazy(() => import('@/pages/app/daybook/DayBookAllInOne').then((m) => ({ default: m.DayBookAllInOne })))
+const OldMetal = lazy(() => import('@/pages/app/daybook/OldMetal').then((m) => ({ default: m.OldMetal })))
 const AssetLedger = lazy(() => import('@/pages/app/daybook/AssetLedger').then((m) => ({ default: m.AssetLedger })))
 const BillingLayout = lazy(() => import('@/pages/app/billing/BillingLayout').then((m) => ({ default: m.BillingLayout })))
 const SellBill = lazy(() => import('@/pages/app/billing/SellBill').then((m) => ({ default: m.SellBill })))
@@ -128,6 +130,7 @@ export default function App() {
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<AdminDashboard />} />
             <Route path="branches" element={<Branches />} />
+            <Route path="counters" element={<Counters />} />
             <Route path="users" element={<Users />} />
             <Route path="roles" element={<Roles />} />
             <Route path="permission-enquiries" element={<PermissionEnquiries />} />
@@ -168,6 +171,7 @@ export default function App() {
             <Route path="daybook" element={<DayBookLayout />}>
               <Route index element={<DayBookSummary />} />
               <Route path="all-in-one" element={<DayBookAllInOne />} />
+              <Route path="old-metal" element={<OldMetal />} />
               <Route path=":asset" element={<AssetLedger />} />
             </Route>
             <Route path="billing" element={<BillingLayout />}>

@@ -20,6 +20,7 @@ export function useAdminNav(): NavItem[] {
   const items: NavItem[] = [
     { to: '/admin', label: 'Dashboard' },
     { to: '/admin/branches', label: 'Branches' },
+    { to: '/admin/counters', label: 'Counters' },
     { to: '/admin/users', label: 'Users' },
     { to: '/admin/roles', label: 'Roles & Permissions' },
     { to: '/admin/permission-enquiries', label: 'Permission Requests' },
