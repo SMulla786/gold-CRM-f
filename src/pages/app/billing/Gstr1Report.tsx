@@ -1,7 +1,10 @@
 import { businessDayISO } from '@/shared'
+import { Info, TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
 
+import { TableCard } from '@/components/SectionCard'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { downloadCsv } from '@/lib/csv'
@@ -70,26 +73,26 @@ export function Gstr1Report() {
   const exportCsv = () => downloadCsv(`gstr1-${section}-${month}.csv`, [head, ...rows.map((r) => r.map(String))])
 
   return (
-    <div className="space-y-4">
-      {data && !data.gstin && <div className="rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">{t('gst.no_gstin')}</div>}
-      <div className="rounded-md border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-sm text-sky-800 dark:text-sky-300">{t('gst.json_beta')}</div>
+    <div className="space-y-6">
+      {data && !data.gstin && <div className="flex items-start gap-2 rounded-2xl border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400"><TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />{t('gst.no_gstin')}</div>}
+      <div className="flex items-start gap-2 rounded-2xl border border-sky-500/40 bg-sky-500/10 px-4 py-3 text-sm text-sky-800 dark:text-sky-300"><Info className="mt-0.5 size-4 shrink-0" aria-hidden />{t('gst.json_beta')}</div>
 
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="space-y-1.5"><Label htmlFor="g1-month">{t('gst.month')}</Label><input id="g1-month" type="month" className="h-9 rounded-md border bg-transparent px-3 text-sm" value={month} onChange={(e) => setMonth(e.target.value || thisMonth())} /></div>
+      <Card className="flex flex-wrap items-end gap-3 p-4">
+        <div className="space-y-1.5"><Label htmlFor="g1-month">{t('gst.month')}</Label><input id="g1-month" type="month" className="h-9 rounded-xl border bg-transparent px-3 text-sm shadow-xs" value={month} onChange={(e) => setMonth(e.target.value || thisMonth())} /></div>
         <Button className="ml-auto" variant="outline" size="sm" disabled={!rows.length} onClick={exportCsv}>{t('common.export_csv')}</Button>
         <Button size="sm" disabled={downloading} onClick={() => void downloadJson()}>{downloading ? `${t('gst.download_json')}…` : t('gst.download_json')}</Button>
-      </div>
+      </Card>
 
-      <nav className="flex flex-wrap gap-1 border-b">
+      <nav className="flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-white/80 bg-card p-1 shadow-sm sm:w-fit dark:border-border">
         {TABS.map((tab) => (
           <button key={tab.key} type="button" onClick={() => setSection(tab.key)}
-            className={`border-b-2 px-3 py-2 text-sm font-medium ${section === tab.key ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
+            className={`shrink-0 whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-medium transition-colors ${section === tab.key ? 'bg-brand/15 font-semibold text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
             {tab.label}{data ? ` (${(data[tab.key] as unknown[]).length})` : ''}
           </button>
         ))}
       </nav>
 
-      <div className="overflow-x-auto rounded-md border">
+      <TableCard>
         <Table>
           <TableHeader><TableRow>{head.map((h) => <TableHead key={h} className={money.has(h) ? 'text-right' : ''}>{h}</TableHead>)}</TableRow></TableHeader>
           <TableBody>
@@ -99,7 +102,7 @@ export function Gstr1Report() {
               )) : <TableRow><TableCell colSpan={head.length || 1} className="h-16 text-center text-muted-foreground">{t('common.no_data')}</TableCell></TableRow>}
           </TableBody>
         </Table>
-      </div>
+      </TableCard>
     </div>
   )
 }

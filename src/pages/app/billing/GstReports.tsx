@@ -2,7 +2,9 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { useState } from 'react'
 
 import { DataTable } from '@/components/DataTable'
+import { TableCard } from '@/components/SectionCard'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -64,8 +66,9 @@ export function GstReports() {
   ]
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3">
+    <div className="space-y-6">
+      <p className="text-sm text-muted-foreground">Tax registers, HSN and period summaries, and monthly return data ready for filing.</p>
+      <Card className="flex flex-wrap items-end gap-4 p-4">
         <div className="space-y-1.5">
           <Label>{t('gst.report')}</Label>
           <Select value={mode} onValueChange={(v) => { setMode(v); setPage(1) }}>
@@ -104,7 +107,7 @@ export function GstReports() {
           </>
         )}
         {mode === 'register' && <Button className="ml-auto" variant="outline" disabled={exporting} onClick={exportRegister}>{exporting ? 'Exporting…' : t('common.export_csv')}</Button>}
-      </div>
+      </Card>
 
       {mode === 'register' && (
         <DataTable
@@ -117,7 +120,7 @@ export function GstReports() {
       )}
 
       {mode === 'hsn' && (
-        <div className="rounded-md border">
+        <TableCard>
           <Table>
             <TableHeader><TableRow><TableHead>HSN</TableHead><TableHead>Class</TableHead><TableHead>Weight</TableHead><TableHead>Taxable</TableHead><TableHead>CGST</TableHead><TableHead>SGST</TableHead><TableHead>IGST</TableHead><TableHead>Total</TableHead></TableRow></TableHeader>
             <TableBody>
@@ -129,11 +132,11 @@ export function GstReports() {
               )) : <TableRow><TableCell colSpan={8} className="h-16 text-center text-muted-foreground">No data for this range</TableCell></TableRow>}
             </TableBody>
           </Table>
-        </div>
+        </TableCard>
       )}
 
       {mode === 'summary' && (
-        <div className="rounded-md border">
+        <TableCard>
           <Table>
             <TableHeader><TableRow><TableHead>Period</TableHead><TableHead>Sales taxable</TableHead><TableHead>Purchase taxable</TableHead><TableHead>Output GST</TableHead><TableHead>Input GST</TableHead><TableHead>Net payable</TableHead></TableRow></TableHeader>
             <TableBody>
@@ -142,12 +145,12 @@ export function GstReports() {
                   <TableCell className="font-medium">{s.period}</TableCell>
                   <TableCell>{inr(s.salesTaxable)}</TableCell><TableCell>{inr(s.purchaseTaxable)}</TableCell>
                   <TableCell>{inr(s.outputGst)}</TableCell><TableCell>{inr(s.inputGst)}</TableCell>
-                  <TableCell className="font-medium">{inr(s.netPayable)}</TableCell>
+                  <TableCell className="font-bold">{inr(s.netPayable)}</TableCell>
                 </TableRow>
               )) : <TableRow><TableCell colSpan={6} className="h-16 text-center text-muted-foreground">No data for this range</TableCell></TableRow>}
             </TableBody>
           </Table>
-        </div>
+        </TableCard>
       )}
 
       {mode === 'gstr1' && <Gstr1Report />}

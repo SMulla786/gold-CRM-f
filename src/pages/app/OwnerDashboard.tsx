@@ -71,16 +71,16 @@ function ActivityFeed() {
     >
       <Table>
         <TableHeader>
-          <TableRow><TableHead className="pl-6">{t('dash.when')}</TableHead><TableHead>{t('dash.col_module')}</TableHead><TableHead>{t('dash.col_action')}</TableHead><TableHead>{t('dash.col_summary')}</TableHead><TableHead className="pr-6">{t('dash.col_by')}</TableHead></TableRow>
+          <TableRow><TableHead>{t('dash.when')}</TableHead><TableHead>{t('dash.col_module')}</TableHead><TableHead>{t('dash.col_action')}</TableHead><TableHead>{t('dash.col_summary')}</TableHead><TableHead>{t('dash.col_by')}</TableHead></TableRow>
         </TableHeader>
         <TableBody>
           {data?.items.length ? data.items.map((a) => (
             <TableRow key={a.id}>
-              <TableCell className="whitespace-nowrap pl-6 text-muted-foreground">{new Date(a.createdAt).toLocaleString('en-IN')}</TableCell>
+              <TableCell className="whitespace-nowrap text-muted-foreground">{new Date(a.createdAt).toLocaleString('en-IN')}</TableCell>
               <TableCell>{a.module}</TableCell>
               <TableCell><Badge variant="secondary">{a.action}</Badge></TableCell>
               <TableCell>{a.summary}</TableCell>
-              <TableCell className="pr-6 text-muted-foreground">{a.user ?? '—'}</TableCell>
+              <TableCell className="text-muted-foreground">{a.user ?? '—'}</TableCell>
             </TableRow>
           )) : (
             <TableRow><TableCell colSpan={5} className="h-16 text-center text-muted-foreground">{t('dash.no_activity')}</TableCell></TableRow>
@@ -179,13 +179,13 @@ export function OwnerDashboard() {
           {data.byBranch && (
             <SectionCard title={t('dash.by_branch')}>
               <Table>
-                <TableHeader><TableRow><TableHead className="pl-6">{t('dash.branch')}</TableHead><TableHead className="text-right">{t('dash.sales_today')}</TableHead><TableHead className="pr-6 text-right">{t('dash.sales_month')}</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead>{t('dash.branch')}</TableHead><TableHead className="text-right">{t('dash.sales_today')}</TableHead><TableHead className="text-right">{t('dash.sales_month')}</TableHead></TableRow></TableHeader>
                 <TableBody>
                   {data.byBranch.map((b) => (
                     <TableRow key={b.branch.id}>
-                      <TableCell className="pl-6 font-medium">{b.branch.name}</TableCell>
+                      <TableCell className="font-medium">{b.branch.name}</TableCell>
                       <TableCell className="text-right">{inr(b.todayTotal)}</TableCell>
-                      <TableCell className="pr-6 text-right">{inr(b.monthTotal)}</TableCell>
+                      <TableCell className="text-right">{inr(b.monthTotal)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

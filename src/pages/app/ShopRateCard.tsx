@@ -90,14 +90,14 @@ export function ShopRateCard() {
   const rows = (metal: 'gold' | 'silver') =>
     data[metal].rows.map((r) => (
       <TableRow key={`${metal}-${r.karatCode}`}>
-        <TableCell className="pl-6 font-medium">
+        <TableCell className="font-medium">
           <span className="inline-flex items-center gap-2.5">
             <span aria-hidden className={metal === 'gold' ? 'size-2.5 rounded-full bg-brand shadow-[0_0_8px_var(--color-brand)]' : 'size-2.5 rounded-full bg-slate-400'} />
             {metal === 'gold' ? 'Gold' : 'Silver'} {r.title}
           </span>
         </TableCell>
         <TableCell className="text-right font-bold">₹{show(metal, r.sellRate)}</TableCell>
-        <TableCell className="pr-6 text-right text-muted-foreground">₹{show(metal, r.buyRate)}</TableCell>
+        <TableCell className="text-right text-muted-foreground">₹{show(metal, r.buyRate)}</TableCell>
       </TableRow>
     ))
 
@@ -117,7 +117,7 @@ export function ShopRateCard() {
       }
     >
       <Table>
-        <TableHeader><TableRow><TableHead className="pl-6">Metal</TableHead><TableHead className="text-right">Sell</TableHead><TableHead className="pr-6 text-right">Buy</TableHead></TableRow></TableHeader>
+        <TableHeader><TableRow><TableHead>Metal</TableHead><TableHead className="text-right">Sell</TableHead><TableHead className="text-right">Buy</TableHead></TableRow></TableHeader>
         <TableBody>{rows('gold')}{rows('silver')}</TableBody>
       </Table>
       {edit && <EditRatesDialog onClose={() => setEdit(false)} />}

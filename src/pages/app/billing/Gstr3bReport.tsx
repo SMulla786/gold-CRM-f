@@ -1,4 +1,5 @@
 import { businessDayISO } from '@/shared'
+import { TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -20,12 +21,12 @@ export function Gstr3bReport() {
   const { data, isLoading } = useGstr3b(monthRange(month))
 
   return (
-    <div className="space-y-4">
-      {data && !data.gstin && <div className="rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">{t('gst.no_gstin')}</div>}
+    <div className="space-y-6">
+      {data && !data.gstin && <div className="flex items-start gap-2 rounded-2xl border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400"><TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />{t('gst.no_gstin')}</div>}
 
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="space-y-1.5"><Label htmlFor="g3-month">{t('gst.month')}</Label><input id="g3-month" type="month" className="h-9 rounded-md border bg-transparent px-3 text-sm" value={month} onChange={(e) => setMonth(e.target.value || thisMonth())} /></div>
-      </div>
+      <Card className="flex w-fit flex-wrap items-end gap-3 p-4">
+        <div className="space-y-1.5"><Label htmlFor="g3-month">{t('gst.month')}</Label><input id="g3-month" type="month" className="h-9 rounded-xl border bg-transparent px-3 text-sm shadow-xs" value={month} onChange={(e) => setMonth(e.target.value || thisMonth())} /></div>
+      </Card>
 
       {isLoading || !data ? (
         <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
