@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { ApiException } from '@/lib/errors'
 import { qs, useApiMutation } from '@/lib/queries'
-import type { KarigarIssueDto, OrderDto, Paged } from '@/shared'
+import type { BulkCancelOrdersResultDto, KarigarIssueDto, OrderDto, OrderNextNoDto, Paged } from '@/shared'
 
 const ORDER_KEYS = [['orders'], ['order'], ['karigar-issues'], ['stock'], ['ledger'], ['day-book'], ['party-balance'], ['dashboard']]
 
@@ -19,30 +19,21 @@ export const useAddOrderAdvance = () =>
   useApiMutation(({ id, body }: { id: number; body: Record<string, unknown> }) => api.post<OrderDto>(`/app/orders/${id}/advance`, body), { invalidate: ORDER_KEYS, success: 'Advance added' })
 export const useCancelOrder = () =>
   useApiMutation(({ id, mpin }: { id: number; mpin: string }) => api.post(`/app/orders/${id}/cancel`, undefined, { mpin }), { invalidate: ORDER_KEYS, success: 'Order cancelled' })
+/** TASK-98: next order no. for the active branch. A peek, not a reservation (a concurrent create may take it). */
+export const useNextOrderNo = (enabled = true, branch?: string) =>
+  useQuery({ queryKey: ['orders', 'next-no', branch], queryFn: () => api.get<OrderNextNoDto>('/app/orders/next-no'), enabled, refetchOnWindowFocus: true, staleTime: 0 })
 /**
- * Bulk cancel = the single cancel endpoint called once per order with the same MPIN (no bulk endpoint).
- * A wrong MPIN rethrows so MpinDialog stays open; any other per-order failure is collected and reported.
+ * TASK-98 bulk cancel: POST /orders/bulk-cancel (MPIN, 1..100 ids, one tx per order on the server).
+ * A wrong MPIN throws so MpinDialog stays open; per-order failures come back in `failed`.
  */
 export const useBulkCancelOrders = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ orders, mpin }: { orders: Array<{ id: number; orderNo: number }>; mpin: string }) => {
-      const failed: string[] = []
-      let done = 0
-      for (const o of orders) {
-        try {
-          await api.post(`/app/orders/${o.id}/cancel`, undefined, { mpin })
-          done++
-        } catch (e) {
-          if (e instanceof ApiException && e.code === 'MPIN_REQUIRED') throw e
-          failed.push(`#${o.orderNo}: ${e instanceof ApiException ? e.message : 'failed'}`)
-        }
-      }
-      return { done, failed }
-    },
-    onSuccess: ({ done, failed }) => {
-      if (done) toast.success(`${done} order${done === 1 ? '' : 's'} cancelled`)
-      if (failed.length) toast.error(`Not cancelled: ${failed.join('; ')}`)
+    mutationFn: ({ ids, mpin }: { ids: number[]; mpin: string }) => api.post<BulkCancelOrdersResultDto>('/app/orders/bulk-cancel', { ids }, { mpin }),
+    onSuccess: ({ cancelled, failed }) => {
+      const msg = `Cancelled ${cancelled.length}, failed ${failed.length}`
+      if (failed.length) toast.warning(msg)
+      else toast.success(msg)
     },
     onSettled: () => ORDER_KEYS.forEach((key) => qc.invalidateQueries({ queryKey: key })),
   })

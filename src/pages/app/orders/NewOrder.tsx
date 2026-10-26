@@ -14,7 +14,7 @@ import { useBankAccounts, useCurrentRates, useKarats, useSettings } from '@/lib/
 import { useAuth } from '@/lib/auth'
 import { lineRateUnitGrams, metalRateUnitGrams, usePartyBalance } from '@/lib/billingQueries'
 import { useItemNames, useJewelleryTypes } from '@/lib/inventoryQueries'
-import { useCreateOrder, useUploadOrderDesign } from '@/lib/ordersQueries'
+import { useCreateOrder, useNextOrderNo, useUploadOrderDesign } from '@/lib/ordersQueries'
 import { businessDayISO, CHARGE_UNITS, METALS, computeLine, metalToMoney, type PartyRefDto } from '@/shared'
 
 let uid = 0
@@ -30,8 +30,10 @@ const blankPay = (mode: string): PayRow => ({ key: k(), mode, amount: '', bankAc
 
 export function NewOrder() {
   const navigate = useNavigate()
-  const { activeBranch } = useAuth()
+  const { activeBranch, can } = useAuth()
   const branchReady = activeBranch !== '' && activeBranch !== 'all'
+  // TASK-98 preview of the next order no. (a peek, not reserved); hidden without permission or on error
+  const nextNo = useNextOrderNo(branchReady && can('orders.create', 'view'), activeBranch)
   const { data: settings } = useSettings()
   const { data: banks } = useBankAccounts()
   const { data: karats } = useKarats()
@@ -121,6 +123,12 @@ export function NewOrder() {
           <h2 className="text-xl">Place an order</h2>
           <p className="text-sm text-muted-foreground">Book a made-to-order piece, take an advance and confirm the estimate.</p>
         </div>
+        {nextNo.data && !nextNo.isError && (
+          <div id="no-next-no" className="rounded-2xl bg-muted px-4 py-2 text-right" aria-live="polite">
+            <div className="text-sm font-semibold tabular-nums">Order no. #{nextNo.data.nextNo} (preview)</div>
+            <p className="text-xs text-muted-foreground">The final number is assigned on save.</p>
+          </div>
+        )}
       </div>
 
       {!branchReady && <SelectBranchForTxn note="An order is placed at one branch. Select a branch." />}
@@ -292,7 +300,7 @@ export function NewOrder() {
             <div className="flex justify-between border-t pt-3"><span className="text-muted-foreground">Balance after advance</span><span className="font-semibold">{inr(balanceAfterAdvance)}</span></div>
             <p className="text-xs text-muted-foreground">Estimate uses today's rate{goldOverride !== '' || silverOverride !== '' ? ' (or your override)' : ''}; the server recomputes on create ({rateType === 'FIXED' ? 'rate fixed now' : 'final rate on delivery'}).</p>
             <div className="flex justify-end pt-2">
-              <Button disabled={!valid || create.isPending} onClick={() => void submit().catch(() => {})}>
+              <Button disabled={!valid || create.isPending} onClick={() => void submit().catch(() => void nextNo.refetch())}>
                 {create.isPending ? 'Saving…' : 'Create order'}
               </Button>
             </div>
