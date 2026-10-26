@@ -82,7 +82,7 @@ function subFor(planId: number, days: number): SubscriptionDto {
 function payFor(businessId: number, businessName: string, amount: string, days: number): PaymentDto {
   return {
     id: nextId(), businessId, businessName, subscriptionId: null, amount, method: 'UPI', utr: `UTR${nextId()}`,
-    status: 'CONFIRMED', paidAt: iso(days), createdAt: iso(days),
+    status: 'CONFIRMED', paidAt: iso(days), createdAt: iso(days), hasProof: false,
   }
 }
 

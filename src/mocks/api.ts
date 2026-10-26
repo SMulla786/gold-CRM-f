@@ -263,7 +263,7 @@ function recordPayment(b: BusinessDetailDto, body: Body) {
     id: db.nextId(), businessId: b.id, businessName: b.name, subscriptionId: (body.subscriptionId as number) ?? null,
     amount: Number(body.amount).toFixed(2), method: (body.method as 'UPI' | 'CASH' | 'BANK' | 'GATEWAY') ?? 'UPI',
     utr: (body.utr as string) ?? null, status: (body.status as 'PENDING' | 'CONFIRMED' | 'REJECTED') ?? 'CONFIRMED',
-    paidAt: (body.paidAt as string) ?? new Date().toISOString(), createdAt: new Date().toISOString(),
+    paidAt: (body.paidAt as string) ?? new Date().toISOString(), createdAt: new Date().toISOString(), hasProof: false,
   }
   b.payments.unshift(pay)
   return pay
