@@ -420,11 +420,13 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
             <Button type="button" variant="outline" size="sm" onClick={() => setRows((rs) => [...rs, blankRow({})])}>{t('bill.direct_line')}</Button>
             {!editBill && (
               <>
-                <Input className="w-32" placeholder={t('bill.draft_no_ph')} aria-label="Draft number" value={draftNo} onChange={(e) => setDraftNo(e.target.value)} />
+                {/* QR scanners type the draft no. + Enter here (the slip QR is the bare no.) */}
+                <Input className="w-32" placeholder={t('bill.draft_no_ph')} aria-label="Draft number" aria-describedby="bf-draft-help" value={draftNo} onChange={(e) => setDraftNo(e.target.value.replace(/[\s#]/g, ''))} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void retrieveDraft() } }} />
                 <Button type="button" variant="outline" size="sm" onClick={() => void retrieveDraft()}>{t('bill.retrieve_draft')}</Button>
               </>
             )}
           </div>
+          {!editBill && <p id="bf-draft-help" className="mt-1 text-xs text-muted-foreground">Scan the draft slip QR or type the draft no.</p>}
           {draftId && <p className="text-xs text-muted-foreground">{t('bill.from_draft')}</p>}
           {!editBill && (
             <div className="mt-2 flex flex-wrap items-center gap-2">

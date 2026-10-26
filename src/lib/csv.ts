@@ -17,3 +17,21 @@ export function downloadCsv(filename: string, rows: Cell[][]) {
   a.click()
   URL.revokeObjectURL(url)
 }
+
+// Same rows as CSV, as .xlsx (write-excel-file is lazy-loaded so it stays out of the main bundle).
+// Numeric strings ("1234.50", "-12") become numbers; long integer strings (mobiles, IDs) and leading-zero codes stay text.
+const NUMERIC = /^-?(?:0|[1-9]\d{0,8})(?:\.\d+)?$|^-?(?:0|[1-9]\d{0,14})\.\d+$/
+export function toXlsxRows(rows: Cell[][]): (string | number | null)[][] {
+  return rows.map((r) => r.map((v) => {
+    if (v == null || v === '') return null
+    if (typeof v === 'number') return Number.isFinite(v) ? v : String(v)
+    return NUMERIC.test(v) ? Number(v) : v
+  }))
+}
+
+export async function downloadXlsx(filename: string, rows: Cell[][]) {
+  const { default: writeExcelFile } = await import('write-excel-file/browser')
+  const data = toXlsxRows(rows)
+  const widths = (data[0] ?? []).map((_, i) => Math.min(40, data.reduce((w, r) => Math.max(w, String(r[i] ?? '').length + 2), 8)))
+  await writeExcelFile(data, { columns: widths.map((width) => ({ width })), stickyRowsCount: 1 }).toFile(filename.replace(/\.csv$/i, '') + '.xlsx')
+}

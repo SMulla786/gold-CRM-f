@@ -21,18 +21,19 @@ import { fetchAllStock, useBulkDeleteStock, useBulkEditStock, useDeleteStock, us
 import { useAuth } from '@/lib/auth'
 import { downloadCsv } from '@/lib/csv'
 import { useT } from '@/lib/i18n'
-import { plural } from '@/lib/plural'
 import { downloadPdf } from '@/lib/share'
 import { CheckoutDraftDialog } from '@/pages/app/billing/CheckoutDraftDialog'
 import { CHARGE_UNITS, STOCK_CLASSES, STOCK_STATUSES, type StockItemDto } from '@/shared'
 
-const CLASS_LABEL: Record<string, string> = { GOLD: 'Gold', SILVER: 'Silver', STONE: 'Stone', ARTIFICIAL: 'Artificial', FRANCHISE: 'Franchise' }
 const UNIT_SHORT: Record<string, string> = { PER_GRAM: '/g', PERCENT: '%', FIXED: 'fixed' }
+type Translate = ReturnType<typeof useT>
+const items = (t: Translate, n: number) => t(n === 1 ? 'inv.count.item_one' : 'inv.count.item_other', { n })
 
 // Editable numeric/charge fields shared by single + bulk edit (empty = unchanged in bulk).
 const NUM_FIELDS = ['pcs', 'gross', 'less', 'tunch', 'wastage', 'stoneCharge', 'other', 'labour', 'rate', 'purchaseCost'] as const
 type NumField = (typeof NUM_FIELDS)[number]
-const LABELS: Record<NumField, string> = { pcs: 'Pcs', gross: 'Gross', less: 'Less', tunch: 'Tunch', wastage: 'Wastage %', stoneCharge: 'Stone', other: 'Other', labour: 'Labour', rate: 'Rate', purchaseCost: 'Cost' }
+// i18n keys, translated at render.
+const LABELS: Record<NumField, string> = { pcs: 'stock.col_pcs', gross: 'stock.col_gross', less: 'bill.col_less', tunch: 'bill.col_tunch', wastage: 'inv.f.wastage_pct', stoneCharge: 'class.STONE', other: 'bill.col_other', labour: 'bill.col_labour', rate: 'udhari.rate', purchaseCost: 'inv.newstock.col_cost' }
 
 function toBody(form: Record<string, string>, labourUnit: string) {
   const body: Record<string, unknown> = {}
@@ -43,6 +44,7 @@ function toBody(form: Record<string, string>, labourUnit: string) {
 }
 
 function StockEditDialog({ item, onClose }: { item: StockItemDto; onClose: () => void }) {
+  const t = useT()
   const update = useUpdateStock()
   const uploadPhoto = useUploadStockPhoto()
   const removePhoto = useRemoveStockPhoto()
@@ -58,17 +60,17 @@ function StockEditDialog({ item, onClose }: { item: StockItemDto; onClose: () =>
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Edit {item.tagNo ?? item.itemName.name}</DialogTitle>
+          <DialogTitle>{t('party.edit_title', { name: item.tagNo ?? item.itemName.name })}</DialogTitle>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           {NUM_FIELDS.map((f) => (
             <div key={f} className="space-y-1.5">
-              <Label htmlFor={`e-${f}`}>{LABELS[f]}</Label>
+              <Label htmlFor={`e-${f}`}>{t(LABELS[f])}</Label>
               <Input id={`e-${f}`} type="number" value={form[f]} onChange={(e) => setForm({ ...form, [f]: e.target.value })} />
             </div>
           ))}
           <div className="space-y-1.5">
-            <Label>Labour unit</Label>
+            <Label>{t('inv.f.labour_unit')}</Label>
             <Select value={labourUnit} onValueChange={setLabourUnit}>
               <SelectTrigger aria-label="Labour unit">
                 <SelectValue />
@@ -82,7 +84,7 @@ function StockEditDialog({ item, onClose }: { item: StockItemDto; onClose: () =>
           </div>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="e-photo">Photo</Label>
+          <Label htmlFor="e-photo">{t('inv.stock.photo')}</Label>
           <div className="flex items-center gap-3">
             {hasPhoto && <AuthedImage path={`/app/files/stock/${item.id}/photo`} ver={photoVer} alt={item.itemName.name} className="h-16 w-16 rounded-md border object-cover" />}
             <Input id="e-photo" type="file" accept="image/jpeg,image/png,image/webp" disabled={uploadPhoto.isPending}
@@ -90,14 +92,14 @@ function StockEditDialog({ item, onClose }: { item: StockItemDto; onClose: () =>
             {hasPhoto && (
               <Button type="button" variant="ghost" size="sm" disabled={removePhoto.isPending}
                 onClick={() => removePhoto.mutate(item.id, { onSuccess: () => { setPhotoRemoved(true); setPhotoVer(0) } })}>
-                Remove photo
+                {t('inv.stock.remove_photo')}
               </Button>
             )}
           </div>
         </div>
         <DialogFooter>
           <Button disabled={update.isPending} onClick={async () => { await update.mutateAsync({ id: item.id, body: toBody(form, labourUnit) }); onClose() }}>
-            Save
+            {t('common.save')}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -107,6 +109,7 @@ function StockEditDialog({ item, onClose }: { item: StockItemDto; onClose: () =>
 
 /** Also reused by GroupStock for its selected groups' items. */
 export function BulkEditDialog({ ids, onClose }: { ids: number[]; onClose: () => void }) {
+  const t = useT()
   const bulk = useBulkEditStock()
   const [form, setForm] = useState<Record<string, string>>({})
   const [labourUnit, setLabourUnit] = useState('')
@@ -114,24 +117,24 @@ export function BulkEditDialog({ ids, onClose }: { ids: number[]; onClose: () =>
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Edit {plural(ids.length, 'item')}</DialogTitle>
+          <DialogTitle>{t('party.edit_title', { name: items(t, ids.length) })}</DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-muted-foreground">Only the fields you fill are applied to every selected item.</p>
+        <p className="text-sm text-muted-foreground">{t('inv.stock.bulk_hint')}</p>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           {(['rate', 'labour', 'wastage', 'stoneCharge', 'other'] as NumField[]).map((f) => (
             <div key={f} className="space-y-1.5">
-              <Label htmlFor={`b-${f}`}>{LABELS[f]}</Label>
+              <Label htmlFor={`b-${f}`}>{t(LABELS[f])}</Label>
               <Input id={`b-${f}`} type="number" value={form[f] ?? ''} onChange={(e) => setForm({ ...form, [f]: e.target.value })} />
             </div>
           ))}
           <div className="space-y-1.5">
-            <Label>Labour unit</Label>
+            <Label>{t('inv.f.labour_unit')}</Label>
             <Select value={labourUnit || 'keep'} onValueChange={(v) => setLabourUnit(v === 'keep' ? '' : v)}>
               <SelectTrigger aria-label="Labour unit">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="keep">Keep</SelectItem>
+                <SelectItem value="keep">{t('inv.stock.keep')}</SelectItem>
                 {CHARGE_UNITS.map((u) => (
                   <SelectItem key={u} value={u}>{u}</SelectItem>
                 ))}
@@ -141,7 +144,7 @@ export function BulkEditDialog({ ids, onClose }: { ids: number[]; onClose: () =>
         </div>
         <DialogFooter>
           <Button disabled={bulk.isPending} onClick={async () => { await bulk.mutateAsync({ ids, patch: toBody(form, labourUnit) }); onClose() }}>
-            Apply to {ids.length}
+            {t('inv.stock.apply_to', { n: ids.length })}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -149,16 +152,18 @@ export function BulkEditDialog({ ids, onClose }: { ids: number[]; onClose: () =>
   )
 }
 
-const DETAIL_FIELDS: [string, (i: StockItemDto) => string][] = [
-  ['Class', (i) => CLASS_LABEL[i.stockClass] ?? i.stockClass], ['Group', (i) => i.group.name], ['Item', (i) => i.itemName.name],
-  ['Method', (i) => i.method], ['Tag', (i) => i.tagNo ?? '—'], ['HUID', (i) => i.huid ?? '—'], ['HSN', (i) => i.hsnCode ?? '—'],
-  ['Karat', (i) => i.karatCode ?? '—'], ['Pcs', (i) => String(i.pcs)], ['Gross', (i) => i.gross], ['Less', (i) => i.less],
-  ['Net', (i) => i.net], ['Tunch', (i) => i.tunch], ['Wastage %', (i) => i.wastage], ['Fine', (i) => i.fine],
-  ['Stone', (i) => i.stoneCharge], ['Labour', (i) => `${i.labour} (${i.labourUnit})`], ['Other', (i) => i.other],
-  ['Rate', (i) => i.rate ?? '—'], ['Cost', (i) => i.purchaseCost ?? '—'], ['Branch', (i) => i.branch.name], ['Remarks', (i) => i.remarks ?? '—'],
+// Label = i18n key; HUID / HSN are not keys, so t() returns them unchanged.
+const DETAIL_FIELDS: [string, (i: StockItemDto, t: Translate) => string][] = [
+  ['gst.col_class', (i, t) => t(`class.${i.stockClass}`)], ['stock.col_group', (i) => i.group.name], ['bill.col_item', (i) => i.itemName.name],
+  ['subscription.col_method', (i) => i.method], ['inv.newstock.tag', (i) => i.tagNo ?? '—'], ['HUID', (i) => i.huid ?? '—'], ['HSN', (i) => i.hsnCode ?? '—'],
+  ['stock.col_karat', (i) => i.karatCode ?? '—'], ['stock.col_pcs', (i) => String(i.pcs)], ['stock.col_gross', (i) => i.gross], ['bill.col_less', (i) => i.less],
+  ['stock.col_net', (i) => i.net], ['bill.col_tunch', (i) => i.tunch], ['inv.f.wastage_pct', (i) => i.wastage], ['stock.col_fine', (i) => i.fine],
+  ['class.STONE', (i) => i.stoneCharge], ['bill.col_labour', (i) => `${i.labour} (${i.labourUnit})`], ['bill.col_other', (i) => i.other],
+  ['udhari.rate', (i) => i.rate ?? '—'], ['inv.newstock.col_cost', (i) => i.purchaseCost ?? '—'], ['stock.col_branch', (i) => i.branch.name], ['oldmetal.col_remarks', (i) => i.remarks ?? '—'],
 ]
 
 function StockDetailSheet({ item, onClose }: { item: StockItemDto; onClose: () => void }) {
+  const t = useT()
   const { data, isLoading } = useStockLedger(item)
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()}>
@@ -171,20 +176,20 @@ function StockDetailSheet({ item, onClose }: { item: StockItemDto; onClose: () =
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
             {DETAIL_FIELDS.map(([label, get]) => (
               <div key={label}>
-                <dt className="text-muted-foreground">{label}</dt>
-                <dd className="font-medium">{get(item)}</dd>
+                <dt className="text-muted-foreground">{t(label)}</dt>
+                <dd className="font-medium">{get(item, t)}</dd>
               </div>
             ))}
           </dl>
           <div>
-            <h3 className="mb-2 text-sm font-semibold">Movement history</h3>
+            <h3 className="mb-2 text-sm font-semibold">{t('inv.stock.movement_history')}</h3>
             {isLoading ? (
-              <p className="text-sm text-muted-foreground">Loading…</p>
+              <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
             ) : data && data.items.length > 0 ? (
               <div className="overflow-x-auto rounded-md border">
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50 text-left text-muted-foreground">
-                    <tr><th className="p-2">Date</th><th className="p-2">Source</th><th className="p-2">Dir</th><th className="p-2 text-right">Gross</th><th className="p-2 text-right">Net</th><th className="p-2 text-right">Fine</th></tr>
+                    <tr><th className="p-2">{t('udhari.date')}</th><th className="p-2">{t('udhari.col_source')}</th><th className="p-2">{t('daybook.col_dir')}</th><th className="p-2 text-right">{t('stock.col_gross')}</th><th className="p-2 text-right">{t('stock.col_net')}</th><th className="p-2 text-right">{t('stock.col_fine')}</th></tr>
                   </thead>
                   <tbody>
                     {data.items.map((r) => (
@@ -203,7 +208,7 @@ function StockDetailSheet({ item, onClose }: { item: StockItemDto; onClose: () =
             ) : (
               <div className="flex flex-col items-center justify-center gap-2 py-6 text-center">
                 <span className="icon-chip"><History className="size-5" aria-hidden /></span>
-                <p className="text-sm text-muted-foreground">No movements.</p>
+                <p className="text-sm text-muted-foreground">{t('inv.stock.no_movements')}</p>
               </div>
             )}
           </div>
@@ -344,7 +349,7 @@ export function StockList() {
         } as ColumnDef<StockItemDto, unknown>]
       : []),
     { header: t('stock.col_tag_item'), cell: ({ row }) => <button type="button" className="rounded-sm font-medium text-primary hover:underline focus-visible:underline focus-visible:outline-none" onClick={() => setViewing(row.original)}>{row.original.tagNo ?? row.original.itemName.name}</button> },
-    { id: 'item', header: 'Item', cell: ({ row }) => row.original.itemName.name },
+    { id: 'item', header: t('bill.col_item'), cell: ({ row }) => row.original.itemName.name },
     { id: 'huid', header: 'HUID', cell: ({ row }) => row.original.huid ?? '—' },
     { header: t('stock.col_group'), cell: ({ row }) => row.original.group.name },
     { id: 'hsn', header: 'HSN', cell: ({ row }) => row.original.hsnCode ?? '—' },
@@ -352,11 +357,11 @@ export function StockList() {
     { accessorKey: 'pcs', header: t('stock.col_pcs') },
     { accessorKey: 'gross', header: t('stock.col_gross') },
     { accessorKey: 'net', header: t('stock.col_net') },
-    { id: 'tunch', header: 'Tunch', cell: ({ row }) => row.original.tunch },
-    { id: 'wastage', header: 'Wst %', cell: ({ row }) => row.original.wastage },
+    { id: 'tunch', header: t('bill.col_tunch'), cell: ({ row }) => row.original.tunch },
+    { id: 'wastage', header: t('inv.stock.col_wst'), cell: ({ row }) => row.original.wastage },
     { accessorKey: 'fine', header: t('stock.col_fine') },
-    { id: 'labour', header: 'Labour', cell: ({ row }) => <span className="whitespace-nowrap">{row.original.labour} {UNIT_SHORT[row.original.labourUnit] ?? row.original.labourUnit}</span> },
-    { id: 'rate', header: 'Rate', cell: ({ row }) => row.original.rate ?? '—' },
+    { id: 'labour', header: t('bill.col_labour'), cell: ({ row }) => <span className="whitespace-nowrap">{row.original.labour} {UNIT_SHORT[row.original.labourUnit] ?? row.original.labourUnit}</span> },
+    { id: 'rate', header: t('udhari.rate'), cell: ({ row }) => row.original.rate ?? '—' },
     { header: t('stock.col_branch'), cell: ({ row }) => row.original.branch.name },
     { accessorKey: 'status', header: t('stock.col_status'), cell: ({ row }) => <Badge variant={row.original.status === 'AVAILABLE' ? 'default' : 'secondary'}>{row.original.status}</Badge> },
     {
@@ -375,10 +380,10 @@ export function StockList() {
   return (
     <div className="space-y-8">
       <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {tile('Matching items', data ? String(data.total) : '—', 'With current filters', Boxes)}
-        {tile('Pieces on this page', data ? String(pcsOnPage) : '—', data ? `${rows.length} rows shown` : undefined, Layers)}
-        {tile('Gross wt on this page', data ? g3(grossOnPage) : '—', data ? `Net ${g3(netOnPage)}` : undefined, Scale)}
-        {tile('Fine wt on this page', data ? g3(fineOnPage) : '—', 'All classes combined', Gem)}
+        {tile(t('inv.stock.matching_items'), data ? String(data.total) : '—', t('inv.stock.with_filters'), Boxes)}
+        {tile(t('inv.stock.pcs_on_page'), data ? String(pcsOnPage) : '—', data ? t('inv.stock.rows_shown', { n: rows.length }) : undefined, Layers)}
+        {tile(t('inv.stock.gross_on_page'), data ? g3(grossOnPage) : '—', data ? t('inv.newstock.net_sub', { g: netOnPage.toFixed(3) }) : undefined, Scale)}
+        {tile(t('inv.stock.fine_on_page'), data ? g3(fineOnPage) : '—', t('inv.stock.all_classes_combined'), Gem)}
       </div>
 
       <Card>
@@ -400,7 +405,7 @@ export function StockList() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="ALL">All</SelectItem>
+              <SelectItem value="ALL">{t('girvi.status_all')}</SelectItem>
               {STOCK_STATUSES.map((s) => (
                 <SelectItem key={s} value={s}>{s}</SelectItem>
               ))}
@@ -411,9 +416,9 @@ export function StockList() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tag + Loose</SelectItem>
-              <SelectItem value="TAG">Tag only</SelectItem>
-              <SelectItem value="LOOSE">Loose only</SelectItem>
+              <SelectItem value="all">{t('inv.f.tag_loose')}</SelectItem>
+              <SelectItem value="TAG">{t('inv.f.tag_only')}</SelectItem>
+              <SelectItem value="LOOSE">{t('inv.f.loose_only')}</SelectItem>
             </SelectContent>
           </Select>
           <Select value={jewelleryTypeId || 'all'} onValueChange={(v) => { setJewelleryTypeId(v === 'all' ? '' : v); setPage(1) }}>
@@ -421,7 +426,7 @@ export function StockList() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All types</SelectItem>
+              <SelectItem value="all">{t('bill.all_types')}</SelectItem>
               {typeOpts?.map((jt) => (
                 <SelectItem key={jt.id} value={String(jt.id)}>{jt.name}</SelectItem>
               ))}
@@ -432,7 +437,7 @@ export function StockList() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All groups</SelectItem>
+              <SelectItem value="all">{t('inv.f.all_groups')}</SelectItem>
               {groupOpts?.items.map((g) => (
                 <SelectItem key={g.id} value={String(g.id)}>{g.name}</SelectItem>
               ))}
@@ -443,7 +448,7 @@ export function StockList() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All items</SelectItem>
+              <SelectItem value="all">{t('inv.f.all_items')}</SelectItem>
               {nameOpts?.items.map((n) => (
                 <SelectItem key={n.id} value={String(n.id)}>{n.name}</SelectItem>
               ))}
@@ -454,31 +459,31 @@ export function StockList() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Any purity</SelectItem>
+              <SelectItem value="all">{t('inv.f.any_purity')}</SelectItem>
               {karatCodes.map((c) => (
                 <SelectItem key={c} value={c}>{c}</SelectItem>
               ))}
             </SelectContent>
           </Select>
           <div className="flex items-center gap-1">
-            <Input className="w-24" type="number" min={0} step="0.001" placeholder="Net from g" aria-label="Minimum net weight" value={minWeight} onChange={(e) => { setMinWeight(e.target.value); setPage(1) }} />
+            <Input className="w-24" type="number" min={0} step="0.001" placeholder={t('inv.stock.net_from')} aria-label="Minimum net weight" value={minWeight} onChange={(e) => { setMinWeight(e.target.value); setPage(1) }} />
             <span className="text-muted-foreground" aria-hidden>–</span>
-            <Input className="w-24" type="number" min={0} step="0.001" placeholder="Net to g" aria-label="Maximum net weight" value={maxWeight} onChange={(e) => { setMaxWeight(e.target.value); setPage(1) }} />
+            <Input className="w-24" type="number" min={0} step="0.001" placeholder={t('inv.stock.net_to')} aria-label="Maximum net weight" value={maxWeight} onChange={(e) => { setMaxWeight(e.target.value); setPage(1) }} />
           </div>
           <Button className="ml-auto" variant="outline" disabled={exporting} onClick={exportCsv}>
-            {exporting ? 'Exporting…' : t('common.export_csv')}
+            {exporting ? t('bill.exporting') : t('common.export_csv')}
           </Button>
-          <Button variant="outline" disabled={exporting} onClick={exportPdf}>Export PDF</Button>
+          <Button variant="outline" disabled={exporting} onClick={exportPdf}>{t('inv.f.export_pdf')}</Button>
         </CardContent>
       </Card>
 
       {data?.totals && (
         <div className="flex flex-wrap gap-x-6 gap-y-1 rounded-2xl border bg-muted/40 px-4 py-3 text-sm tabular-nums" role="group" aria-label="Totals for all matching items">
-          <span className="font-medium">All {data.total} matching</span>
-          <span>Pcs {data.totals.pcs}</span>
-          <span>Gross {g3(Number(data.totals.gross))}</span>
-          <span>Net {g3(Number(data.totals.net))}</span>
-          <span>Fine {g3(Number(data.totals.fine))}</span>
+          <span className="font-medium">{t('inv.stock.all_matching', { n: data.total })}</span>
+          <span>{t('inv.f.pcs_n', { n: data.totals.pcs })}</span>
+          <span>{t('inv.f.gross_g', { g: Number(data.totals.gross).toFixed(3) })}</span>
+          <span>{t('inv.newstock.net_sub', { g: Number(data.totals.net).toFixed(3) })}</span>
+          <span>{t('inv.f.fine_g', { g: Number(data.totals.fine).toFixed(3) })}</span>
         </div>
       )}
 
@@ -487,7 +492,7 @@ export function StockList() {
           <span>{t('stock.selected', { n: ids.length })}</span>
           {canCheckout && <Button size="sm" onClick={() => setCheckout(true)}>{t('stock.add_to_cart')}</Button>}
           {canEdit && <Button size="sm" variant="outline" onClick={() => setBulkEditing(true)}>{t('stock.edit_selected')}</Button>}
-          {canTags && <Button size="sm" variant="outline" onClick={() => navigate('/app/inventory/tags', { state: { ids } })}>Print tags</Button>}
+          {canTags && <Button size="sm" variant="outline" onClick={() => navigate('/app/inventory/tags', { state: { ids } })}>{t('inv.f.print_tags')}</Button>}
           {canDelete && <Button size="sm" variant="ghost" onClick={() => setBulkDeleting(true)}>{t('stock.delete_selected')}</Button>}
           <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>{t('stock.clear')}</Button>
         </div>
@@ -496,7 +501,7 @@ export function StockList() {
       <div className="flex justify-end gap-1" role="group" aria-label="Layout">
         {(['table', 'gallery'] as const).map((v) => (
           <Button key={v} size="sm" variant={view === v ? 'default' : 'outline'} aria-pressed={view === v} onClick={() => setView(v)}>
-            {v === 'table' ? 'Table' : 'Gallery'}
+            {v === 'table' ? t('inv.stock.view_table') : t('inv.stock.view_gallery')}
           </Button>
         ))}
       </div>
@@ -514,11 +519,11 @@ export function StockList() {
       ) : (
         <Card className="space-y-4 p-4">
           {isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
           ) : rows.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
               <span className="icon-chip"><PackageSearch className="size-5" aria-hidden /></span>
-              <p className="text-sm text-muted-foreground">No items found</p>
+              <p className="text-sm text-muted-foreground">{t('inv.stock.no_items_found')}</p>
             </div>
           ) : (
             <div className="stagger grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
@@ -535,7 +540,7 @@ export function StockList() {
                     <CardContent className="space-y-0.5 p-3 pt-0 text-sm">
                       <div className="truncate font-medium">{r.tagNo ?? r.itemName.name}</div>
                       <div className="truncate text-muted-foreground">{r.itemName.name}{r.karatCode ? ` · ${r.karatCode}` : ''}</div>
-                      <div className="tabular-nums text-muted-foreground">Net {r.net} g</div>
+                      <div className="tabular-nums text-muted-foreground">{t('inv.newstock.net_sub', { g: r.net })}</div>
                     </CardContent>
                   </Card>
                 </button>
@@ -554,12 +559,12 @@ export function StockList() {
 
       {pdfRows && (
         <div className="print-area hidden print:block">
-          <h2 className="mb-1 text-lg font-semibold">Stock list · {status}{stockClass ? ` · ${CLASS_LABEL[stockClass]}` : ''}</h2>
-          <p className="mb-3 text-xs">{plural(pdfRows.length, 'item')}</p>
+          <h2 className="mb-1 text-lg font-semibold">{t('inv.stock.print_title', { status })}{stockClass ? ` · ${t(`class.${stockClass}`)}` : ''}</h2>
+          <p className="mb-3 text-xs">{items(t, pdfRows.length)}</p>
           <table className="w-full border-collapse text-xs">
             <thead>
               <tr className="border-b text-left">
-                {['Tag', 'Item', 'Group', 'Karat', 'Pcs', 'Gross', 'Net', 'Fine', 'Branch'].map((h) => <th key={h} className="p-1">{h}</th>)}
+                {['inv.newstock.tag', 'bill.col_item', 'stock.col_group', 'stock.col_karat', 'stock.col_pcs', 'stock.col_gross', 'stock.col_net', 'stock.col_fine', 'stock.col_branch'].map((h) => <th key={h} className="p-1">{t(h)}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -572,7 +577,7 @@ export function StockList() {
             </tbody>
             <tfoot>
               <tr className="font-semibold">
-                <td className="p-1" colSpan={4}>Total</td>
+                <td className="p-1" colSpan={4}>{t('bill.col_total')}</td>
                 <td className="p-1">{pdfRows.reduce((sum, i) => sum + Number(i.pcs), 0)}</td>
                 {(['gross', 'net', 'fine'] as const).map((k) => <td key={k} className="p-1">{pdfRows.reduce((sum, i) => sum + Number(i[k]), 0).toFixed(3)}</td>)}
                 <td />
@@ -586,8 +591,8 @@ export function StockList() {
       {viewing && <StockDetailSheet item={viewing} onClose={() => setViewing(null)} />}
       {editing && <StockEditDialog item={editing} onClose={() => setEditing(null)} />}
       {bulkEditing && <BulkEditDialog ids={ids} onClose={() => { setBulkEditing(false); setSelected(new Set()) }} />}
-      <MpinDialog open={!!deleting} title={`Delete ${deleting?.tagNo ?? deleting?.itemName.name ?? ''}`} onConfirm={(mpin) => del.mutateAsync({ id: deleting!.id, mpin })} onClose={() => setDeleting(null)} />
-      <MpinDialog open={bulkDeleting} title={`Delete ${plural(ids.length, 'item')}`} onConfirm={async (mpin) => { await bulkDelete.mutateAsync({ ids, mpin }); setSelected(new Set()) }} onClose={() => setBulkDeleting(false)} />
+      <MpinDialog open={!!deleting} title={t('jbill.delete_title', { no: deleting?.tagNo ?? deleting?.itemName.name ?? '' })} onConfirm={(mpin) => del.mutateAsync({ id: deleting!.id, mpin })} onClose={() => setDeleting(null)} />
+      <MpinDialog open={bulkDeleting} title={t('jbill.delete_title', { no: items(t, ids.length) })} onConfirm={async (mpin) => { await bulkDelete.mutateAsync({ ids, mpin }); setSelected(new Set()) }} onClose={() => setBulkDeleting(false)} />
     </div>
   )
 }

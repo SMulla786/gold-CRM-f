@@ -1,6 +1,7 @@
 import { FileJson } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
+import { ExcelExportButton } from '@/components/CsvExportButton'
 import { TableCard } from '@/components/SectionCard'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -79,6 +80,7 @@ export function Reconcile2b({ from, to }: { from: string; to: string }) {
           {file && <p className="flex items-center gap-2 text-sm text-muted-foreground"><FileJson className="size-4" aria-hidden />{file.name} · {file.rows.length} invoices</p>}
           {result && <Button className="ml-auto" variant="outline" size="sm" disabled={!rows.length}
             onClick={() => downloadCsv(`gstr2b-${tab}-${from || 'all'}.csv`, [head, ...rows])}>{t('common.export_csv')}</Button>}
+          {result && <ExcelExportButton size="sm" disabled={!rows.length} filename={`gstr2b-${tab}-${from || 'all'}.csv`} rows={() => [head, ...rows]} />}
         </CardContent>
       </Card>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}

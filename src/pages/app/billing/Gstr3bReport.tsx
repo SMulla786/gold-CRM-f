@@ -2,6 +2,7 @@ import { businessDayISO } from '@/shared'
 import { Landmark, Receipt, TriangleAlert, Wallet } from 'lucide-react'
 import { useState } from 'react'
 
+import { ExcelExportButton } from '@/components/CsvExportButton'
 import { KpiTile } from '@/components/KpiTile'
 import { SectionCard, TableCard } from '@/components/SectionCard'
 import { Button } from '@/components/ui/button'
@@ -50,6 +51,7 @@ export function Gstr3bReport() {
       <Card className="flex w-fit flex-wrap items-end gap-3 p-4 print:hidden">
         <div className="space-y-1.5"><Label htmlFor="g3-month">{t('gst.month')}</Label><input id="g3-month" type="month" className="h-9 rounded-xl border bg-transparent px-3 text-sm shadow-xs" value={month} onChange={(e) => setMonth(e.target.value || thisMonth())} /></div>
         <Button variant="outline" size="sm" disabled={!data} onClick={() => downloadCsv(`gstr3b-${month}.csv`, [head, ...rows])}>{t('common.export_csv')}</Button>
+        <ExcelExportButton size="sm" disabled={!data} filename={`gstr3b-${month}.csv`} rows={() => [head, ...rows]} />
       </Card>
       <p className="hidden text-sm print:block">{t('gst.month')}: {month}</p>
 

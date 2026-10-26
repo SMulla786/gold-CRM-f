@@ -17,13 +17,11 @@ import { useKarats } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { fetchAllStock, useBulkDeleteStock, useGroupStock } from '@/lib/inventoryQueries'
 import { downloadCsv } from '@/lib/csv'
-import { plural } from '@/lib/plural'
 import { downloadPdf } from '@/lib/share'
 import { useT } from '@/lib/i18n'
 import { BulkEditDialog } from '@/pages/app/inventory/StockList'
 import { STOCK_CLASSES, STOCK_STATUSES, type GroupStockDto } from '@/shared'
 
-const CLASS_LABEL: Record<string, string> = { GOLD: 'Gold', SILVER: 'Silver', STONE: 'Stone', ARTIFICIAL: 'Artificial', FRANCHISE: 'Franchise' }
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Number(s))
 /** A group row is one (group, karat) pair from the backend groupBy. */
 const rowKey = (g: { groupId: number; karatCode: string | null }) => `${g.groupId}|${g.karatCode ?? ''}`
@@ -74,14 +72,14 @@ export function GroupStock() {
     setResolving(action)
     try {
       const ids = await resolveIds()
-      if (ids.length === 0) return void toast.error('No available items in the selected groups')
+      if (ids.length === 0) return void toast.error(t('inv.group.no_items'))
       if (action === 'tags') return navigate('/app/inventory/tags', { state: { ids } })
-      if (ids.length > BULK_MAX) return void toast.error(`Too many items (${ids.length}); select groups with at most ${BULK_MAX} items in total`)
+      if (ids.length > BULK_MAX) return void toast.error(t('inv.group.too_many', { n: ids.length, max: BULK_MAX }))
       setBulkIds(ids)
       if (action === 'edit') setBulkEditing(true)
       else setBulkDeleting(true)
     } catch {
-      toast.error('Could not load the items of the selected groups')
+      toast.error(t('inv.group.load_failed'))
     } finally {
       setResolving(null)
     }
@@ -119,15 +117,15 @@ export function GroupStock() {
           ),
         } as ColumnDef<GroupStockDto, unknown>]
       : []),
-    { accessorKey: 'groupName', header: 'Group' },
+    { accessorKey: 'groupName', header: t('stock.col_group') },
     { id: 'hsn', header: 'HSN', cell: ({ row }) => row.original.hsnCode ?? '—' },
-    { accessorKey: 'karatCode', header: 'Karat', cell: ({ row }) => row.original.karatCode ?? '—' },
-    { accessorKey: 'items', header: 'Items' },
-    { accessorKey: 'pcs', header: 'Pcs' },
-    { accessorKey: 'gross', header: 'Gross' },
-    { accessorKey: 'net', header: 'Net' },
-    { accessorKey: 'fine', header: 'Fine' },
-    { accessorKey: 'value', header: 'Value', cell: ({ row }) => inr(row.original.value) },
+    { accessorKey: 'karatCode', header: t('stock.col_karat'), cell: ({ row }) => row.original.karatCode ?? '—' },
+    { accessorKey: 'items', header: t('bill.col_items') },
+    { accessorKey: 'pcs', header: t('stock.col_pcs') },
+    { accessorKey: 'gross', header: t('stock.col_gross') },
+    { accessorKey: 'net', header: t('stock.col_net') },
+    { accessorKey: 'fine', header: t('stock.col_fine') },
+    { accessorKey: 'value', header: t('gst.col_value'), cell: ({ row }) => inr(row.original.value) },
   ]
 
   const exportCsv = () => {
@@ -149,7 +147,9 @@ export function GroupStock() {
   const totalPcs = rows.reduce((sum, g) => sum + g.pcs, 0)
   const totalFine = rows.reduce((sum, g) => sum + Number(g.fine), 0)
   const totalValue = rows.reduce((sum, g) => sum + Number(g.value), 0)
-  const scope = stockClass ? `${CLASS_LABEL[stockClass]} only` : 'Every class included'
+  const scope = stockClass ? t('inv.group.class_only', { cls: t(`class.${stockClass}`) }) : t('inv.group.every_class')
+  const itemsLabel = (n: number) => t(n === 1 ? 'inv.count.item_one' : 'inv.count.item_other', { n })
+  const groupsLabel = (n: number) => t(n === 1 ? 'inv.count.group_one' : 'inv.count.group_other', { n })
 
   const tile = (label: string, value: string, sub: string | undefined, Icon: LucideIcon) => (
     <Card className="gap-2 hover:-translate-y-1">
@@ -167,10 +167,10 @@ export function GroupStock() {
   return (
     <div className="space-y-8">
       <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {tile('Groups listed', data ? String(rows.length) : '—', scope, Layers)}
-        {tile('Total pieces', data ? String(totalPcs) : '—', data ? `${totalItems} stock entries` : undefined, Boxes)}
-        {tile('Fine weight', data ? `${totalFine.toFixed(3)} g` : '—', 'Sum over listed groups', Scale)}
-        {tile('Total value', data ? inr(String(totalValue)) : '—', 'Sum over listed groups', IndianRupee)}
+        {tile(t('inv.group.groups_listed'), data ? String(rows.length) : '—', scope, Layers)}
+        {tile(t('inv.group.total_pieces'), data ? String(totalPcs) : '—', data ? t('inv.group.stock_entries', { n: totalItems }) : undefined, Boxes)}
+        {tile(t('inv.newstock.fine_weight'), data ? `${totalFine.toFixed(3)} g` : '—', t('inv.group.sum_listed'), Scale)}
+        {tile(t('inv.group.total_value'), data ? inr(String(totalValue)) : '—', t('inv.group.sum_listed'), IndianRupee)}
       </div>
 
       <Card>
@@ -180,10 +180,10 @@ export function GroupStock() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All classes</SelectItem>
+              <SelectItem value="all">{t('stock.all_classes')}</SelectItem>
               {STOCK_CLASSES.map((c) => (
                 <SelectItem key={c} value={c}>
-                  {CLASS_LABEL[c]}
+                  {t(`class.${c}`)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -193,7 +193,7 @@ export function GroupStock() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="ALL">All</SelectItem>
+              <SelectItem value="ALL">{t('girvi.status_all')}</SelectItem>
               {STOCK_STATUSES.map((s) => (
                 <SelectItem key={s} value={s}>{s}</SelectItem>
               ))}
@@ -204,9 +204,9 @@ export function GroupStock() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tag + Loose</SelectItem>
-              <SelectItem value="TAG">Tag only</SelectItem>
-              <SelectItem value="LOOSE">Loose only</SelectItem>
+              <SelectItem value="all">{t('inv.f.tag_loose')}</SelectItem>
+              <SelectItem value="TAG">{t('inv.f.tag_only')}</SelectItem>
+              <SelectItem value="LOOSE">{t('inv.f.loose_only')}</SelectItem>
             </SelectContent>
           </Select>
           <Select value={karatCode || 'all'} onValueChange={(v) => changeFilter(setKaratCode)(v === 'all' ? '' : v)}>
@@ -214,40 +214,41 @@ export function GroupStock() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Any purity</SelectItem>
+              <SelectItem value="all">{t('inv.f.any_purity')}</SelectItem>
               {karatCodes.map((c) => (
                 <SelectItem key={c} value={c}>{c}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <Input className="max-w-xs" placeholder="Search tag / HUID / item…" aria-label="Search stock" value={q} onChange={(e) => changeFilter(setQ)(e.target.value)} />
-          <Button className="ml-auto" variant="outline" disabled={!data?.length} onClick={exportCsv}>Export CSV</Button>
-          <Button variant="outline" disabled={!data?.length} onClick={exportPdf}>Export PDF</Button>
+          <Input className="max-w-xs" placeholder={t('inv.f.search_tag_huid')} aria-label="Search stock" value={q} onChange={(e) => changeFilter(setQ)(e.target.value)} />
+          <Button className="ml-auto" variant="outline" disabled={!data?.length} onClick={exportCsv}>{t('common.export_csv')}</Button>
+          <Button variant="outline" disabled={!data?.length} onClick={exportPdf}>{t('inv.f.export_pdf')}</Button>
         </CardContent>
       </Card>
 
       {selectedRows.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border bg-muted/40 px-4 py-3 text-sm">
-          <span>{plural(selectedRows.length, 'group')} chosen · {plural(selectedItems, 'item')}</span>
-          {canEdit && <Button size="sm" variant="outline" disabled={!!resolving} onClick={() => runBulk('edit')}>{resolving === 'edit' ? 'Loading items…' : t('stock.edit_selected')}</Button>}
-          {canTags && <Button size="sm" variant="outline" disabled={!!resolving} onClick={() => runBulk('tags')}>{resolving === 'tags' ? 'Loading items…' : 'Print tags'}</Button>}
-          {canDelete && <Button size="sm" variant="ghost" disabled={!!resolving} onClick={() => runBulk('delete')}>{resolving === 'delete' ? 'Loading items…' : t('stock.delete_selected')}</Button>}
+          <span>{t('inv.group.chosen', { groups: groupsLabel(selectedRows.length), items: itemsLabel(selectedItems) })}</span>
+          {canEdit && <Button size="sm" variant="outline" disabled={!!resolving} onClick={() => runBulk('edit')}>{resolving === 'edit' ? t('inv.group.loading_items') : t('stock.edit_selected')}</Button>}
+          {canTags && <Button size="sm" variant="outline" disabled={!!resolving} onClick={() => runBulk('tags')}>{resolving === 'tags' ? t('inv.group.loading_items') : t('inv.f.print_tags')}</Button>}
+          {canDelete && <Button size="sm" variant="ghost" disabled={!!resolving} onClick={() => runBulk('delete')}>{resolving === 'delete' ? t('inv.group.loading_items') : t('stock.delete_selected')}</Button>}
           <Button size="sm" variant="ghost" onClick={clearSelection}>{t('stock.clear')}</Button>
         </div>
       )}
 
       <Card className="p-4">
-        <DataTable columns={columns} data={rows} isLoading={isLoading} emptyText="No stock" />
+        <DataTable columns={columns} data={rows} isLoading={isLoading} emptyText={t('inv.group.no_stock')} />
       </Card>
 
       {printing && (
         <div className="print-area hidden print:block">
-          <h2 className="mb-1 text-lg font-semibold">Group-wise stock · {status} · {scope}</h2>
-          <p className="mb-3 text-xs">{plural(rows.length, 'group')}</p>
+          <h2 className="mb-1 text-lg font-semibold">{t('inv.group.print_title', { status, scope })}</h2>
+          <p className="mb-3 text-xs">{groupsLabel(rows.length)}</p>
           <table className="w-full border-collapse text-xs">
             <thead>
               <tr className="border-b text-left">
-                {['Group', 'HSN', 'Karat', 'Items', 'Pcs', 'Gross', 'Net', 'Fine', 'Value'].map((h) => <th key={h} className="p-1">{h}</th>)}
+                {/* HSN is not a key: t() returns it unchanged */}
+                {['stock.col_group', 'HSN', 'stock.col_karat', 'bill.col_items', 'stock.col_pcs', 'stock.col_gross', 'stock.col_net', 'stock.col_fine', 'gst.col_value'].map((h) => <th key={h} className="p-1">{t(h)}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -260,7 +261,7 @@ export function GroupStock() {
             </tbody>
             <tfoot>
               <tr className="font-semibold">
-                <td className="p-1" colSpan={3}>Total</td>
+                <td className="p-1" colSpan={3}>{t('bill.col_total')}</td>
                 <td className="p-1">{totalItems}</td><td className="p-1">{totalPcs}</td>
                 <td className="p-1">{rows.reduce((sum, g) => sum + Number(g.gross), 0).toFixed(3)}</td>
                 <td className="p-1">{rows.reduce((sum, g) => sum + Number(g.net), 0).toFixed(3)}</td>
@@ -272,7 +273,7 @@ export function GroupStock() {
       )}
 
       {bulkEditing && <BulkEditDialog ids={bulkIds} onClose={() => { setBulkEditing(false); clearSelection() }} />}
-      <MpinDialog open={bulkDeleting} title={`Delete ${plural(bulkIds.length, 'item')}`} onConfirm={async (mpin) => { await bulkDelete.mutateAsync({ ids: bulkIds, mpin }); clearSelection() }} onClose={() => setBulkDeleting(false)} />
+      <MpinDialog open={bulkDeleting} title={t('jbill.delete_title', { no: itemsLabel(bulkIds.length) })} onConfirm={async (mpin) => { await bulkDelete.mutateAsync({ ids: bulkIds, mpin }); clearSelection() }} onClose={() => setBulkDeleting(false)} />
     </div>
   )
 }

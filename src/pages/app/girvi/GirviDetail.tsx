@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { MpinDialog } from '@/components/MpinDialog'
+import { QrImage } from '@/components/QrImage'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -319,7 +320,8 @@ export function GirviDetail() {
       )}
 
       <div className={cn('print-area space-y-4 rounded-3xl border border-white/80 bg-card p-6 text-sm shadow-sm sm:p-10 dark:border-border print:rounded-none print:border-0 print:bg-transparent print:shadow-none', thermal && 'print-thermal mx-auto max-w-sm sm:p-6 print:max-w-none')}>
-        <div className="text-center">
+        <div className="relative min-h-13 px-14 text-center">
+          <QrImage text={String(batch.girviNo)} size={52} className="absolute right-0 top-0" />
           {show('showShopName') && <div className="text-lg font-bold">{shopName}</div>}
           {show('showShopAddress') && business?.address && <div>{business.address}</div>}
           {((show('showShopMobile') && business?.mobile) || (show('showShopGst') && business?.gstin)) && (
