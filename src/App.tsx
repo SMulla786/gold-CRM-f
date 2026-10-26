@@ -47,6 +47,7 @@ const ScanMatch = lazy(() => import('@/pages/app/inventory/ScanMatch').then((m) 
 const AllStockSummary = lazy(() => import('@/pages/app/inventory/AllStockSummary').then((m) => ({ default: m.AllStockSummary })))
 const PrinterSettings = lazy(() => import('@/pages/app/inventory/PrinterSettings').then((m) => ({ default: m.PrinterSettings })))
 const TagEditor = lazy(() => import('@/pages/app/inventory/TagEditor').then((m) => ({ default: m.TagEditor })))
+const Samples = lazy(() => import('@/pages/app/inventory/Samples').then((m) => ({ default: m.Samples })))
 const IncomeExpense = lazy(() => import('@/pages/app/IncomeExpense').then((m) => ({ default: m.IncomeExpense })))
 const DayBookLayout = lazy(() => import('@/pages/app/daybook/DayBookLayout').then((m) => ({ default: m.DayBookLayout })))
 const DayBookSummary = lazy(() => import('@/pages/app/daybook/DayBookSummary').then((m) => ({ default: m.DayBookSummary })))
@@ -190,6 +191,7 @@ export default function App() {
               <Route path="summary" element={<AllStockSummary />} />
               <Route path="printer" element={<PrinterSettings />} />
               <Route path="tag-editor" element={<TagEditor />} />
+              <Route path="samples" element={<Samples />} />
             </Route>
             <Route path="income_expense" element={<IncomeExpense />} />
             <Route path="daybook" element={<DayBookLayout />}>

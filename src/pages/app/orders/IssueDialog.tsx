@@ -1,15 +1,18 @@
 import { useState } from 'react'
 
 import { PartyPicker } from '@/components/PartyPicker'
+import { SamplePicker } from '@/components/SamplePicker'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useBankAccounts } from '@/lib/appQueries'
+import { useAuth } from '@/lib/auth'
 import { usePartyBalance } from '@/lib/billingQueries'
 import { useCreateKarigarIssue } from '@/lib/ordersQueries'
-import type { OrderItemDto, PartyRefDto } from '@/shared'
+import { SAMPLES_PERM, useIssueSamples } from '@/lib/samplesQueries'
+import type { OrderItemDto, PartyRefDto, SamplePickDto } from '@/shared'
 
 const n = (s: string) => Number(s) || 0
 
@@ -17,6 +20,11 @@ const n = (s: string) => Number(s) || 0
 export function IssueDialog({ items, onClose }: { items: OrderItemDto[]; onClose: () => void }) {
   const itemIds = items.map((it) => it.id)
   const issue = useCreateKarigarIssue()
+  const canSamples = useAuth().can(SAMPLES_PERM, 'edit')
+  const issueSamples = useIssueSamples()
+  // Optional tounch samples handed over with this issue: the issue body has no samples field, so each is issued via POST /app/samples/:id/issue after the issue saves.
+  const [samplesOpen, setSamplesOpen] = useState(false)
+  const [samples, setSamples] = useState<SamplePickDto[]>([])
   const { data: banks } = useBankAccounts()
   const [karigar, setKarigar] = useState<PartyRefDto | null>(null)
   const { data: karigarBal } = usePartyBalance(karigar?.id)
@@ -28,7 +36,7 @@ export function IssueDialog({ items, onClose }: { items: OrderItemDto[]; onClose
   const ok = !!karigar && (n(f.online) === 0 || f.bankAccountId)
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Issue {itemIds.length} item{itemIds.length === 1 ? '' : 's'} to karigar</DialogTitle></DialogHeader>
         <div className="grid gap-4">
           <div className="space-y-1.5"><Label>Karigar</Label><PartyPicker value={karigar} onChange={setKarigar} type="KARIGAR" ariaLabel="Karigar" placeholder="Search karigar" /></div>
@@ -62,10 +70,22 @@ export function IssueDialog({ items, onClose }: { items: OrderItemDto[]; onClose
             )}
           </div>
           <div className="space-y-1.5"><Label htmlFor="ki-remark">Remark</Label><Input id="ki-remark" value={f.remark} onChange={(e) => set('remark', e.target.value)} /></div>
+          {canSamples && <div className="space-y-2">
+            <Button type="button" variant="outline" size="sm" aria-expanded={samplesOpen} onClick={() => setSamplesOpen((o) => !o)}>
+              Select samples{samples.length ? ` (${samples.length})` : ''}
+            </Button>
+            {samplesOpen && (
+              <>
+                <p className="text-xs text-muted-foreground">Optional: tounch samples handed over with this issue. They are marked issued after the issue saves.</p>
+                <SamplePicker multiple value={samples} onChange={setSamples} />
+              </>
+            )}
+          </div>}
         </div>
         <DialogFooter>
-          <Button disabled={!ok || issue.isPending} onClick={async () => {
+          <Button disabled={!ok || issue.isPending || issueSamples.isPending} onClick={async () => {
             await issue.mutateAsync({ karigarId: karigar!.id, orderItemIds: itemIds, dueDate: dueDate || undefined, goldFine: n(f.goldFine), silverFine: n(f.silverFine), cash: n(f.cash), online: n(f.online), bankAccountId: n(f.online) > 0 ? Number(f.bankAccountId) : undefined, remark: f.remark || undefined, wastagePercent: f.wastagePercent !== '' ? n(f.wastagePercent) : undefined, wastageGm: f.wastageGm !== '' ? n(f.wastageGm) : undefined })
+            if (samples.length) await issueSamples.mutateAsync({ ids: samples.map((s) => s.id), karigarId: karigar!.id }).catch(() => {})
             onClose()
           }}>Issue</Button>
         </DialogFooter>
