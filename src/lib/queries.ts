@@ -147,7 +147,7 @@ export const useMoveBranch = () =>
 export const useCounters = (branchId?: number) =>
   useQuery({ queryKey: ['counters', branchId], queryFn: () => api.get<CounterDto[]>(`/admin/counters${qs({ branchId })}`) })
 
-export const useUsers = (params: { page?: number; q?: string; status?: string; branchId?: number }) =>
+export const useUsers = (params: { page?: number; pageSize?: number; q?: string; status?: string; branchId?: number }) =>
   useQuery({ queryKey: ['users', params], queryFn: () => api.get<Paged<UserDto>>(`/admin/users${qs(params)}`) })
 export const useCreateUser = () =>
   useApiMutation((body: Record<string, unknown>) => api.post<UserDto>('/admin/users', body), { invalidate: [['users']], success: 'User created' })
@@ -174,8 +174,30 @@ export const useSaveRolePermissions = () =>
 export const useAdminBusiness = () => useQuery({ queryKey: ['admin-business'], queryFn: () => api.get<BusinessProfileDto>('/admin/business') })
 export const useUpdateAdminBusiness = () =>
   useApiMutation((body: Record<string, unknown>) => api.patch<BusinessProfileDto>('/admin/business', body), { invalidate: [['admin-business']], success: 'Business updated' })
+export const useChangePassword = () =>
+  useApiMutation((body: { current: string; next: string }) => api.post('/auth/password', body), { success: 'Password changed' })
+export const useSetMpin = () => useApiMutation((body: { password: string; mpin: string }) => api.post('/auth/mpin', body), { success: 'MPIN saved' })
 export const useAdminSubscription = () =>
   useQuery({ queryKey: ['admin-subscription'], queryFn: () => api.get<SubscriptionViewDto>('/admin/subscription') })
+// TASK-95 — owner submits a payment (always PENDING), optionally with a screenshot; Super Admin confirms/rejects.
+export const useSubmitSubscriptionPayment = () =>
+  useApiMutation(
+    async ({ body, file }: { body: Record<string, unknown>; file?: File | null }) => {
+      const { id } = await api.post<{ id: number }>('/admin/subscription/payments', body)
+      if (file) {
+        const fd = new FormData()
+        fd.append('file', file)
+        await api.post(`/admin/subscription/payments/${id}/proof`, fd)
+      }
+      return id
+    },
+    { invalidate: [['admin-subscription']], success: 'Payment submitted for confirmation' },
+  )
+export const useReviewPayment = () =>
+  useApiMutation(({ id, status }: { id: number; status: 'CONFIRMED' | 'REJECTED' }) => api.patch<PaymentDto>(`/platform/payments/${id}`, { status }), {
+    invalidate: [['payments']],
+    success: 'Payment updated',
+  })
 
 // TASK-87 permission enquiries — staff (/app) request + mine; admin (/admin) inbox + approve/reject.
 export const useMyEnquiries = () =>

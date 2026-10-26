@@ -2,10 +2,12 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { Ban, BadgeCheck, Clock, Receipt, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 
+import { AuthedImage } from '@/components/AuthedImage'
 import { DataTable } from '@/components/DataTable'
+import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { usePayments } from '@/lib/queries'
+import { usePayments, useReviewPayment } from '@/lib/queries'
 import type { PaymentDto } from '@/shared'
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
@@ -15,6 +17,8 @@ const statusVariant = (s: PaymentDto['status']) => (s === 'CONFIRMED' ? 'default
 export function Payments() {
   const [page, setPage] = useState(1)
   const { data, isLoading } = usePayments(page)
+  const review = useReviewPayment()
+  const [proof, setProof] = useState<number | null>(null)
 
   const columns: ColumnDef<PaymentDto, unknown>[] = [
     { accessorKey: 'businessName', header: 'Business' },
@@ -23,6 +27,24 @@ export function Payments() {
     { accessorKey: 'utr', header: 'UTR / Ref', cell: ({ row }) => row.original.utr ?? '—' },
     { accessorKey: 'status', header: 'Status', cell: ({ row }) => <Badge variant={statusVariant(row.original.status)}>{row.original.status}</Badge> },
     { accessorKey: 'paidAt', header: 'Paid', cell: ({ row }) => date(row.original.paidAt) },
+    {
+      id: 'actions',
+      header: '',
+      cell: ({ row }) => {
+        const p = row.original
+        return (
+          <div className="flex justify-end gap-2">
+            {p.hasProof && <Button variant="ghost" size="sm" onClick={() => setProof(proof === p.id ? null : p.id)}>{proof === p.id ? 'Hide proof' : 'Proof'}</Button>}
+            {p.status === 'PENDING' && (
+              <>
+                <Button size="sm" disabled={review.isPending} onClick={() => review.mutate({ id: p.id, status: 'CONFIRMED' })}>Confirm</Button>
+                <Button size="sm" variant="outline" disabled={review.isPending} onClick={() => { if (window.confirm(`Reject ${inr(p.amount)} from ${p.businessName}?`)) review.mutate({ id: p.id, status: 'REJECTED' }) }}>Reject</Button>
+              </>
+            )}
+          </div>
+        )
+      },
+    },
   ]
 
   // Summary numbers derived from the page already fetched (no extra requests).
@@ -69,6 +91,7 @@ export function Payments() {
           isLoading={isLoading}
           pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined}
         />
+        {proof != null && <AuthedImage path={`/platform/payments/${proof}/proof`} alt="Payment screenshot" className="mt-4 max-h-[28rem] rounded-xl border" />}
       </Card>
     </div>
   )
