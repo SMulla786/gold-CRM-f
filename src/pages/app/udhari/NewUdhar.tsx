@@ -1,7 +1,8 @@
-import { CheckCircle2, RotateCcw } from 'lucide-react'
+import { CheckCircle2, Pencil, RotateCcw, Search } from 'lucide-react'
 import { useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
+import { MpinDialog } from '@/components/MpinDialog'
 import { PartyPicker } from '@/components/PartyPicker'
 import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
 import { Button } from '@/components/ui/button'
@@ -13,8 +14,8 @@ import { useBankAccounts, useParty } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
 import { usePartyBalance } from '@/lib/billingQueries'
-import { useCreateUdhar, usePendingBills } from '@/lib/udhariQueries'
-import { businessDayISO, METALS, moneyToMetal, type PartyRefDto } from '@/shared'
+import { useCreateUdhar, usePendingBills, useUdharEntries, useUdharTxn, useUpdateUdhar } from '@/lib/udhariQueries'
+import { businessDayISO, METALS, metalToMoney, moneyToMetal, type PartyRefDto } from '@/shared'
 
 const n = (s: string) => Number(s) || 0
 // float + w-full makes the <legend> a normal full-width header band (fieldset is flow-root to contain it)
@@ -40,7 +41,8 @@ export function NewUdhar() {
   const { data: banks } = useBankAccounts()
   const [party, setParty] = useState<PartyRefDto | null>(null)
   // ?partyId= pre-fills the party (Udhar Ledger row "New entry"); only until the user picks one
-  const [params] = useSearchParams()
+  const [params, setParams] = useSearchParams()
+  const navigate = useNavigate()
   const presetId = Number(params.get('partyId')) || undefined
   const { data: preset } = useParty(presetId)
   const [presetUsed, setPresetUsed] = useState(false)
@@ -51,60 +53,103 @@ export function NewUdhar() {
   const [saved, setSaved] = useState<{ id: number; txnNo: number } | null>(null)
   const { data: balance } = usePartyBalance(party?.id)
   const { data: pending } = usePendingBills({ partyId: party?.id, pageSize: 50 }, !!party)
+  const { data: history } = useUdharEntries({ partyId: party?.id, pageSize: 5 }, !!party) // last 5 movements for this party
 
   const [txnDate, setTxnDate] = useState(today())
   const [f, setF] = useState({ cashOut: '0', onlineOut: '0', outBankId: '', cashIn: '0', onlineIn: '0', inBankId: '', goldOut: '0', goldIn: '0', silverOut: '0', silverIn: '0', remark: '' })
   const set = (k: keyof typeof f, v: string) => setF((s) => ({ ...s, [k]: v }))
   const [bhavOn, setBhavOn] = useState(false)
-  const [bhav, setBhav] = useState({ direction: 'METAL_TO_MONEY', metal: 'GOLD', amount: '', rate: '', unitGrams: '10' })
+  const [bhav, setBhav] = useState({ direction: 'METAL_TO_MONEY', metal: 'GOLD', amount: '', weight: '', rate: '', unitGrams: '10' })
   const setB = (k: keyof typeof bhav, v: string) => setBhav((s) => ({ ...s, [k]: v }))
+  const [bhavBy, setBhavBy] = useState<'AMOUNT' | 'WEIGHT'>('AMOUNT')
   const [settleBillId, setSettleBillId] = useState('')
+  const [billQ, setBillQ] = useState('')
 
-  // live final balance (sign: + party owes shop)
-  const o = balance ?? { amount: '0', gold: '0', silver: '0' }
+  // ?edit=<udhar id> (receipt "Edit"): load the txn into the form once; Save then re-posts it under MPIN
+  const editId = Number(params.get('edit')) || undefined
+  const { data: editing } = useUdharTxn(editId)
+  const update = useUpdateUdhar()
+  const [loadedEdit, setLoadedEdit] = useState<number>()
+  const [confirmEdit, setConfirmEdit] = useState(false)
+  if (editing && !editing.isDeleted && loadedEdit !== editing.id) {
+    setLoadedEdit(editing.id)
+    setParty(editing.party)
+    setTxnDate(editing.txnDate)
+    setF({
+      cashOut: editing.cashOut, onlineOut: editing.onlineOut, outBankId: editing.outBank ? String(editing.outBank.id) : '',
+      cashIn: editing.cashIn, onlineIn: editing.onlineIn, inBankId: editing.inBank ? String(editing.inBank.id) : '',
+      goldOut: editing.goldOut, goldIn: editing.goldIn, silverOut: editing.silverOut, silverIn: editing.silverIn, remark: editing.remark ?? '',
+    })
+    setBhavOn(!!editing.bhav)
+    if (editing.bhav) setBhav({ direction: editing.bhav.direction, metal: editing.bhav.metal, amount: editing.bhav.amount, weight: editing.bhav.weight, rate: editing.bhav.rate, unitGrams: String(editing.bhav.unitGrams) })
+    setBhavBy('AMOUNT')
+    setSettleBillId(editing.settleBill ? String(editing.settleBill.id) : '')
+  }
+  const isEdit = !!editing && !editing.isDeleted && loadedEdit === editing.id
+
+  // bhav by weight: the ₹ amount is derived (server still converts amount → weight, so the saved weight is the ≈ shown)
+  const bhavAmount = bhavBy === 'WEIGHT' ? Number(metalToMoney(n(bhav.weight), n(bhav.rate), n(bhav.unitGrams))) : n(bhav.amount)
+
+  // live final balance (sign: + party owes shop). Editing: start from the balance without this txn's own postings.
+  const o = (isEdit && party?.id === editing.party.id ? editing.old : balance) ?? { amount: '0', gold: '0', silver: '0' }
   let amount = n(o.amount) + (n(f.cashOut) + n(f.onlineOut)) - (n(f.cashIn) + n(f.onlineIn))
   let gold = n(o.gold) + n(f.goldOut) - n(f.goldIn)
   let silver = n(o.silver) + n(f.silverOut) - n(f.silverIn)
-  if (bhavOn && n(bhav.amount) > 0 && n(bhav.rate) > 0) {
-    const w = Number(moneyToMetal(n(bhav.amount), n(bhav.rate), n(bhav.unitGrams)))
+  const beforeCut = bal(amount, gold, silver) // what the bhav cut converts from
+  if (bhavOn && bhavAmount > 0 && n(bhav.rate) > 0) {
+    const w = Number(moneyToMetal(bhavAmount, n(bhav.rate), n(bhav.unitGrams)))
     const sign = bhav.direction === 'MONEY_TO_METAL' ? 1 : -1
-    amount -= sign * n(bhav.amount)
+    amount -= sign * bhavAmount
     if (bhav.metal === 'GOLD') gold += sign * w
     else silver += sign * w
   }
 
   const movements = n(f.cashOut) + n(f.onlineOut) + n(f.cashIn) + n(f.onlineIn) + n(f.goldOut) + n(f.goldIn) + n(f.silverOut) + n(f.silverIn)
-  const bhavValid = !bhavOn || (n(bhav.amount) > 0 && n(bhav.rate) > 0)
+  const bhavValid = !bhavOn || (bhavAmount > 0 && n(bhav.rate) > 0)
   const banksOk = (n(f.onlineOut) === 0 || f.outBankId) && (n(f.onlineIn) === 0 || f.inBankId)
   const settleOk = !settleBillId || n(f.cashIn) + n(f.onlineIn) > 0
-  const valid = branchReady && !!party && (movements > 0 || bhavOn) && bhavValid && banksOk && settleOk
+  // an edit keeps the txn's own branch, so it needs no active branch
+  const valid = (branchReady || isEdit) && !!party && (movements > 0 || bhavOn) && bhavValid && banksOk && settleOk
 
+  const body = () => ({
+    partyId: party!.id, txnDate,
+    cashOut: n(f.cashOut), onlineOut: n(f.onlineOut), outBankId: n(f.onlineOut) > 0 ? Number(f.outBankId) : undefined,
+    cashIn: n(f.cashIn), onlineIn: n(f.onlineIn), inBankId: n(f.onlineIn) > 0 ? Number(f.inBankId) : undefined,
+    goldOut: n(f.goldOut), goldIn: n(f.goldIn), silverOut: n(f.silverOut), silverIn: n(f.silverIn),
+    bhav: bhavOn ? { direction: bhav.direction, metal: bhav.metal, amount: bhavAmount, rate: n(bhav.rate), unitGrams: Number(bhav.unitGrams) } : undefined,
+    settleBillId: settleBillId ? Number(settleBillId) : undefined,
+    remark: f.remark || undefined,
+  })
   const submit = async () => {
     if (!party) return
-    const res = await create.mutateAsync({
-      partyId: party.id, txnDate,
-      cashOut: n(f.cashOut), onlineOut: n(f.onlineOut), outBankId: n(f.onlineOut) > 0 ? Number(f.outBankId) : undefined,
-      cashIn: n(f.cashIn), onlineIn: n(f.onlineIn), inBankId: n(f.onlineIn) > 0 ? Number(f.inBankId) : undefined,
-      goldOut: n(f.goldOut), goldIn: n(f.goldIn), silverOut: n(f.silverOut), silverIn: n(f.silverIn),
-      bhav: bhavOn ? { direction: bhav.direction, metal: bhav.metal, amount: n(bhav.amount), rate: n(bhav.rate), unitGrams: Number(bhav.unitGrams) } : undefined,
-      settleBillId: settleBillId ? Number(settleBillId) : undefined,
-      remark: f.remark || undefined,
-    })
+    if (isEdit) { setConfirmEdit(true); return }
+    const res = await create.mutateAsync(body())
     setSaved({ id: res.id, txnNo: res.txnNo })
     clearAmounts()
   }
   const clearAmounts = () => {
     setF({ cashOut: '0', onlineOut: '0', outBankId: '', cashIn: '0', onlineIn: '0', inBankId: '', goldOut: '0', goldIn: '0', silverOut: '0', silverIn: '0', remark: '' })
-    setBhavOn(false); setSettleBillId('')
+    setBhavOn(false); setSettleBillId(''); setBillQ('')
   }
-  const startNew = () => { clearAmounts(); setParty(null); setTxnDate(today()); setSaved(null) }
+  const startNew = () => {
+    if (editId) setParams({}) // leave edit mode
+    clearAmounts(); setParty(null); setTxnDate(today()); setSaved(null)
+  }
 
   const bankSelect = (value: string, onChange: (v: string) => void, label: string) => (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger aria-label={label}><SelectValue placeholder={t('udhari.bank')} /></SelectTrigger>
-      <SelectContent>{banks?.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.bankName} · {b.accountNo}</SelectItem>)}</SelectContent>
-    </Select>
+    banks && banks.length === 0 ? (
+      <p className="text-sm text-muted-foreground">No banks configured. <Link to="/app/settings/bank-accounts" className="font-medium text-brand-strong hover:underline">Add a bank account</Link></p>
+    ) : (
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger aria-label={label}><SelectValue placeholder={t('udhari.bank')} /></SelectTrigger>
+        <SelectContent>{banks?.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.bankName} · {b.accountNo}</SelectItem>)}</SelectContent>
+      </Select>
+    )
   )
+  // settle-bill picker: open SELL bills, narrowed by bill no / items; the chosen (or edited txn's) bill always stays listed
+  const kw = billQ.trim().toLowerCase()
+  const settleBills = (pending?.items ?? []).filter((b) => b.kind === 'SELL' && Number(b.balance) > 0 && (!kw || String(b.id) === settleBillId || b.billNo.toLowerCase().includes(kw) || (b.itemsSummary ?? '').toLowerCase().includes(kw)))
+  const editBill = isEdit && editing.settleBill && !settleBills.some((b) => b.id === editing.settleBill!.id) ? editing.settleBill : null
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -132,6 +177,23 @@ export function NewUdhar() {
           <Input id="u-date" type="date" value={txnDate} onChange={(e) => setTxnDate(e.target.value)} />
         </div>
       </Card>
+
+      {party && !!history?.items.length && (
+        <Card className="overflow-hidden text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/40 px-6 py-3">
+            <span className="font-bold">{t('udhari.recent_txns')}</span>
+            <Link to={`/app/udhari/statement/${party.id}`} className="font-medium text-brand-strong hover:underline">{t('udhari.statement')}</Link>
+          </div>
+          <ul className="divide-y px-6">
+            {history.items.map((r) => (
+              <li key={`${r.source}-${r.sourceId}-${r.createdAt}`} className={`flex flex-wrap justify-between gap-2 py-2 tabular-nums ${r.isReversal ? 'text-muted-foreground line-through' : ''}`}>
+                <span className="text-muted-foreground">{new Date(r.txnDate).toLocaleDateString('en-IN')} · {r.source} · {r.reference}</span>
+                <span>{[Number(r.amount) ? `₹${r.amount}` : '', Number(r.gold) ? `${r.gold}g Au` : '', Number(r.silver) ? `${r.silver}g Ag` : ''].filter(Boolean).join(' · ') || '—'}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       <div className="grid gap-6 sm:grid-cols-2">
         <Card className="overflow-hidden">

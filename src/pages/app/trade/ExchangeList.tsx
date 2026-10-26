@@ -1,6 +1,7 @@
 import type { ColumnDef } from '@tanstack/react-table'
-import { ArrowLeftRight, Coins, Flame, IndianRupee, Scale, type LucideIcon } from 'lucide-react'
+import { ArrowLeftRight, Coins, Download, FileDown, Flame, IndianRupee, Printer, Scale, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { DataTable } from '@/components/DataTable'
 import { MpinDialog } from '@/components/MpinDialog'
@@ -10,8 +11,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAuth } from '@/lib/auth'
+import { downloadCsv } from '@/lib/csv'
+import { fetchAllPaged, qs } from '@/lib/queries'
 import { useDeleteExchange, useExchanges } from '@/lib/tradeQueries'
-import { METALS, TRADE_SIDES, type ExchangeDto } from '@/shared'
+import { businessDayISO, METALS, PARTY_TYPES, TRADE_SIDES, type ExchangeDto } from '@/shared'
 
 import { ProcessKachaDialog } from './ProcessKachaDialog'
 
@@ -28,8 +31,23 @@ export function ExchangeList() {
   const [metal, setMetal] = useState('')
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
-  const { data, isLoading } = useExchanges({ side: side || undefined, metal: metal || undefined, q: q || undefined, page })
+  const [pageSize, setPageSize] = useState(20)
+  const [ptype, setPtype] = useState('')
+  const filters = { side: side || undefined, metal: metal || undefined, q: q || undefined }
+  const { data, isLoading } = useExchanges({ ...filters, page, pageSize })
   const del = useDeleteExchange()
+  const [exporting, setExporting] = useState(false)
+  const exportCsv = async () => {
+    setExporting(true)
+    try {
+      const all = (await fetchAllPaged<ExchangeDto>('/app/exchange', filters)).filter((e) => !ptype || e.party.type === ptype)
+      const header = ['No', 'Date', 'Side', 'Party', 'Party type', 'Mobile', 'Metal', 'Lines (weight @ touch = fine)', 'Fine before adj. (g)', 'Adj. (g)', 'Fine (g)', 'Rate', 'Amount', 'Cash', 'Online', 'Balance', 'Processed', 'Remark']
+      const body = all.map((e) => [e.exchangeNo, date(e.txnDate), e.side, e.party.name, e.party.type, e.party.mobile, e.metal, e.lines.map((l) => `${l.weight} @ ${l.touch} = ${l.fine}`).join('; '), e.totalFine, e.diffFine, e.afterFine, e.rate, e.finalAmount, e.cash, e.online, e.balance, e.side === 'BUY' ? (e.processed ? 'Yes' : 'No') : '', e.remark])
+      downloadCsv(`exchanges-${businessDayISO()}.csv`, [header, ...body])
+    } finally {
+      setExporting(false)
+    }
+  }
   const [deleting, setDeleting] = useState<ExchangeDto | null>(null)
 
   // Only a BUY (old metal in) adds to the kacha pool, and processing posts at the active branch.
@@ -58,13 +76,15 @@ export function ExchangeList() {
     { id: 'actions', header: '', cell: ({ row }) => (
       <div className="flex justify-end gap-1">
         {meltAction(row.original)}
+        <Button asChild variant="ghost" size="sm"><Link to={`/app/exchange/${row.original.id}/print`}><Printer className="size-4" aria-hidden />Print</Link></Button>
         {canDelete && <Button variant="ghost" size="sm" onClick={() => setDeleting(row.original)}>Delete</Button>}
       </div>
     ) },
   ]
 
   // Summary numbers derived from the page already fetched (no extra requests).
-  const items = data?.items ?? []
+  // Party type is not a server filter (CONTRACT REQUEST), so it narrows the fetched page only.
+  const items = (data?.items ?? []).filter((e) => !ptype || e.party.type === ptype)
   const rowsOf = (m: ExchangeDto['metal']) => items.filter((e) => e.metal === m)
   const goldRows = rowsOf('GOLD')
   const silverRows = rowsOf('SILVER')
@@ -106,11 +126,18 @@ export function ExchangeList() {
             <SelectTrigger className="w-32" aria-label="Metal"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="all">All metals</SelectItem>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
           </Select>
+          <Select value={ptype || 'all'} onValueChange={(v) => setPtype(v === 'all' ? '' : v)}>
+            <SelectTrigger className="w-40" aria-label="Party type"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All party types</SelectItem>{PARTY_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+          </Select>
+          <Button variant="outline" className="ml-auto" disabled={exporting} onClick={() => void exportCsv()}><Download className="size-4" aria-hidden />{exporting ? 'Exporting…' : 'Export CSV'}</Button>
+          <Button asChild variant="outline"><Link to={`/app/exchange/print${qs({ ...filters, ptype: ptype || undefined })}`}><FileDown className="size-4" aria-hidden />Download PDF</Link></Button>
+          {ptype && <p className="w-full text-xs text-muted-foreground">Party type narrows the rows on this page only; totals and paging still count every party.</p>}
         </CardContent>
       </Card>
 
       <Card className="p-4">
-        <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} emptyText="No exchanges" pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined} />
+        <DataTable columns={columns} data={items} isLoading={isLoading} emptyText="No exchanges" pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: setPageSize } : undefined} />
       </Card>
       <MpinDialog open={!!deleting} title={`Delete exchange #${deleting?.exchangeNo ?? ''}`} onConfirm={(mpin) => del.mutateAsync({ id: deleting!.id, mpin })} onClose={() => setDeleting(null)} />
       {melting && <ProcessKachaDialog metal={melting.metal} source={{ id: melting.id, exchangeNo: melting.exchangeNo, fine: melting.afterFine }} onClose={() => setMelting(null)} />}

@@ -1,7 +1,7 @@
 import type { ColumnDef } from '@tanstack/react-table'
 import { Download, Printer, Search } from 'lucide-react'
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 
 import { DataTable } from '@/components/DataTable'
 import { Badge } from '@/components/ui/badge'
@@ -25,14 +25,17 @@ const weightOf = (t: RepairTicketDto) => `${t.gross} g${t.net ? ` (net ${t.net} 
 export function RepairLedger() {
   const { can } = useAuth()
   const canEdit = can('repair.entry', 'edit')
-  const [q, setQ] = useState('')
-  const [status, setStatus] = useState('')
+  // ?status= / ?q= deep links (e.g. the board's Delivered / Cancelled counts) seed the filters.
+  const [sp] = useSearchParams()
+  const [q, setQ] = useState(sp.get('q') ?? '')
+  const [status, setStatus] = useState(() => { const s = sp.get('status') ?? ''; return (REPAIR_STATUSES as readonly string[]).includes(s) ? s : '' })
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
   const [exporting, setExporting] = useState(false)
   const [detailsId, setDetailsId] = useState<number | null>(null)
   const [deliver, setDeliver] = useState<RepairTicketDto | null>(null)
   const [assign, setAssign] = useState<RepairTicketDto | null>(null)
-  const { data, isLoading } = useRepairs({ q: q.trim() || undefined, status: status || undefined, page })
+  const { data, isLoading } = useRepairs({ q: q.trim() || undefined, status: status || undefined, page, pageSize })
 
   const exportCsv = async () => {
     setExporting(true)
@@ -103,7 +106,7 @@ export function RepairLedger() {
         data={data?.items ?? []}
         isLoading={isLoading}
         emptyText={q || status ? 'No tickets match these filters.' : 'No repair tickets yet.'}
-        pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined}
+        pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: setPageSize } : undefined}
       />
 
       {detailsId != null && <TicketDetailsDialog id={detailsId} onClose={() => setDetailsId(null)} />}

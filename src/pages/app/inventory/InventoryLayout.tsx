@@ -9,6 +9,7 @@ const TABS = [
   { to: '/app/inventory/new', label: 'New Stock', key: 'inventory.new_stock' },
   { to: '/app/inventory/stock', label: 'Stock', key: 'inventory.all_stock' },
   { to: '/app/inventory/groups', label: 'Group-wise', key: 'inventory.all_stock' },
+  { to: '/app/inventory/summary', label: 'All Stock Summary', key: 'inventory.all_stock' },
   { to: '/app/inventory/import', label: 'Import', key: 'inventory.import_stock' },
   { to: '/app/inventory/shortage', label: 'Shortage', key: 'inventory.all_stock' },
   { to: '/app/inventory/transfers', label: 'Transfer', key: 'inventory.stock_transfer', needsBranches: true },

@@ -1,6 +1,7 @@
 import type { ColumnDef } from '@tanstack/react-table'
 import { IndianRupee, ReceiptText, RotateCcw, Scale, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
+import { flushSync } from 'react-dom'
 import { useSearchParams } from 'react-router-dom'
 
 import { DataTable } from '@/components/DataTable'
@@ -11,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { downloadCsv } from '@/lib/csv'
 import { fetchAllPaged } from '@/lib/queries'
+import { downloadPdf } from '@/lib/share'
 import { useSchemeGroups, useSchemeTransactions, useSchemes } from '@/lib/schemesQueries'
 import { businessDayISO, SCHEME_KINDS, SCHEME_PAY_MEDIUMS, type SchemeTxnRowDto } from '@/shared'
 
@@ -28,6 +30,7 @@ export function SchemeTransactions() {
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
   const [exporting, setExporting] = useState(false)
   const { data: schemes } = useSchemes({ active: 'true', kind: kind || undefined, pageSize: 100 })
   const { data: groups } = useSchemeGroups(schemeId ? Number(schemeId) : undefined)
@@ -35,15 +38,20 @@ export function SchemeTransactions() {
     kind: kind || undefined, schemeId: schemeId ? Number(schemeId) : undefined, groupId: groupId ? Number(groupId) : undefined, q: q.trim() || undefined,
     medium: medium || undefined, from: from || undefined, to: to || undefined,
   }
-  const { data, isLoading } = useSchemeTransactions({ ...params, page })
+  const { data, isLoading } = useSchemeTransactions({ ...params, page, pageSize })
 
-  const exportCsv = async () => {
+  // CSV and PDF export the same columns for every filtered row (fetch-all, not just this page).
+  const EXPORT_HEAD = ['Date', 'Assign', 'Member', 'Scheme', 'Group', 'EMI', 'EMI date', 'Amount', 'Via', 'Fine', 'Reversed']
+  const exportRow = (t: SchemeTxnRowDto) => [date(t.txnDate), t.assignId, t.party.name, t.scheme.name, t.group?.name ?? '', t.emiNo != null ? String(t.emiNo) : '', t.emiDate ? date(t.emiDate) : '', t.amount, t.medium, t.fine ?? '', t.isReversed ? 'yes' : '']
+  const [printRows, setPrintRows] = useState<string[][] | null>(null)
+  const exportAll = async (kindOf: 'csv' | 'pdf') => {
     setExporting(true)
     try {
       const all = await fetchAllPaged<SchemeTxnRowDto>('/app/schemes/transactions', params)
-      const rows = [['Date', 'Assign', 'Member', 'Scheme', 'Group', 'EMI', 'EMI date', 'Amount', 'Via', 'Fine', 'Reversed']]
-      for (const t of all) rows.push([date(t.txnDate), t.assignId, t.party.name, t.scheme.name, t.group?.name ?? '', t.emiNo != null ? String(t.emiNo) : '', t.emiDate ? date(t.emiDate) : '', t.amount, t.medium, t.fine ?? '', t.isReversed ? 'yes' : ''])
-      downloadCsv(`scheme-transactions-${businessDayISO()}.csv`, rows)
+      if (kindOf === 'csv') { downloadCsv(`scheme-transactions-${businessDayISO()}.csv`, [EXPORT_HEAD, ...all.map(exportRow)]); return }
+      flushSync(() => setPrintRows(all.map(exportRow)))
+      window.addEventListener('afterprint', () => setPrintRows(null), { once: true })
+      downloadPdf()
     } finally { setExporting(false) }
   }
 
@@ -111,13 +119,29 @@ export function SchemeTransactions() {
           </Select>
           <Input className="w-40" type="date" aria-label="From" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1) }} />
           <Input className="w-40" type="date" aria-label="To" value={to} onChange={(e) => { setTo(e.target.value); setPage(1) }} />
-          <Button className="ml-auto" variant="outline" size="sm" disabled={exporting || !data?.total} onClick={() => void exportCsv()}>{exporting ? 'Exporting…' : 'Export CSV'}</Button>
+          <Button className="ml-auto" variant="outline" size="sm" disabled={exporting || !data?.total} onClick={() => void exportAll('csv')}>{exporting ? 'Exporting…' : 'Export CSV'}</Button>
+          <Button variant="outline" size="sm" disabled={exporting || !data?.total} onClick={() => void exportAll('pdf')}>Export PDF</Button>
         </CardContent>
       </Card>
 
       <Card className="p-4">
-        <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} emptyText="No transactions" pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined} />
+        <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} emptyText="No transactions" pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: setPageSize } : undefined} />
       </Card>
+
+      {printRows && (
+        <div className="print-area hidden print:block">
+          <h2 className="mb-1 text-lg font-semibold">Scheme transactions{from || to ? ` · ${from || '…'} to ${to || '…'}` : ''}</h2>
+          <p className="mb-3 text-xs">{printRows.length} entries</p>
+          <table className="w-full border-collapse text-xs">
+            <thead><tr className="border-b text-left">{['S.N.', ...EXPORT_HEAD].map((h) => <th key={h} className="p-1">{h}</th>)}</tr></thead>
+            <tbody>
+              {printRows.map((r, i) => (
+                <tr key={i} className="border-b"><td className="p-1">{i + 1}</td>{r.map((c, j) => <td key={j} className="p-1">{c}</td>)}</tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }

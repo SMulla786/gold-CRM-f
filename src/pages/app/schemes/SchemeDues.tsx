@@ -1,5 +1,6 @@
 import { CalendarClock, CircleCheck, IndianRupee, Layers, Users, type LucideIcon } from 'lucide-react'
 import { Fragment, useMemo, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { useSearchParams } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
@@ -8,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { downloadCsv } from '@/lib/csv'
+import { downloadPdf } from '@/lib/share'
 import { useSchemeDues, useSchemeGroups, useSchemes } from '@/lib/schemesQueries'
 import { businessDayISO, SCHEME_KINDS, type SchemeDueRowDto } from '@/shared'
 
@@ -16,9 +18,10 @@ const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
 const KIND_LABEL: Record<string, string> = { SAVING: 'Saving', ANJUMAN: 'Anjuman' }
 type View = 'flat' | 'group' | 'scheme'
 
-function DueRow({ d }: { d: SchemeDueRowDto }) {
+function DueRow({ d, sn }: { d: SchemeDueRowDto; sn: number }) {
   return (
     <TableRow>
+      <TableCell className="tabular-nums text-muted-foreground">{sn}</TableCell>
       <TableCell className="font-medium">{d.assignId}</TableCell><TableCell>{d.displayName}</TableCell>
       <TableCell className="tabular-nums">{d.party?.mobile || '—'}</TableCell>
       <TableCell>{d.scheme.name}</TableCell><TableCell>{d.group?.name ?? '—'}</TableCell>
@@ -58,6 +61,14 @@ export function SchemeDues() {
     const rows = [['Assign', 'Member', 'Mobile', 'Scheme', 'Group', 'EMI', 'Due count', 'Due amount', 'Oldest due']]
     for (const d of dues ?? []) rows.push([d.assignId, d.displayName, d.party.mobile ?? '', d.scheme.name, d.group?.name ?? '', d.emiAmount, String(d.emisDue), d.dueAmount, date(d.oldestDueDate)])
     downloadCsv(`scheme-dues-${businessDayISO()}.csv`, rows)
+  }
+
+  // PDF = browser print of the filtered list (the endpoint is unpaged, so these are all rows) via the hidden .print-area.
+  const [printing, setPrinting] = useState(false)
+  const exportPdf = () => {
+    flushSync(() => setPrinting(true))
+    window.addEventListener('afterprint', () => setPrinting(false), { once: true })
+    downloadPdf()
   }
 
   // Summary numbers derived from the dues list already fetched (no extra requests).
@@ -118,6 +129,7 @@ export function SchemeDues() {
           <Button variant="outline" size="sm" onClick={() => setView((v) => (v === 'group' ? 'flat' : 'group'))}>{view === 'group' ? 'Flat list' : 'Group-wise'}</Button>
           <Button variant="outline" size="sm" onClick={() => setView((v) => (v === 'scheme' ? 'flat' : 'scheme'))}>{view === 'scheme' ? 'Flat list' : 'Scheme-wise'}</Button>
           <Button className="ml-auto" variant="outline" size="sm" disabled={!dues?.length} onClick={exportCsv}>Export CSV</Button>
+          <Button variant="outline" size="sm" disabled={!dues?.length} onClick={exportPdf}>Export PDF</Button>
         </CardContent>
       </Card>
 
@@ -144,26 +156,50 @@ export function SchemeDues() {
           </Table>
         ) : (
           <Table>
-            <TableHeader><TableRow><TableHead>Assign</TableHead><TableHead>Member</TableHead><TableHead>Contact</TableHead><TableHead>Scheme</TableHead><TableHead>Group</TableHead><TableHead>EMI</TableHead><TableHead>Due</TableHead><TableHead>Amount</TableHead><TableHead>Oldest</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>S.N.</TableHead><TableHead>Assign</TableHead><TableHead>Member</TableHead><TableHead>Contact</TableHead><TableHead>Scheme</TableHead><TableHead>Group</TableHead><TableHead>EMI</TableHead><TableHead>Due</TableHead><TableHead>Amount</TableHead><TableHead>Oldest</TableHead></TableRow></TableHeader>
             <TableBody>
-              {isLoading ? <TableRow><TableCell colSpan={9} className="h-16 text-center text-muted-foreground">Loading…</TableCell></TableRow>
-                : !dues?.length ? empty(9)
+              {isLoading ? <TableRow><TableCell colSpan={10} className="h-16 text-center text-muted-foreground">Loading…</TableCell></TableRow>
+                : !dues?.length ? empty(10)
                 : view === 'group' ? grouped.map(([name, items]) => (
                     <Fragment key={`g-${name}`}>
                       <TableRow className="bg-muted/50">
-                        <TableCell colSpan={6} className="font-semibold">{name} <span className="font-normal text-muted-foreground">· {items.length}</span></TableCell>
+                        <TableCell colSpan={7} className="font-semibold">{name} <span className="font-normal text-muted-foreground">· {items.length}</span></TableCell>
                         <TableCell className="tabular-nums">{sumEmis(items)}</TableCell>
                         <TableCell className="tabular-nums font-semibold">{sumDue(items)}</TableCell>
                         <TableCell />
                       </TableRow>
-                      {items.map((d) => <DueRow key={d.enrollmentId} d={d} />)}
+                      {items.map((d, i) => <DueRow key={d.enrollmentId} d={d} sn={i + 1} />)}
                     </Fragment>
                   ))
-                : dues.map((d) => <DueRow key={d.enrollmentId} d={d} />)}
+                : dues.map((d, i) => <DueRow key={d.enrollmentId} d={d} sn={i + 1} />)}
             </TableBody>
           </Table>
         )}
       </Card>
+
+      {printing && dues && (
+        <div className="print-area hidden print:block">
+          <h2 className="mb-1 text-lg font-semibold">Scheme dues · {businessDayISO()}</h2>
+          <p className="mb-3 text-xs">{dues.length} members · {dueEmis} EMIs · {inr(dueTotal)}</p>
+          <table className="w-full border-collapse text-xs">
+            <thead>
+              <tr className="border-b text-left">{['S.N.', 'Assign', 'Member', 'Contact', 'Scheme', 'Group', 'EMI', 'Due', 'Amount', 'Oldest'].map((h) => <th key={h} className="p-1">{h}</th>)}</tr>
+            </thead>
+            <tbody>
+              {dues.map((d, i) => (
+                <tr key={d.enrollmentId} className="border-b">
+                  <td className="p-1">{i + 1}</td><td className="p-1">{d.assignId}</td><td className="p-1">{d.displayName}</td><td className="p-1">{d.party?.mobile ?? ''}</td>
+                  <td className="p-1">{d.scheme.name}</td><td className="p-1">{d.group?.name ?? '—'}</td><td className="p-1">{inr(d.emiAmount)}</td>
+                  <td className="p-1">{d.emisDue}</td><td className="p-1">{inr(d.dueAmount)}</td><td className="p-1">{date(d.oldestDueDate)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="font-semibold"><td className="p-1" colSpan={7}>Total</td><td className="p-1">{dueEmis}</td><td className="p-1">{inr(dueTotal)}</td><td /></tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
     </div>
   )
 }

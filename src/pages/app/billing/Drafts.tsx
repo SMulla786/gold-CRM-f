@@ -1,6 +1,7 @@
 import type { ColumnDef } from '@tanstack/react-table'
 import { Search } from 'lucide-react'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { DataTable } from '@/components/DataTable'
 import { Badge } from '@/components/ui/badge'
@@ -8,7 +9,9 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useCancelDraft, useDrafts } from '@/lib/draftsQueries'
+import { MpinDialog } from '@/components/MpinDialog'
+import { useAuth } from '@/lib/auth'
+import { useCancelDraft, useDeleteDraft, useDrafts } from '@/lib/draftsQueries'
 import { useT } from '@/lib/i18n'
 import { DRAFT_STATUSES, type SalesDraftDto } from '@/shared'
 
@@ -25,6 +28,9 @@ export function Drafts() {
   const [pageSize, setPageSize] = useState(20)
   const { data, isLoading } = useDrafts({ status: status || undefined, q: q || undefined, page, pageSize })
   const cancel = useCancelDraft()
+  const del = useDeleteDraft()
+  const canDelete = useAuth().can('billing.showroom_drafts', 'delete')
+  const [deleting, setDeleting] = useState<SalesDraftDto | null>(null)
 
   const columns: ColumnDef<SalesDraftDto, unknown>[] = [
     { header: t('draft.col_draft'), cell: ({ row }) => <span className="font-semibold">#{row.original.draftNo}</span> },
@@ -42,12 +48,19 @@ export function Drafts() {
     { header: t('stock.col_status'), cell: ({ row }) => <Badge variant={STATUS_VARIANT[row.original.status] ?? 'secondary'}>{row.original.status}</Badge> },
     {
       id: 'actions', header: '',
-      cell: ({ row }) =>
-        row.original.status === 'PENDING' || row.original.status === 'APPROVED' ? (
-          <Button variant="ghost" size="sm" disabled={cancel.isPending} onClick={() => cancel.mutate({ id: row.original.id })}>{t('common.cancel')}</Button>
-        ) : row.original.status === 'REJECTED' && row.original.rejectionReason ? (
-          <span className="text-xs text-muted-foreground">{row.original.rejectionReason}</span>
-        ) : null,
+      cell: ({ row }) => (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button asChild variant="ghost" size="sm"><Link to={`/app/billing/drafts/${row.original.id}/slip`}>{t('draft.slip')}</Link></Button>
+          {row.original.status === 'PENDING' || row.original.status === 'APPROVED' ? (
+            <Button variant="ghost" size="sm" disabled={cancel.isPending} onClick={() => cancel.mutate({ id: row.original.id })}>{t('common.cancel')}</Button>
+          ) : row.original.status === 'REJECTED' && row.original.rejectionReason ? (
+            <span className="text-xs text-muted-foreground">{row.original.rejectionReason}</span>
+          ) : null}
+          {canDelete && row.original.status !== 'BILLED' && (
+            <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleting(row.original)}>{t('common.delete')}</Button>
+          )}
+        </div>
+      ),
     },
   ]
 
@@ -75,6 +88,7 @@ export function Drafts() {
         emptyText={t('draft.no_drafts')}
         pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: setPageSize } : undefined}
       />
+      <MpinDialog open={!!deleting} title={t('draft.delete_title', { no: deleting?.draftNo ?? '' })} onConfirm={(mpin) => del.mutateAsync({ id: deleting!.id, mpin })} onClose={() => setDeleting(null)} />
     </div>
   )
 }

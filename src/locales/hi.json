@@ -691,5 +691,30 @@
   "jbill.gst_amount": "GST राशि",
   "jbill.discount_amount": "छूट राशि",
 
-  "bill.totals_row": "कुल ({n} पंक्तियाँ)"
+  "bill.totals_row": "कुल ({n} पंक्तियाँ)",
+
+  "udhari.recent_txns": "हाल की उधार प्रविष्टियाँ",
+  "bill.jama_udhar": "जमा / उधार भुगतान ↗",
+  "bill.tag_no_ph": "टैग नं. (स्वतः)",
+
+  "daybook.details": "विवरण",
+  "daybook.txn_details": "लेन-देन विवरण",
+  "daybook.is_reversal": "यह पंक्ति पिछली प्रविष्टि को उलटती है।",
+  "daybook.was_reversed": "यह प्रविष्टि बाद में उलटी गई।",
+  "daybook.open_document": "दस्तावेज़ खोलें",
+  "bill.cols_all": "सभी",
+  "bill.cols_simple": "सरल",
+  "bill.cols_tunch": "टंच",
+  "draft.delete_title": "ड्राफ्ट #{no} हटाएँ",
+
+  "bill.order_search_ph": "ऑर्डर नं. / पक्ष…",
+  "billing.tab_invoice_settings": "इनवॉइस सेटिंग",
+
+  "bill.custom_item": "कस्टम आइटम",
+
+  "draft.slip": "स्लिप",
+  "draft.back_drafts": "← ड्राफ्ट",
+  "draft.slip_intro": "यह स्लिप प्रिंट करें ताकि ग्राहक कैशियर को दे सके।",
+  "draft.slip_title": "शोरूम ड्राफ्ट — बिलिंग काउंटर पर दिखाएँ",
+  "draft.slip_valid": "{date} तक मान्य"
 }

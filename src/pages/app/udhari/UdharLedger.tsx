@@ -12,6 +12,7 @@ import { useUdharLedger } from '@/lib/udhariQueries'
 import { downloadCsv } from '@/lib/csv'
 import { useT } from '@/lib/i18n'
 import { fetchAllPaged } from '@/lib/queries'
+import { shareOnWhatsApp } from '@/lib/share'
 import { PARTY_TYPES, type PartyBalanceRowDto } from '@/shared'
 
 // + = party owes shop (red), − = shop owes party (green)
@@ -49,6 +50,7 @@ export function UdharLedger() {
   }
 
   const columns: ColumnDef<PartyBalanceRowDto, unknown>[] = [
+    { id: 'sn', header: '#', cell: ({ row }) => <span className="text-muted-foreground tabular-nums">{(page - 1) * pageSize + row.index + 1}</span> },
     { header: t('udhari.col_party'), cell: ({ row }) => <span className="font-semibold">{row.original.party.name}</span> },
     { header: t('udhari.col_mobile'), cell: ({ row }) => row.original.party.mobile },
     // Period Old/In/Out/Final (from/to set) for the chosen unit — the breakdown carries all three units.
@@ -68,6 +70,8 @@ export function UdharLedger() {
       id: 'actions', header: '',
       cell: ({ row }) => (
         <div className="flex justify-end gap-2">
+          {/* WhatsApp text stays English (share template) */}
+          <Button variant="ghost" size="sm" onClick={() => shareOnWhatsApp(row.original.party.mobile, `${row.original.party.name}\nUdhar balance: ₹${row.original.amount}${Number(row.original.gold) ? ` · ${row.original.gold}g gold` : ''}${Number(row.original.silver) ? ` · ${row.original.silver}g silver` : ''}`)}>{t('udhari.share')}</Button>
           <Button asChild variant="ghost" size="sm"><Link to={`/app/udhari?partyId=${row.original.party.id}`}>{t('udhari.new_txn')}</Link></Button>
           <Button asChild variant="outline" size="sm"><Link to={`/app/udhari/statement/${row.original.party.id}`}>{t('udhari.statement')}</Link></Button>
         </div>

@@ -3,9 +3,12 @@ import { Landmark, Receipt, TriangleAlert, Wallet } from 'lucide-react'
 import { useState } from 'react'
 
 import { KpiTile } from '@/components/KpiTile'
-import { SectionCard } from '@/components/SectionCard'
+import { SectionCard, TableCard } from '@/components/SectionCard'
+import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { downloadCsv } from '@/lib/csv'
 import { useT } from '@/lib/i18n'
 import { useGstr3b } from '@/lib/reportsQueries'
 
@@ -22,13 +25,22 @@ export function Gstr3bReport() {
   const [month, setMonth] = useState(thisMonth())
   const { data, isLoading } = useGstr3b(monthRange(month))
 
+  // TASK-97: the return-form rows derivable from the endpoint (3.1(a), 4(A)(5)); same rows on screen and in the CSV.
+  const head = ['Section', 'Description', 'Taxable', 'CGST', 'SGST', 'IGST']
+  const rows = data ? [
+    ['3.1(a)', t('gst.outward'), data.outward.taxable, data.outward.cgst, data.outward.sgst, data.outward.igst],
+    ['4(A)(5)', 'All other ITC', '', data.itc.cgst, data.itc.sgst, data.itc.igst],
+  ] : []
+
   return (
     <div className="space-y-6">
       {data && !data.gstin && <div className="flex items-start gap-2 rounded-2xl border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400"><TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />{t('gst.no_gstin')}</div>}
 
-      <Card className="flex w-fit flex-wrap items-end gap-3 p-4">
+      <Card className="flex w-fit flex-wrap items-end gap-3 p-4 print:hidden">
         <div className="space-y-1.5"><Label htmlFor="g3-month">{t('gst.month')}</Label><input id="g3-month" type="month" className="h-9 rounded-xl border bg-transparent px-3 text-sm shadow-xs" value={month} onChange={(e) => setMonth(e.target.value || thisMonth())} /></div>
+        <Button variant="outline" size="sm" disabled={!data} onClick={() => downloadCsv(`gstr3b-${month}.csv`, [head, ...rows])}>{t('common.export_csv')}</Button>
       </Card>
+      <p className="hidden text-sm print:block">{t('gst.month')}: {month}</p>
 
       {isLoading || !data ? (
         <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
@@ -47,6 +59,17 @@ export function Gstr3bReport() {
                 <div key={k} className="flex justify-between py-3"><span className="text-muted-foreground">{k.toUpperCase()}</span><span className="font-semibold">{inr(data.itc[k])}</span></div>
               ))}
             </SectionCard>
+
+            <TableCard>
+              <Table>
+                <TableHeader><TableRow>{head.map((h, i) => <TableHead key={h} className={i > 1 ? 'text-right' : ''}>{h}</TableHead>)}</TableRow></TableHeader>
+                <TableBody>
+                  {rows.map((r) => (
+                    <TableRow key={r[0]}>{r.map((c, i) => <TableCell key={i} className={i > 1 ? 'text-right tabular-nums' : i === 0 ? 'font-medium' : ''}>{i > 1 ? (c ? inr(c) : '—') : c}</TableCell>)}</TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableCard>
           </div>
 
           <div className="space-y-6 xl:col-span-4">

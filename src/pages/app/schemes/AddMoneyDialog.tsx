@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useBankAccounts } from '@/lib/appQueries'
 import { useAddSchemePayment } from '@/lib/schemesQueries'
-import { businessDayISO, SCHEME_PAY_MEDIUMS, type EnrollmentDto } from '@/shared'
+import { businessDayISO, SCHEME_PAY_MEDIUMS, type EnrollmentDetailDto, type EnrollmentDto } from '@/shared'
+import { SchemeReceiptDialog } from './SchemeReceipt'
 
 const n = (s: string) => Number(s) || 0
 
@@ -20,13 +21,18 @@ export function AddMoneyDialog({ enrollment, onClose }: { enrollment: Enrollment
   const set = (k: keyof typeof f, v: string) => setF((s) => ({ ...s, [k]: v }))
   const valid = n(f.amount) > 0 && (f.medium !== 'ONLINE' || f.bankAccountId)
 
+  const [saved, setSaved] = useState<EnrollmentDetailDto | null>(null)
+
   const submit = async () => {
-    await add.mutateAsync({
+    const res = await add.mutateAsync({
       enrollmentId: enrollment.id, emiNo: f.emiNo ? n(f.emiNo) : undefined, txnDate: f.txnDate || undefined, amount: n(f.amount), medium: f.medium,
       bankAccountId: f.medium === 'ONLINE' ? Number(f.bankAccountId) : undefined, rate: gold && f.rate ? n(f.rate) : undefined, remark: f.remark || undefined,
     })
-    onClose()
+    setSaved(res) // payments come back id-ascending, so the new one is last
   }
+
+  const newPayment = saved?.payments.at(-1)
+  if (saved && newPayment) return <SchemeReceiptDialog enrollment={saved} paymentId={newPayment.id} onClose={onClose} />
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>

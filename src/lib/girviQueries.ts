@@ -27,6 +27,11 @@ export const useGirviRelease = () =>
 
 export const useDeleteGirvi = () =>
   useApiMutation(({ id, mpin }: { id: number; mpin: string }) => api.del(`/app/girvi/${id}`, { mpin }), { invalidate: GIRVI_KEYS, success: 'Loan deleted' })
+export const useReplaceGirviItem = () =>
+  useApiMutation(
+    ({ id, itemId, body, mpin }: { id: number; itemId: number; body: Record<string, unknown>; mpin: string }) => api.patch<GirviBatchDto>(`/app/girvi/${id}/items/${itemId}`, body, { mpin }),
+    { invalidate: GIRVI_KEYS, success: 'Item updated' },
+  )
 
 // Phase 9b — transfers (re-pledge to a lender): girvi.transfer view/edit
 export const useGirviTransfers = (params: Record<string, string | number | undefined>) =>

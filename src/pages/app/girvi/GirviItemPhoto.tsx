@@ -10,7 +10,7 @@ import { useApiMutation } from '@/lib/queries'
 import type { GirviItemDto } from '@/shared'
 
 /** Pledged-item photo: thumbnail (prints on the receipt) + upload/capture for girvi.entry editors. Uploads immediately. */
-export function GirviItemPhoto({ item }: { item: GirviItemDto }) {
+export function GirviItemPhoto({ item, printable = true }: { item: GirviItemDto; printable?: boolean }) {
   const { can } = useAuth()
   const [ver, setVer] = useState(0)
   const [capturing, setCapturing] = useState(false)
@@ -35,7 +35,7 @@ export function GirviItemPhoto({ item }: { item: GirviItemDto }) {
   return (
     <div className="flex items-center gap-1.5">
       {item.photoUrl ? (
-        <AuthedImage path={path} ver={ver} alt={`${item.name} photo`} className="size-10 rounded-md border object-cover" />
+        <AuthedImage path={path} ver={ver} alt={`${item.name} photo`} className={`size-10 rounded-md border object-cover ${printable ? '' : 'print:hidden'}`} />
       ) : null}
       {canEdit && (
         <span className="flex gap-1 print:hidden">

@@ -44,6 +44,7 @@ const Shortage = lazy(() => import('@/pages/app/inventory/Shortage').then((m) =>
 const StockTransfers = lazy(() => import('@/pages/app/inventory/StockTransfers').then((m) => ({ default: m.StockTransfers })))
 const TagPrint = lazy(() => import('@/pages/app/inventory/TagPrint').then((m) => ({ default: m.TagPrint })))
 const ScanMatch = lazy(() => import('@/pages/app/inventory/ScanMatch').then((m) => ({ default: m.ScanMatch })))
+const AllStockSummary = lazy(() => import('@/pages/app/inventory/AllStockSummary').then((m) => ({ default: m.AllStockSummary })))
 const IncomeExpense = lazy(() => import('@/pages/app/IncomeExpense').then((m) => ({ default: m.IncomeExpense })))
 const DayBookLayout = lazy(() => import('@/pages/app/daybook/DayBookLayout').then((m) => ({ default: m.DayBookLayout })))
 const DayBookSummary = lazy(() => import('@/pages/app/daybook/DayBookSummary').then((m) => ({ default: m.DayBookSummary })))
@@ -61,6 +62,7 @@ const JustBillList = lazy(() => import('@/pages/app/billing/JustBillList').then(
 const JustBillView = lazy(() => import('@/pages/app/billing/JustBillView').then((m) => ({ default: m.JustBillView })))
 const Drafts = lazy(() => import('@/pages/app/billing/Drafts').then((m) => ({ default: m.Drafts })))
 const DraftApprovals = lazy(() => import('@/pages/app/billing/DraftApprovals').then((m) => ({ default: m.DraftApprovals })))
+const DraftSlip = lazy(() => import('@/pages/app/billing/DraftSlip').then((m) => ({ default: m.DraftSlip })))
 const OrdersLayout = lazy(() => import('@/pages/app/orders/OrdersLayout').then((m) => ({ default: m.OrdersLayout })))
 const NewOrder = lazy(() => import('@/pages/app/orders/NewOrder').then((m) => ({ default: m.NewOrder })))
 const OrderList = lazy(() => import('@/pages/app/orders/OrderList').then((m) => ({ default: m.OrderList })))
@@ -88,6 +90,10 @@ const NewBuySell = lazy(() => import('@/pages/app/trade/NewBuySell').then((m) =>
 const BuySellList = lazy(() => import('@/pages/app/trade/BuySellList').then((m) => ({ default: m.BuySellList })))
 const BhavBookings = lazy(() => import('@/pages/app/trade/BhavBookings').then((m) => ({ default: m.BhavBookings })))
 const BhavOldBookings = lazy(() => import('@/pages/app/trade/BhavOldBookings').then((m) => ({ default: m.BhavOldBookings })))
+const ExchangePrint = lazy(() => import('@/pages/app/trade/TradePrint').then((m) => ({ default: m.ExchangePrint })))
+const ExchangeListPrint = lazy(() => import('@/pages/app/trade/TradePrint').then((m) => ({ default: m.ExchangeListPrint })))
+const BuySellPrint = lazy(() => import('@/pages/app/trade/TradePrint').then((m) => ({ default: m.BuySellPrint })))
+const BhavPrint = lazy(() => import('@/pages/app/trade/TradePrint').then((m) => ({ default: m.BhavPrint })))
 const SchemesLayout = lazy(() => import('@/pages/app/schemes/SchemesLayout').then((m) => ({ default: m.SchemesLayout })))
 const SchemeList = lazy(() => import('@/pages/app/schemes/SchemeList').then((m) => ({ default: m.SchemeList })))
 const SchemeGroups = lazy(() => import('@/pages/app/schemes/SchemeGroups').then((m) => ({ default: m.SchemeGroups })))
@@ -178,6 +184,7 @@ export default function App() {
               <Route path="transfers" element={<StockTransfers />} />
               <Route path="tags" element={<TagPrint />} />
               <Route path="scan" element={<ScanMatch />} />
+              <Route path="summary" element={<AllStockSummary />} />
             </Route>
             <Route path="income_expense" element={<IncomeExpense />} />
             <Route path="daybook" element={<DayBookLayout />}>
@@ -195,6 +202,7 @@ export default function App() {
               <Route path="just/list" element={<JustBillList />} />
               <Route path="just/view/:id" element={<JustBillView />} />
               <Route path="drafts" element={<Drafts />} />
+              <Route path="drafts/:id/slip" element={<DraftSlip />} />
               <Route path="approvals" element={<DraftApprovals />} />
               <Route path="edit/:id" element={<BillEdit />} />
               <Route path="view/:id" element={<BillView />} />
@@ -217,12 +225,16 @@ export default function App() {
               <Route index element={<ExchangeList />} />
               <Route path="new" element={<NewExchange />} />
               <Route path="kacha" element={<KachaPool />} />
+              <Route path="print" element={<ExchangeListPrint />} />
+              <Route path=":id/print" element={<ExchangePrint />} />
             </Route>
             <Route path="buy_sell" element={<BuySellLayout />}>
               <Route index element={<BuySellList />} />
               <Route path="new" element={<NewBuySell />} />
               <Route path="bhav" element={<BhavBookings />} />
               <Route path="bhav-old" element={<BhavOldBookings />} />
+              <Route path="bhav/:id/print" element={<BhavPrint />} />
+              <Route path=":id/print" element={<BuySellPrint />} />
             </Route>
             <Route path="schemes" element={<SchemesLayout />}>
               <Route index element={<SchemeList />} />

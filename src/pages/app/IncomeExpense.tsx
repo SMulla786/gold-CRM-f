@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form'
 import { Link } from 'react-router-dom'
 import { z } from 'zod'
 
+import { CsvExportButton } from '@/components/CsvExportButton'
 import { DataTable } from '@/components/DataTable'
 import { KpiTile } from '@/components/KpiTile'
 import { MpinDialog } from '@/components/MpinDialog'
@@ -21,6 +22,7 @@ import { useBankAccounts } from '@/lib/appQueries'
 import { useCreateIncomeExpense, useDeleteIncomeExpense, useIncomeExpense, useIncomeExpenseSummary, useUpdateIncomeExpense } from '@/lib/accountsQueries'
 import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
+import { fetchAllPaged } from '@/lib/queries'
 import { sourceHref } from '@/lib/sourceLinks'
 import { businessDayISO, IE_SOURCE_TYPES, incomeExpenseBody, type IncomeExpenseDto } from '@/shared'
 
@@ -247,6 +249,18 @@ export function IncomeExpense() {
           <Input className="w-40" type="date" aria-label="From" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1) }} />
           <Input className="w-40" type="date" aria-label="To" value={to} onChange={(e) => { setTo(e.target.value); setPage(1) }} />
           <Button variant="outline" className="ml-auto" onClick={() => setSummaryView((v) => !v)}>{summaryView ? t('ie.entries') : t('ie.daily_summary')}</Button>
+          {!summaryView && (
+            <CsvExportButton
+              filename="income-expense.csv"
+              rows={async () => {
+                const all = await fetchAllPaged<IncomeExpenseDto>('/app/income-expense', { ...filters, q: q || undefined })
+                return [
+                  ['Date', 'Type', 'Source', 'Reason', 'Cash', 'Online', 'Bank', 'Gold', 'Silver', 'Remark', 'By'],
+                  ...all.map((r) => [r.txnDate, r.type, r.sourceType ?? 'DIRECT', r.reason, r.cash, r.online, r.bankAccount?.name, r.gold, r.silver, r.remark, r.createdBy]),
+                ]
+              }}
+            />
+          )}
         </Card>
       )}
 
@@ -277,7 +291,10 @@ export function IncomeExpense() {
                 {summaryLoading ? <TableRow><TableCell colSpan={6} className="h-16 text-center text-muted-foreground">{t('common.loading')}</TableCell></TableRow>
                   : summary?.length ? summary.map((d) => (
                     <TableRow key={d.date}>
-                      <TableCell className="pl-6 font-medium">{date(d.date)}</TableCell>
+                      <TableCell className="pl-6 font-medium">
+                        {/* open that day's entries */}
+                        <button type="button" className="font-semibold text-brand-strong hover:underline" onClick={() => { const day = d.date.slice(0, 10); setFrom(day); setTo(day); setPage(1); setSummaryView(false) }}>{date(d.date)}</button>
+                      </TableCell>
                       <TableCell className="text-right tabular-nums">{inr(d.cashIn)}</TableCell>
                       <TableCell className="text-right tabular-nums">{inr(d.cashOut)}</TableCell>
                       <TableCell className={`text-right tabular-nums font-medium ${Number(d.profit) < 0 ? 'text-destructive' : ''}`}>{inr(d.profit)}</TableCell>

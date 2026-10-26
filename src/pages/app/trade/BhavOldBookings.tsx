@@ -1,8 +1,11 @@
 import type { ColumnDef } from '@tanstack/react-table'
+import { Printer } from 'lucide-react'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { DataTable } from '@/components/DataTable'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -20,7 +23,8 @@ export function BhavOldBookings() {
   const [metal, setMetal] = useState('')
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
-  const { data, isLoading } = useBhavBookings({ status, side: side || undefined, metal: metal || undefined, q: q || undefined, page })
+  const [pageSize, setPageSize] = useState(20)
+  const { data, isLoading } = useBhavBookings({ status, side: side || undefined, metal: metal || undefined, q: q || undefined, page, pageSize })
 
   const columns: ColumnDef<BhavBookingDto, unknown>[] = [
     { header: 'No', cell: ({ row }) => <span className="font-medium">#{row.original.bookingNo}</span> },
@@ -34,6 +38,7 @@ export function BhavOldBookings() {
     { header: 'Advance', cell: ({ row }) => <span className="tabular-nums">{inr(row.original.advance)}</span> },
     { header: 'Narration', cell: ({ row }) => <span className="text-muted-foreground">{row.original.narration ?? '—'}</span> },
     { header: 'Status', cell: ({ row }) => <Badge variant="outline">{row.original.status}</Badge> },
+    { id: 'actions', header: '', cell: ({ row }) => <Button asChild variant="ghost" size="sm"><Link to={`/app/buy_sell/bhav/${row.original.id}/print`}><Printer className="size-4" aria-hidden />Print</Link></Button> },
   ]
 
   return (
@@ -62,7 +67,7 @@ export function BhavOldBookings() {
       </Card>
 
       <Card className="p-4">
-        <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} emptyText="No old bookings" pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined} />
+        <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} emptyText="No old bookings" pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: setPageSize } : undefined} />
       </Card>
     </div>
   )

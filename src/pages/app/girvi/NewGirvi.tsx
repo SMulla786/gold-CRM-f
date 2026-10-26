@@ -22,8 +22,9 @@ const today = businessDayISO
 const inr = (s: string | number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const n = (s: string) => Number(s) || 0
 
-interface Row { key: string; category: string; name: string; gross: string; net: string; purity: string; rate: string }
-const blankRow = (category: string): Row => ({ key: k(), category, name: '', gross: '', net: '', purity: '', rate: '' })
+// itemRate = optional per-item interest % (blank = loan rate)
+interface Row { key: string; category: string; name: string; gross: string; net: string; purity: string; rate: string; itemRate: string }
+const blankRow = (category: string): Row => ({ key: k(), category, name: '', gross: '', net: '', purity: '', rate: '', itemRate: '' })
 const fineOf = (r: Row) => (n(r.net) * n(r.purity)) / 100
 const valOf = (r: Row) => fineOf(r) * n(r.rate)
 /** Mirrors backend girvi/service.ts createGirvi: returnDate = addMonths(businessDate(issueDate), tenureMonths) via setUTCMonth on the
@@ -45,7 +46,7 @@ export function NewGirvi() {
   const { data: banks } = useBankAccounts()
   const create = useCreateGirvi()
   const def = settings?.['girvi.defaults']
-  const categories = def?.categories ?? ['Gold', 'Silver']
+  const categories = (def?.categories ?? ['Gold', 'Silver']).filter((c) => !def?.inactiveCategories?.includes(c))
 
   const [party, setParty] = useState<PartyRefDto | null>(null)
   // ?partyId=… (from a customer's girvi list) pre-selects the customer once
@@ -56,7 +57,7 @@ export function NewGirvi() {
   }, [prefill]) // eslint-disable-line react-hooks/exhaustive-deps
   const [issueDate, setIssueDate] = useState(today())
   const [rows, setRows] = useState<Row[]>([blankRow('Gold')])
-  const [terms, setTerms] = useState({ ratePercent: '', ratePeriod: '', interestType: '', ciPeriod: '', method: '', tenureMonths: '' })
+  const [terms, setTerms] = useState({ ratePercent: '', ratePeriod: '', interestType: '', ciPeriod: '', method: '', tenureMonths: '', firstMonthInterest: '', penaltyRatePercent: '' })
   const [principal, setPrincipal] = useState('')
   const [principalTouched, setPrincipalTouched] = useState(false)
   const [pay, setPay] = useState({ cash: '', online: '', bankAccountId: '' })
@@ -66,7 +67,7 @@ export function NewGirvi() {
   // seed terms + std-% principal from girvi.defaults once settings arrive
   if (def && !seeded) {
     setSeeded(true)
-    setTerms({ ratePercent: String(def.ratePercent), ratePeriod: def.ratePeriod, interestType: def.interestType, ciPeriod: def.ciPeriod, method: def.method, tenureMonths: String(def.tenureMonths) })
+    setTerms({ ratePercent: String(def.ratePercent), ratePeriod: def.ratePeriod, interestType: def.interestType, ciPeriod: def.ciPeriod, method: def.method, tenureMonths: String(def.tenureMonths), firstMonthInterest: '', penaltyRatePercent: String(def.penaltyRatePercent ?? 0) })
   }
 
   const setRow = (i: number, key: keyof Row, v: string) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, [key]: v } : r)))
@@ -85,9 +86,10 @@ export function NewGirvi() {
   const submit = async () => {
     const body = {
       partyId: party!.id, issueDate,
-      items: rows.map((r) => ({ category: r.category, name: r.name.trim(), gross: n(r.gross), net: n(r.net), purity: n(r.purity), rate: n(r.rate) })),
+      items: rows.map((r) => ({ category: r.category, name: r.name.trim(), gross: n(r.gross), net: n(r.net), purity: n(r.purity), rate: n(r.rate), ...(r.itemRate.trim() ? { ratePercent: n(r.itemRate) } : {}) })),
       principal: effPrincipal, ratePercent: n(terms.ratePercent), ratePeriod: terms.ratePeriod, interestType: terms.interestType,
       ciPeriod: terms.interestType === 'CI' ? terms.ciPeriod : undefined, method: terms.method, tenureMonths: Number(terms.tenureMonths) || 1,
+      firstMonthInterest: n(terms.firstMonthInterest), penaltyRatePercent: n(terms.penaltyRatePercent),
       cash: n(pay.cash), online: n(pay.online), bankAccountId: n(pay.online) > 0 ? Number(pay.bankAccountId) : undefined, remark: remark || undefined,
     }
     const saved = await create.mutateAsync(body)
@@ -108,7 +110,7 @@ export function NewGirvi() {
       <div className={`overflow-x-auto ${TABLE_EDGES}`}>
         <Table>
           <TableHeader>
-            <TableRow><TableHead>{t('girvi.col_category')}</TableHead><TableHead className="min-w-40">{t('girvi.col_item')}</TableHead><TableHead>{t('stock.col_gross')}</TableHead><TableHead>{t('stock.col_net')}</TableHead><TableHead>{t('girvi.col_purity_pct')}</TableHead><TableHead>{t('stock.col_fine')}</TableHead><TableHead>{t('girvi.col_rate_g')}</TableHead><TableHead>{t('girvi.valuation')}</TableHead><TableHead /></TableRow>
+            <TableRow><TableHead>{t('girvi.col_category')}</TableHead><TableHead className="min-w-40">{t('girvi.col_item')}</TableHead><TableHead>{t('stock.col_gross')}</TableHead><TableHead>{t('stock.col_net')}</TableHead><TableHead>{t('girvi.col_purity_pct')}</TableHead><TableHead>{t('stock.col_fine')}</TableHead><TableHead>{t('girvi.col_rate_g')}</TableHead><TableHead>{t('girvi.valuation')}</TableHead><TableHead title="Optional: overrides the loan interest % for this item">Item int. %</TableHead><TableHead /></TableRow>
           </TableHeader>
           <TableBody>
             {rows.map((r, i) => (
@@ -126,6 +128,7 @@ export function NewGirvi() {
                 <TableCell className="whitespace-nowrap text-muted-foreground tabular-nums">{fineOf(r).toFixed(3)}</TableCell>
                 <TableCell><Input className="w-24" type="number" aria-label="Rate" value={r.rate} onChange={(e) => setRow(i, 'rate', e.target.value)} /></TableCell>
                 <TableCell className="whitespace-nowrap tabular-nums">{inr(valOf(r))}</TableCell>
+                <TableCell><Input className="w-20" type="number" step="0.01" min={0} max={100} aria-label="Item interest %" placeholder={terms.ratePercent || '—'} value={r.itemRate} onChange={(e) => setRow(i, 'itemRate', e.target.value)} /></TableCell>
                 <TableCell><Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive" aria-label="Remove item" disabled={rows.length === 1} onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))}>✕</Button></TableCell>
               </TableRow>
             ))}
@@ -168,6 +171,14 @@ export function NewGirvi() {
             <div className="space-y-1.5">
               <Label htmlFor="ng-return">Return date</Label>
               <Input id="ng-return" readOnly tabIndex={-1} className="bg-muted/40" value={returnDate ? returnDate.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : '—'} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ng-first">First-month interest (₹)</Label>
+              <Input id="ng-first" type="number" step="0.01" min={0} placeholder="0" value={terms.firstMonthInterest} onChange={(e) => setTerm('firstMonthInterest', e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ng-penalty">Penalty % per month (after due)</Label>
+              <Input id="ng-penalty" type="number" step="0.01" min={0} max={100} value={terms.penaltyRatePercent} onChange={(e) => setTerm('penaltyRatePercent', e.target.value)} />
             </div>
           </div>
         </Card>

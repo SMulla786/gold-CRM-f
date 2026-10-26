@@ -1,6 +1,7 @@
 import type { ColumnDef } from '@tanstack/react-table'
 import { Boxes, IndianRupee, Layers, Scale, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
+import { flushSync } from 'react-dom'
 
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -17,6 +18,7 @@ import { useAuth } from '@/lib/auth'
 import { fetchAllStock, useBulkDeleteStock, useGroupStock } from '@/lib/inventoryQueries'
 import { downloadCsv } from '@/lib/csv'
 import { plural } from '@/lib/plural'
+import { downloadPdf } from '@/lib/share'
 import { useT } from '@/lib/i18n'
 import { BulkEditDialog } from '@/pages/app/inventory/StockList'
 import { STOCK_CLASSES, STOCK_STATUSES, type GroupStockDto } from '@/shared'
@@ -134,6 +136,14 @@ export function GroupStock() {
     downloadCsv(`group-stock${stockClass ? `-${stockClass.toLowerCase()}` : ''}.csv`, [header, ...body])
   }
 
+  // PDF = browser print of the listed groups (the endpoint is unpaged, so these are all rows) via the hidden .print-area.
+  const [printing, setPrinting] = useState(false)
+  const exportPdf = () => {
+    flushSync(() => setPrinting(true))
+    window.addEventListener('afterprint', () => setPrinting(false), { once: true })
+    downloadPdf()
+  }
+
   // Summary numbers derived from the rows already fetched (no extra requests).
   const totalItems = rows.reduce((sum, g) => sum + g.items, 0)
   const totalPcs = rows.reduce((sum, g) => sum + g.pcs, 0)
@@ -211,6 +221,7 @@ export function GroupStock() {
           </Select>
           <Input className="max-w-xs" placeholder="Search tag / HUID / item…" aria-label="Search stock" value={q} onChange={(e) => changeFilter(setQ)(e.target.value)} />
           <Button className="ml-auto" variant="outline" disabled={!data?.length} onClick={exportCsv}>Export CSV</Button>
+          <Button variant="outline" disabled={!data?.length} onClick={exportPdf}>Export PDF</Button>
         </CardContent>
       </Card>
 
@@ -227,6 +238,37 @@ export function GroupStock() {
       <Card className="p-4">
         <DataTable columns={columns} data={rows} isLoading={isLoading} emptyText="No stock" />
       </Card>
+
+      {printing && (
+        <div className="print-area hidden print:block">
+          <h2 className="mb-1 text-lg font-semibold">Group-wise stock · {status} · {scope}</h2>
+          <p className="mb-3 text-xs">{plural(rows.length, 'group')}</p>
+          <table className="w-full border-collapse text-xs">
+            <thead>
+              <tr className="border-b text-left">
+                {['Group', 'HSN', 'Karat', 'Items', 'Pcs', 'Gross', 'Net', 'Fine', 'Value'].map((h) => <th key={h} className="p-1">{h}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((g) => (
+                <tr key={rowKey(g)} className="border-b">
+                  <td className="p-1">{g.groupName}</td><td className="p-1">{g.hsnCode ?? '—'}</td><td className="p-1">{g.karatCode ?? '—'}</td><td className="p-1">{g.items}</td>
+                  <td className="p-1">{g.pcs}</td><td className="p-1">{g.gross}</td><td className="p-1">{g.net}</td><td className="p-1">{g.fine}</td><td className="p-1">{inr(g.value)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="font-semibold">
+                <td className="p-1" colSpan={3}>Total</td>
+                <td className="p-1">{totalItems}</td><td className="p-1">{totalPcs}</td>
+                <td className="p-1">{rows.reduce((sum, g) => sum + Number(g.gross), 0).toFixed(3)}</td>
+                <td className="p-1">{rows.reduce((sum, g) => sum + Number(g.net), 0).toFixed(3)}</td>
+                <td className="p-1">{totalFine.toFixed(3)}</td><td className="p-1">{inr(String(totalValue))}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
 
       {bulkEditing && <BulkEditDialog ids={bulkIds} onClose={() => { setBulkEditing(false); clearSelection() }} />}
       <MpinDialog open={bulkDeleting} title={`Delete ${plural(bulkIds.length, 'item')}`} onConfirm={async (mpin) => { await bulkDelete.mutateAsync({ ids: bulkIds, mpin }); clearSelection() }} onClose={() => setBulkDeleting(false)} />

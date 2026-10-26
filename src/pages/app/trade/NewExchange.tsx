@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
+import { toast } from 'sonner'
 
 import { PartyPicker } from '@/components/PartyPicker'
 import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
@@ -65,7 +66,7 @@ export function NewExchange() {
     }
     const saved = await create.mutateAsync(body)
     navigate(`/app/exchange`)
-    void saved
+    toast(`Exchange #${saved.exchangeNo} receipt is ready`, { action: { label: 'Print receipt', onClick: () => navigate(`/app/exchange/${saved.id}/print`) } })
   }
 
   return (

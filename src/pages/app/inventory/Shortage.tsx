@@ -65,7 +65,8 @@ const drillCols: ColumnDef<StockItemDto, unknown>[] = [
 /** Read-only list of the AVAILABLE stock behind one shortage row (group or item name). */
 function StockDrillDialog({ row, onClose }: { row: ShortageRowDto; onClose: () => void }) {
   const [page, setPage] = useState(1)
-  const { data, isLoading } = useStock({ page, pageSize: 50, status: 'AVAILABLE', ...(row.level === 'GROUP' ? { groupId: row.id } : { itemNameId: row.id }) })
+  const [pageSize, setPageSize] = useState(50)
+  const { data, isLoading } = useStock({ page, pageSize, status: 'AVAILABLE', ...(row.level === 'GROUP' ? { groupId: row.id } : { itemNameId: row.id }) })
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
@@ -77,7 +78,7 @@ function StockDrillDialog({ row, onClose }: { row: ShortageRowDto; onClose: () =
           data={data?.items ?? []}
           isLoading={isLoading}
           emptyText="No available stock"
-          pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined}
+          pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: setPageSize } : undefined}
         />
       </DialogContent>
     </Dialog>

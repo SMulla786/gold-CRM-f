@@ -36,6 +36,7 @@ export function UdharList() {
   }
 
   const columns: ColumnDef<UdharEntryRowDto, unknown>[] = [
+    { id: 'sn', header: '#', cell: ({ row }) => <span className="text-muted-foreground tabular-nums">{(page - 1) * pageSize + row.index + 1}</span> },
     { header: t('udhari.date'), cell: ({ row }) => date(row.original.txnDate) },
     { header: t('udhari.col_time'), cell: ({ row }) => <span className="text-muted-foreground tabular-nums">{time(row.original.createdAt)}</span> },
     { header: t('udhari.col_source'), cell: ({ row }) => row.original.source },

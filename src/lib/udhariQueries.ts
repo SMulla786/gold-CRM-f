@@ -8,8 +8,8 @@ import type { BillListItemDto, Paged, PartyBalanceRowDto, StatementDto, UdharEnt
 // udhar moves party balances + money/metal ledgers (and bill.paid when settling), so refresh all.
 const UDHAR_KEYS = [['udhar-txn'], ['udhar-entries'], ['udhar-ledger'], ['party-balance'], ['party-statement'], ['pending-bills'], ['ledger'], ['day-book'], ['bills'], ['bill']]
 
-export const useUdharEntries = (params: Record<string, string | number | undefined>) =>
-  useQuery({ queryKey: ['udhar-entries', params], queryFn: () => api.get<Paged<UdharEntryRowDto>>(`/app/udhar/entries${qs(params)}`) })
+export const useUdharEntries = (params: Record<string, string | number | undefined>, enabled = true) =>
+  useQuery({ queryKey: ['udhar-entries', params], queryFn: () => api.get<Paged<UdharEntryRowDto>>(`/app/udhar/entries${qs(params)}`), enabled })
 
 export const useUdharLedger = (params: Record<string, string | number | undefined>) =>
   useQuery({ queryKey: ['udhar-ledger', params], queryFn: () => api.get<Paged<PartyBalanceRowDto>>(`/app/udhar/ledger${qs(params)}`) })
@@ -25,6 +25,10 @@ export const useUdharTxn = (id?: number) =>
 
 export const useCreateUdhar = () =>
   useApiMutation((body: Record<string, unknown>) => api.post<UdharTxnDto>('/app/udhar', body), { invalidate: UDHAR_KEYS, success: 'Udhar saved' })
+
+// edit = server reverses the old postings and re-posts this body (MPIN)
+export const useUpdateUdhar = () =>
+  useApiMutation(({ id, mpin, body }: { id: number; mpin: string; body: Record<string, unknown> }) => api.put<UdharTxnDto>(`/app/udhar/${id}`, body, { mpin }), { invalidate: UDHAR_KEYS, success: 'Udhar updated' })
 
 export const useDeleteUdhar = () =>
   useApiMutation(({ id, mpin }: { id: number; mpin: string }) => api.del(`/app/udhar/${id}`, { mpin }), { invalidate: UDHAR_KEYS, success: 'Udhar deleted' })

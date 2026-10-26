@@ -1,5 +1,6 @@
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useState } from 'react'
+import { toast } from 'sonner'
 
 import { PartyPicker } from '@/components/PartyPicker'
 import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
@@ -86,7 +87,7 @@ export function NewBuySell() {
   const valid = branchReady && !!party && rows.every((r) => n(r.weight) > 0 && n(rateOf(r)) > 0) && totalWeight > 0 && (n(f.online) === 0 || f.bankAccountId)
 
   const submit = async () => {
-    await create.mutateAsync({
+    const saved = await create.mutateAsync({
       side, partyId: party!.id, metal, txnDate,
       lines: rows.map((r) => ({ weight: n(r.weight), rate: n(rateOf(r)) })),
       discount: n(f.discount), bhavBookingId: booking?.id,
@@ -94,6 +95,7 @@ export function NewBuySell() {
       narration: f.narration || undefined,
     })
     navigate('/app/buy_sell')
+    toast(`Trade #${saved.buySellNo} slip is ready`, { action: { label: 'Print slip', onClick: () => navigate(`/app/buy_sell/${saved.id}/print`) } })
   }
 
   return (

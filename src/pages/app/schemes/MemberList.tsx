@@ -32,11 +32,12 @@ export function MemberList() {
   const [due, setDue] = useState(false)
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
   const { data: schemes } = useSchemes({ kind: kind || undefined, pageSize: 100 })
   const { data: groups } = useSchemeGroups(schemeId ? Number(schemeId) : undefined)
   const { data, isLoading } = useEnrollments({
     kind: kind || undefined, schemeId: schemeId ? Number(schemeId) : undefined, groupId: groupId ? Number(groupId) : undefined,
-    status: status || undefined, due: due ? 'true' : undefined, q: q.trim() || undefined, page,
+    status: status || undefined, due: due ? 'true' : undefined, q: q.trim() || undefined, page, pageSize,
   })
   const [paying, setPaying] = useState<EnrollmentDto | null>(null)
 
@@ -117,7 +118,7 @@ export function MemberList() {
       </Card>
 
       <Card className="p-4">
-        <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} emptyText="No members" pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined} />
+        <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} emptyText="No members" pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: setPageSize } : undefined} />
       </Card>
       {paying && <AddMoneyDialog enrollment={paying} onClose={() => setPaying(null)} />}
     </div>

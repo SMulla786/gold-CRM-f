@@ -1,6 +1,7 @@
 import type { ColumnDef } from '@tanstack/react-table'
-import { Coins, IndianRupee, ListOrdered, Wallet, type LucideIcon } from 'lucide-react'
+import { Coins, Download, IndianRupee, ListOrdered, Printer, Wallet, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { DataTable } from '@/components/DataTable'
 import { MpinDialog } from '@/components/MpinDialog'
@@ -10,8 +11,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAuth } from '@/lib/auth'
+import { downloadCsv } from '@/lib/csv'
+import { fetchAllPaged } from '@/lib/queries'
 import { useBuySells, useDeleteBuySell } from '@/lib/tradeQueries'
-import { METALS, TRADE_SIDES, type BuySellDto } from '@/shared'
+import { businessDayISO, METALS, TRADE_SIDES, type BuySellDto } from '@/shared'
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
@@ -24,7 +27,21 @@ export function BuySellList() {
   const [metal, setMetal] = useState('')
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
-  const { data, isLoading } = useBuySells({ side: side || undefined, metal: metal || undefined, q: q || undefined, page })
+  const [pageSize, setPageSize] = useState(20)
+  const filters = { side: side || undefined, metal: metal || undefined, q: q || undefined }
+  const { data, isLoading } = useBuySells({ ...filters, page, pageSize })
+  const [exporting, setExporting] = useState(false)
+  const exportCsv = async () => {
+    setExporting(true)
+    try {
+      const all = await fetchAllPaged<BuySellDto>('/app/buy-sell', filters)
+      const header = ['No', 'Date', 'Side', 'Party', 'Mobile', 'Metal', 'Lines (weight @ rate = amount)', 'Weight (g)', 'Discount', 'Amount', 'Cash', 'Online', 'Balance', 'Booking', 'Narration']
+      const body = all.map((t) => [t.buySellNo, date(t.txnDate), t.side, t.party.name, t.party.mobile, t.metal, t.lines.map((l) => `${l.weight} @ ${l.rate} = ${l.amount}`).join('; '), t.totalWeight, t.discount, t.totalAmount, t.cash, t.online, t.balance, t.bhavBooking ? `#${t.bhavBooking.bookingNo}` : '', t.narration])
+      downloadCsv(`buy-sell-${businessDayISO()}.csv`, [header, ...body])
+    } finally {
+      setExporting(false)
+    }
+  }
   const del = useDeleteBuySell()
   const [deleting, setDeleting] = useState<BuySellDto | null>(null)
 
@@ -43,7 +60,12 @@ export function BuySellList() {
     { header: 'Amount', cell: ({ row }) => inr(row.original.totalAmount) },
     { header: 'Balance', cell: ({ row }) => inr(row.original.balance) },
     { header: 'Booking', cell: ({ row }) => (row.original.bhavBooking ? `#${row.original.bhavBooking.bookingNo}` : '—') },
-    { id: 'actions', header: '', cell: ({ row }) => (canDelete ? <Button variant="ghost" size="sm" onClick={() => setDeleting(row.original)}>Delete</Button> : null) },
+    { id: 'actions', header: '', cell: ({ row }) => (
+      <div className="flex justify-end gap-1">
+        <Button asChild variant="ghost" size="sm"><Link to={`/app/buy_sell/${row.original.id}/print`}><Printer className="size-4" aria-hidden />Print</Link></Button>
+        {canDelete && <Button variant="ghost" size="sm" onClick={() => setDeleting(row.original)}>Delete</Button>}
+      </div>
+    ) },
   ]
 
   // Summary numbers derived from the page already fetched (no extra requests).
@@ -86,11 +108,12 @@ export function BuySellList() {
             <SelectTrigger className="w-32" aria-label="Metal"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="all">All metals</SelectItem>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
           </Select>
+          <Button variant="outline" className="ml-auto" disabled={exporting} onClick={() => void exportCsv()}><Download className="size-4" aria-hidden />{exporting ? 'Exporting…' : 'Export CSV'}</Button>
         </CardContent>
       </Card>
 
       <Card className="p-4">
-        <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} emptyText="No trades" pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined} />
+        <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} emptyText="No trades" pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: setPageSize } : undefined} />
       </Card>
       <MpinDialog open={!!deleting} title={`Delete trade #${deleting?.buySellNo ?? ''}`} onConfirm={(mpin) => del.mutateAsync({ id: deleting!.id, mpin })} onClose={() => setDeleting(null)} />
     </div>

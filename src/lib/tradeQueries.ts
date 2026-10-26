@@ -12,6 +12,9 @@ const TRADE_KEYS = [['exchange'], ['kacha'], ['kacha-balance'], ['buy-sell'], ['
 // ── Exchange ──
 export const useExchanges = (params: Record<string, string | number | undefined>) =>
   useQuery({ queryKey: ['exchange', params], queryFn: () => api.get<Paged<ExchangeDto>>(`/app/exchange${qs(params)}`) })
+/** One exchange (GET /app/exchange/:id) — receipt print view. */
+export const useExchange = (id: number) =>
+  useQuery({ queryKey: ['exchange', 'one', id], queryFn: () => api.get<ExchangeDto>(`/app/exchange/${id}`), enabled: Number.isInteger(id) && id > 0 })
 export const useCreateExchange = () =>
   useApiMutation((body: Record<string, unknown>) => api.post<ExchangeDto>('/app/exchange', body), { invalidate: TRADE_KEYS, success: 'Exchange saved' })
 export const useDeleteExchange = () =>
@@ -30,6 +33,9 @@ export const useRevertKacha = () =>
 // ── Buy-sell ──
 export const useBuySells = (params: Record<string, string | number | undefined>) =>
   useQuery({ queryKey: ['buy-sell', params], queryFn: () => api.get<Paged<BuySellDto>>(`/app/buy-sell${qs(params)}`) })
+/** One trade (GET /app/buy-sell/:id) — slip print view. */
+export const useBuySell = (id: number) =>
+  useQuery({ queryKey: ['buy-sell', 'one', id], queryFn: () => api.get<BuySellDto>(`/app/buy-sell/${id}`), enabled: Number.isInteger(id) && id > 0 })
 export const useCreateBuySell = () =>
   useApiMutation((body: Record<string, unknown>) => api.post<BuySellDto>('/app/buy-sell', body), { invalidate: TRADE_KEYS, success: 'Trade saved' })
 export const useDeleteBuySell = () =>

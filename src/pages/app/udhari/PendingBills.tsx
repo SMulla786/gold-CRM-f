@@ -29,6 +29,7 @@ export function PendingBills() {
   const [paying, setPaying] = useState<BillListItemDto | null>(null)
 
   const columns: ColumnDef<BillListItemDto, unknown>[] = [
+    { id: 'sn', header: '#', cell: ({ row }) => <span className="text-muted-foreground tabular-nums">{(page - 1) * pageSize + row.index + 1}</span> },
     { header: t('udhari.col_bill'), cell: ({ row }) => <Link to={`/app/billing/view/${row.original.id}`} className="font-semibold text-brand-strong hover:underline">{row.original.billNo}</Link> },
     { header: t('udhari.col_bill_date'), cell: ({ row }) => new Date(row.original.billDate).toLocaleDateString('en-IN') },
     { header: t('udhari.col_kind'), cell: ({ row }) => <Badge variant="secondary">{row.original.kind}</Badge> },

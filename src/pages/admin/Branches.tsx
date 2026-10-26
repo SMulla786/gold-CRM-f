@@ -96,7 +96,17 @@ function BranchDialog({
             <div className="space-y-1.5">
               <Label htmlFor="b-mobile">Mobile</Label>
               <div className="flex gap-2">
-                <Input aria-label="Country code" className="w-16" {...register('countryCode')} />
+                <Select value={watch('countryCode') ?? '+91'} onValueChange={(v) => setValue('countryCode', v)}>
+                  <SelectTrigger className="w-24" aria-label="Country code">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {/* original branch form's list; keep an unlisted stored code selectable */}
+                    {[...new Set(['+91', '+1', '+44', '+971', '+966', '+965', '+968', '+974', watch('countryCode') ?? '+91'])].map((c) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Input id="b-mobile" inputMode="numeric" {...register('mobile', opt)} />
               </div>
               {err('mobile')}

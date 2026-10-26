@@ -14,6 +14,8 @@ const TABS = [
   { to: '/app/billing/drafts', label: 'Drafts', tk: 'billing.tab_drafts', key: 'billing.showroom_drafts' },
   { to: '/app/billing/approvals', label: 'Approvals', tk: 'billing.tab_approvals', key: 'billing.draft_approvals' },
   { to: '/app/billing/gst', label: 'GST Reports', tk: 'billing.tab_gst', key: 'billing.gst_report' },
+  // the invoice layout lives under Settings; linked here like the original's billing settings page
+  { to: '/app/settings/invoice', label: 'Invoice settings', tk: 'billing.tab_invoice_settings', key: 'settings.misc' },
 ]
 
 export function BillingLayout() {

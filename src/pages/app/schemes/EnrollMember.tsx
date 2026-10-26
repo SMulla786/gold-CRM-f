@@ -53,7 +53,8 @@ export function EnrollMember() {
       emiAmount: f.emiAmount ? n(f.emiAmount) : undefined, startDate: f.startDate,
       tokenAmount: n(f.tokenAmount), firstPayment,
     })
-    navigate(`/app/schemes/members/${saved.id}`)
+    // with a first EMI, member detail opens that payment's receipt (payments are id-ascending, first EMI posts after the token)
+    navigate(`/app/schemes/members/${saved.id}`, { state: payFirst ? { receiptPaymentId: saved.payments.at(-1)?.id } : undefined })
   }
 
   return (

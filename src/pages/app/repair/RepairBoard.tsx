@@ -1,9 +1,11 @@
-import { CalendarClock, Inbox, PackageCheck, Wrench, Zap, type LucideIcon } from 'lucide-react'
+import { CalendarClock, Inbox, PackageCheck, Search, Wrench, Zap, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { useAuth } from '@/lib/auth'
 import { useRepairs, useRepairStatus } from '@/lib/repairQueries'
 import { businessDayISO, type RepairTicketDto } from '@/shared'
@@ -20,7 +22,20 @@ const NEXT: Record<string, 'IN_PROGRESS' | 'IN_REVIEW'> = { RECEIVED: 'IN_PROGRE
 export function RepairBoard() {
   const { can } = useAuth()
   const canEdit = can('repair.entry', 'edit')
-  const { data, isLoading } = useRepairs({ page: 1, pageSize: 100 })
+  const [q, setQ] = useState('')
+  const kw = q.trim() || undefined
+  // One query per open column so closed tickets never eat into the 100-row cap; closed ones only need totals.
+  // shortcut: each column still shows at most 100 tickets, use the ledger for more.
+  const received = useRepairs({ q: kw, status: 'RECEIVED', page: 1, pageSize: 100 })
+  const inProgress = useRepairs({ q: kw, status: 'IN_PROGRESS', page: 1, pageSize: 100 })
+  const inReview = useRepairs({ q: kw, status: 'IN_REVIEW', page: 1, pageSize: 100 })
+  const ready = useRepairs({ q: kw, status: 'READY', page: 1, pageSize: 100 })
+  const deliveredTotal = useRepairs({ q: kw, status: 'DELIVERED', page: 1, pageSize: 1 }).data?.total ?? 0
+  const cancelledTotal = useRepairs({ q: kw, status: 'CANCELLED', page: 1, pageSize: 1 }).data?.total ?? 0
+  const open = [received, inProgress, inReview, ready]
+  const isLoading = open.some((r) => r.isLoading)
+  const loaded = open.every((r) => r.data)
+  const openTotal = open.reduce((sum, r) => sum + (r.data?.total ?? 0), 0)
   const [creating, setCreating] = useState(false)
   const [qa, setQa] = useState<RepairTicketDto | null>(null)
   const [deliver, setDeliver] = useState<RepairTicketDto | null>(null)
@@ -28,7 +43,7 @@ export function RepairBoard() {
   const [detailsId, setDetailsId] = useState<number | null>(null)
   const move = useRepairStatus()
 
-  const tickets = data?.items ?? []
+  const tickets = open.flatMap((r) => r.data?.items ?? [])
   const byStatus = (s: string) => tickets.filter((t) => t.status === s)
 
   // Summary numbers derived from the tickets already fetched (no extra requests).
@@ -64,14 +79,20 @@ export function RepairBoard() {
       <RepairTabs />
 
       <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {tile('Open tickets', data ? String(openRows.length) : '—', data ? `${tickets.length} of ${data.total} tickets loaded` : undefined, Wrench)}
-        {tile('Ready for pickup', data ? String(readyRows.length) : '—', data ? `${inr(String(readyBalance))} est. to collect` : undefined, PackageCheck)}
-        {tile('Urgent / express', data ? String(priorityOpen) : '—', data ? 'Open tickets with high priority' : undefined, Zap)}
-        {tile('Overdue', data ? String(overdueOpen) : '—', data ? 'Open tickets past expected date' : undefined, CalendarClock)}
+        {tile('Open tickets', loaded ? String(openTotal) : '—', loaded ? `${openRows.length} of ${openTotal} open tickets loaded` : undefined, Wrench)}
+        {tile('Ready for pickup', loaded ? String(readyRows.length) : '—', loaded ? `${inr(String(readyBalance))} est. to collect` : undefined, PackageCheck)}
+        {tile('Urgent / express', loaded ? String(priorityOpen) : '—', loaded ? 'Open tickets with high priority' : undefined, Zap)}
+        {tile('Overdue', loaded ? String(overdueOpen) : '—', loaded ? 'Open tickets past expected date' : undefined, CalendarClock)}
       </div>
 
       <section className="space-y-3">
-        <h2 className="text-xl">Board</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-xl">Board</h2>
+          <div className="relative w-full sm:max-w-xs">
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+            <Input className="pl-9" aria-label="Search the board" placeholder="Ticket no / customer / mobile…" value={q} onChange={(e) => setQ(e.target.value)} />
+          </div>
+        </div>
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : (
@@ -109,7 +130,11 @@ export function RepairBoard() {
             ))}
           </div>
         )}
-        <p className="text-xs text-muted-foreground">Delivered: {byStatus('DELIVERED').length} · Cancelled: {byStatus('CANCELLED').length}</p>
+        <p className="text-xs text-muted-foreground">
+          <Link to="/app/repair/ledger?status=DELIVERED" className="hover:text-foreground hover:underline">Delivered: {deliveredTotal}</Link>
+          {' · '}
+          <Link to="/app/repair/ledger?status=CANCELLED" className="hover:text-foreground hover:underline">Cancelled: {cancelledTotal}</Link>
+        </p>
       </section>
 
       {creating && <NewTicketDialog onClose={() => setCreating(false)} />}

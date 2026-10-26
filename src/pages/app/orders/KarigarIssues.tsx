@@ -16,6 +16,8 @@ import type { KarigarIssueDto, PartyRefDto } from '@/shared'
 
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
 const n = (s: string) => Number(s) || 0
+// same choices as DataTable's entries picker (backend max 100)
+const PAGE_SIZES = [10, 20, 50, 100]
 
 interface RItem { orderItemId: number; label: string; returnedGross: string; returnedLess: string; touch: string; ghatAllowance: string; labour: string; tagNo: string }
 
@@ -64,9 +66,10 @@ export function KarigarIssues() {
   const canReceive = can('orders.karigar_list', 'edit')
   const [status, setStatus] = useState('OPEN')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
   const [q, setQ] = useState('')
   const [karigar, setKarigar] = useState<PartyRefDto | null>(null)
-  const { data, isLoading } = useKarigarIssues({ status: status || undefined, q: q.trim() || undefined, karigarId: karigar?.id, page })
+  const { data, isLoading } = useKarigarIssues({ status: status || undefined, q: q.trim() || undefined, karigarId: karigar?.id, page, pageSize })
   const pageCount = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1
   const [receiving, setReceiving] = useState<KarigarIssueDto | null>(null)
 
@@ -139,11 +142,19 @@ export function KarigarIssues() {
               </CardContent>
             </Card>
           ))}
-          {data.total > data.pageSize && (
-            <div className="flex items-center justify-end gap-2 text-sm">
+          {data.total > PAGE_SIZES[0] && (
+            <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
+              <label className="mr-auto flex items-center gap-2 text-muted-foreground">
+                Entries
+                <select className="h-8 rounded-lg border bg-card px-2 text-foreground" value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1) }}>
+                  {PAGE_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </label>
               <span className="text-muted-foreground">Page {data.page} of {pageCount} · {data.total} issues</span>
-              <Button variant="outline" size="sm" disabled={data.page <= 1} onClick={() => setPage(data.page - 1)}>Previous</Button>
-              <Button variant="outline" size="sm" disabled={data.page >= pageCount} onClick={() => setPage(data.page + 1)}>Next</Button>
+              {pageCount > 1 && <>
+                <Button variant="outline" size="sm" disabled={data.page <= 1} onClick={() => setPage(data.page - 1)}>Previous</Button>
+                <Button variant="outline" size="sm" disabled={data.page >= pageCount} onClick={() => setPage(data.page + 1)}>Next</Button>
+              </>}
             </div>
           )}
         </div>

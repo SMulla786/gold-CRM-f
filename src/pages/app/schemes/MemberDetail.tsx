@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useLocation, useParams } from 'react-router-dom'
 import { CalendarClock, CalendarDays, IndianRupee, ListChecks, ReceiptText, type LucideIcon } from 'lucide-react'
 
 import { MpinDialog } from '@/components/MpinDialog'
@@ -15,6 +15,7 @@ import { useEnrollment, useMarkWon, useRedeem, useReversePayment, useScheme } fr
 import { schemeMaturity, type EnrollmentDto } from '@/shared'
 
 import { AddMoneyDialog } from './AddMoneyDialog'
+import { SchemeReceiptDialog } from './SchemeReceipt'
 
 const inr = (s: string | number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string | null) => (s ? new Date(s).toLocaleDateString('en-IN') : '—')
@@ -46,7 +47,10 @@ export function MemberDetail() {
   const redeem = useRedeem()
   const reverse = useReversePayment()
 
+  const location = useLocation()
   const [paying, setPaying] = useState(false)
+  // receipt for one passbook row; preset by EnrollMember after a first-EMI enrol
+  const [receiptId, setReceiptId] = useState<number | null>((location.state as { receiptPaymentId?: number } | null)?.receiptPaymentId ?? null)
   const [winning, setWinning] = useState(false)
   const [redeeming, setRedeeming] = useState(false)
   const [reversingId, setReversingId] = useState<number | null>(null)
@@ -115,8 +119,8 @@ export function MemberDetail() {
           </CardContent>
         </Card>
 
-        {/* Passbook — the only region that prints */}
-        <div className="print-area space-y-3 rounded-3xl border bg-card p-6 shadow-sm">
+        {/* Passbook — the only region that prints (unless a receipt / add-money dialog is open, which prints its receipt instead) */}
+        <div className={`${paying || receiptId != null ? '' : 'print-area '}space-y-3 rounded-3xl border bg-card p-6 shadow-sm`}>
           <h3 className="text-lg font-semibold">Passbook · {e.assignId}</h3>
           <div className="overflow-x-auto">
             <Table>
@@ -129,7 +133,12 @@ export function MemberDetail() {
                     <TableCell className="tabular-nums">{inr(p.amount)}</TableCell>
                     {gold && <TableCell className="tabular-nums">{p.fine ?? '—'}</TableCell>}
                     <TableCell>{p.medium}</TableCell>
-                    <TableCell>{canReverse && open && !p.isReversed && <Button variant="ghost" size="sm" onClick={() => setReversingId(p.id)}>Reverse</Button>}</TableCell>
+                    <TableCell className="print:hidden">
+                      <div className="flex gap-1">
+                        {!p.isReversed && <Button variant="ghost" size="sm" aria-label={`Receipt for payment ${p.id}`} onClick={() => setReceiptId(p.id)}>Receipt</Button>}
+                        {canReverse && open && !p.isReversed && <Button variant="ghost" size="sm" onClick={() => setReversingId(p.id)}>Reverse</Button>}
+                      </div>
+                    </TableCell>
                   </TableRow>
                 )) : (
                   <TableRow>
@@ -148,6 +157,7 @@ export function MemberDetail() {
       </div>
 
       {paying && <AddMoneyDialog enrollment={e as EnrollmentDto} onClose={() => setPaying(false)} />}
+      {receiptId != null && <SchemeReceiptDialog enrollment={e} paymentId={receiptId} onClose={() => setReceiptId(null)} />}
       <MpinDialog open={winning} title="Mark this enrolment as won" onConfirm={(mpin) => won.mutateAsync({ id: e.id, mpin })} onClose={() => setWinning(false)} />
       <MpinDialog open={redeeming} title={early ? 'Withdraw early (no bonus)' : 'Redeem matured scheme'} onConfirm={(mpin) => redeem.mutateAsync({ id: e.id, mpin, body: { early, redeemRate: gold && redeemRate ? n(redeemRate) : undefined } })} onClose={() => setRedeeming(false)} />
       <MpinDialog open={reversingId != null} title="Reverse this payment" onConfirm={(mpin) => reverse.mutateAsync({ id: reversingId!, mpin })} onClose={() => setReversingId(null)} />

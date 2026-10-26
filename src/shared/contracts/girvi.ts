@@ -21,6 +21,8 @@ export const girviItemInput = z.object({
   purity: z.coerce.number().min(0).max(100),
   /** valuation rate per gram of fine */
   rate: decimalInput,
+  /** owner-approved: per-item interest % (overrides the loan rate, valuation-weighted) */
+  ratePercent: z.coerce.number().min(0).max(100).optional(),
 });
 
 export const girviBody = z
@@ -37,6 +39,10 @@ export const girviBody = z
     method: z.enum(['FULL_MONTH', 'DAY_WISE']),
     tenureMonths: z.coerce.number().int().min(1).max(120),
     remark: z.string().trim().max(300).optional(),
+    /** owner-approved: fixed interest for the first month (0 = off) */
+    firstMonthInterest: decimalInput.default(0),
+    /** owner-approved: penalty % per month after the return date (0 = off) */
+    penaltyRatePercent: z.coerce.number().min(0).max(100).default(0),
     /** how the loan is paid out: cash + online must equal principal */
     ...money,
   })
@@ -91,6 +97,7 @@ export interface GirviItemDto {
   fine: string;
   rate: string;
   valuation: string;
+  ratePercent?: string | null;
   status: 'PLEDGED' | 'RELEASED';
   releasedAt: string | null;
 }
@@ -129,6 +136,10 @@ export interface GirviBatchDto {
   interestFrom: string;
   /** as of the query date (default today) */
   interestDue: string;
+  /** interestDue split: regular (effective rate) + first-month fixed + penalty */
+  interestBreakdown?: { regular: string; firstMonth: string; penalty: string; effectiveRate: string };
+  firstMonthInterest?: string;
+  penaltyRatePercent?: string;
   /** principal + interestDue */
   payable: string;
   overdue: boolean;

@@ -1,6 +1,6 @@
 import { Columns3 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { MpinDialog } from '@/components/MpinDialog'
@@ -23,6 +23,7 @@ import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
 import { fetchDraftByNo } from '@/lib/draftsQueries'
 import { ApiException } from '@/lib/errors'
+import { shareOnWhatsApp } from '@/lib/share'
 import { lineRateUnitGrams, metalRateUnitGrams, useCreateBill, useNextBillNo, usePartyBalance, useUpdateBill } from '@/lib/billingQueries'
 import { useItemNames, useStock } from '@/lib/inventoryQueries'
 import { useOrder, useOrders } from '@/lib/ordersQueries'
@@ -62,6 +63,11 @@ const OPTIONAL_COLS = [
   { key: 'labour', label: 'Labour', tk: 'bill.col_labour' }, { key: 'unit', label: 'Unit', tk: 'bill.col_unit' }, { key: 'other', label: 'Other', tk: 'bill.col_other' },
   { key: 'disc', label: 'Disc', tk: 'bill.col_disc' },
 ] as const
+// Columns-menu presets (original: All / Simple / Tunch); 'All' doubles as reset.
+const COL_PRESETS = {
+  simple: ['karat', 'pcs', 'net', 'rate', 'labour', 'unit', 'disc'],
+  tunch: ['karat', 'pcs', 'less', 'tunch', 'wastage', 'net', 'fine', 'rate', 'labour', 'unit'],
+} as const
 const COLS_LS = 'ju.billcols'
 const loadCols = (): Record<string, boolean> => {
   try { const s = localStorage.getItem(COLS_LS); if (s) return { ...Object.fromEntries(OPTIONAL_COLS.map((c) => [c.key, true])), ...JSON.parse(s) } } catch { /* ignore */ }
@@ -134,7 +140,7 @@ const payFromDto = (p: BillPaymentDto): PayRow => ({
 export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDto }) {
   const t = useT()
   const navigate = useNavigate()
-  const { activeBranch } = useAuth()
+  const { activeBranch, can } = useAuth()
   const branchReady = !!editBill || (activeBranch !== '' && activeBranch !== 'all') // a bill posts to one branch; edit keeps the bill's branch
   const { data: settings } = useSettings()
   const { data: banks } = useBankAccounts()
@@ -167,9 +173,12 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
   const { data: orderData } = useOrder(!editBill && orderIdParam ? Number(orderIdParam) : undefined)
   const [orderSearch, setOrderSearch] = useState(false) // TASK-86: inline "bill a ready order" picker
   // shortcut: lists first 50 READY orders (orders list API has no free-text q); add server-side search when a shop outgrows one page
-  const { data: readyOrders } = useOrders({ status: 'READY', page: 1, pageSize: 50 }, kind === 'SELL' && !editBill && orderSearch)
+  const [orderQ, setOrderQ] = useState('')
+  const { data: readyOrders } = useOrders({ status: 'READY', q: orderQ || undefined, page: 1, pageSize: 50 }, kind === 'SELL' && !editBill && orderSearch)
   const [cols, setCols] = useState<Record<string, boolean>>(loadCols)
-  const toggleCol = (k: string) => setCols((v) => { const n = { ...v, [k]: !v[k] }; try { localStorage.setItem(COLS_LS, JSON.stringify(n)) } catch { /* ignore */ } return n })
+  const saveCols = (n: Record<string, boolean>) => { try { localStorage.setItem(COLS_LS, JSON.stringify(n)) } catch { /* ignore */ } return n }
+  const toggleCol = (k: string) => setCols((v) => saveCols({ ...v, [k]: !v[k] }))
+  const applyPreset = (keys: readonly string[] | 'all') => setCols(saveCols(Object.fromEntries(OPTIONAL_COLS.map((c) => [c.key, keys === 'all' || keys.includes(c.key)]))))
 
   // Billing a READY order: prefill its party + reserved finished pieces as lines, carry orderId on the bill.
   const applyOrder = (order: OrderDto) => {
@@ -307,7 +316,12 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
       const saved = editBill
         ? await update.mutateAsync({ id: editBill.id, body, mpin: mpinValue ?? editMpin })
         : await create.mutateAsync(body)
-      toast.success(editBill ? t('bill.updated') : t('bill.saved'))
+      // Settings → print.defaults.postSaveShareDialog: offer WhatsApp share right from the success toast (non-blocking)
+      const offerShare = !editBill && settings?.['print.defaults'].postSaveShareDialog && saved.party.mobile
+      toast.success(editBill ? t('bill.updated') : t('bill.saved'), offerShare ? {
+        duration: 10_000,
+        action: { label: t('bill.share'), onClick: () => shareOnWhatsApp(saved.party.mobile, `${kind === 'SELL' ? 'Bill' : 'Purchase'} ${saved.billNo} · Total ${inr(saved.final)} · Balance ${inr(saved.balance)}`) },
+      } : undefined)
       navigate(`/app/billing/view/${saved.id}`)
     } catch (e) {
       if (e instanceof ApiException && e.code === 'VALIDATION') {
@@ -340,6 +354,10 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
         <div className="space-y-1.5 lg:col-span-2">
           <Label htmlFor="bf-party">{kind === 'SELL' ? t('bill.customer') : t('bill.supplier')}</Label>
           <PartyPicker value={party} onChange={setParty} placeholder={t('bill.search_party')} id="bf-party" ariaLabel={kind === 'SELL' ? 'Customer' : 'Supplier'} />
+          {party && can('udhari.entry', 'edit') && (
+            // take an old udhar payment (jama) for this party without leaving billing
+            <Link to={`/app/udhari?partyId=${party.id}`} target="_blank" rel="noreferrer" className="float-right text-xs font-semibold text-brand-strong hover:underline">{t('bill.jama_udhar')}</Link>
+          )}
           {party && (
             <p className="w-fit rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">
               {party.mobile}
@@ -401,6 +419,9 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
               <Checkbox id="bf-ordersearch" checked={orderSearch} onCheckedChange={(v) => setOrderSearch(!!v)} />
               <Label htmlFor="bf-ordersearch" className="font-normal">{t('bill.bill_ready_order')}</Label>
               {orderSearch && (
+                <Input className="w-48" placeholder={t('bill.order_search_ph')} aria-label="Search ready orders" value={orderQ} onChange={(e) => setOrderQ(e.target.value)} />
+              )}
+              {orderSearch && (
                 <Select value={orderId ? String(orderId) : ''} onValueChange={(v) => { const o = readyOrders?.items.find((x) => String(x.id) === v); if (o) applyOrder(o) }}>
                   <SelectTrigger className="w-64" aria-label="Ready order"><SelectValue placeholder={t('bill.select_ready_order')} /></SelectTrigger>
                   <SelectContent>
@@ -439,7 +460,12 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
       <div className="flex justify-end border-b bg-muted/40 px-6 py-3">
         <Popover>
           <PopoverTrigger asChild><Button type="button" variant="outline" size="sm"><Columns3 aria-hidden />{t('bill.columns')}</Button></PopoverTrigger>
-          <PopoverContent align="end" className="w-44 space-y-2">
+          <PopoverContent align="end" className="w-56 space-y-2">
+            <div className="flex flex-wrap gap-1 border-b pb-2">
+              <Button type="button" size="sm" variant="ghost" className="h-7 px-2" onClick={() => applyPreset('all')}>{t('bill.cols_all')}</Button>
+              <Button type="button" size="sm" variant="ghost" className="h-7 px-2" onClick={() => applyPreset(COL_PRESETS.simple)}>{t('bill.cols_simple')}</Button>
+              <Button type="button" size="sm" variant="ghost" className="h-7 px-2" onClick={() => applyPreset(COL_PRESETS.tunch)}>{t('bill.cols_tunch')}</Button>
+            </div>
             {OPTIONAL_COLS.map((c) => (
               <label key={c.key} className="flex items-center gap-2 text-sm">
                 <Checkbox checked={cols[c.key]} onCheckedChange={() => toggleCol(c.key)} aria-label={c.label} /> {t(c.tk)}
@@ -484,16 +510,24 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
                   <TableCell>
                     {r.stockItemId || kind === 'PURCHASE' ? (
                       <div className="text-sm">
-                        <div className="font-semibold">{r.tagNo || r.description}</div>
-                        <div className="text-xs text-muted-foreground">{r.description}</div>
+                        <div className="font-semibold">{r.stockItemId ? r.tagNo || r.description : r.description}</div>
+                        {r.stockItemId ? <div className="text-xs text-muted-foreground">{r.description}</div> : (
+                          // purchase: optional own tag no. (blank → server auto-tags)
+                          <Input className="mt-1 h-8 w-32" placeholder={t('bill.tag_no_ph')} aria-label="Tag number" value={r.tagNo} onChange={(e) => setRow(i, 'tagNo', e.target.value)} />
+                        )}
                       </div>
                     ) : (
                       <div className="flex gap-1">
                         <Input className="w-32" placeholder={t('bill.description')} value={r.description} onChange={(e) => setRow(i, 'description', e.target.value)} />
-                        <Select value={r.stockClass} onValueChange={(v) => setRow(i, 'stockClass', v)}>
+                        <Select value={r.stockClass} onValueChange={(v) => setRows((rs) => rs.map((x, j) => (j === i ? { ...x, stockClass: v, itemNameId: undefined } : x)))}>
                           <SelectTrigger className="w-24" aria-label="Class"><SelectValue /></SelectTrigger>
                           <SelectContent>{STOCK_CLASSES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                         </Select>
+                        <DirectItemName
+                          stockClass={r.stockClass}
+                          value={r.itemNameId}
+                          onPick={(n) => setRows((rs) => rs.map((x, j) => (j === i ? { ...x, itemNameId: n?.id, description: n ? n.name : x.description } : x)))}
+                        />
                       </div>
                     )}
                   </TableCell>
@@ -701,6 +735,21 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
         />
       )}
     </div>
+  )
+}
+
+/** Direct (non-stock) line: optionally tie it to an item-master name of its class (custom text otherwise). */
+function DirectItemName({ stockClass, value, onPick }: { stockClass: string; value?: number; onPick: (n: { id: number; name: string } | null) => void }) {
+  const t = useT()
+  const { data } = useItemNames({ stockClass, page: 1 })
+  return (
+    <Select value={value ? String(value) : 'custom'} onValueChange={(v) => onPick(v === 'custom' ? null : data?.items.find((n) => String(n.id) === v) ?? null)}>
+      <SelectTrigger className="w-32" aria-label="Direct line item"><SelectValue /></SelectTrigger>
+      <SelectContent>
+        <SelectItem value="custom">{t('bill.custom_item')}</SelectItem>
+        {data?.items.map((n) => <SelectItem key={n.id} value={String(n.id)}>{n.name}</SelectItem>)}
+      </SelectContent>
+    </Select>
   )
 }
 

@@ -1,6 +1,7 @@
 import type { ColumnDef } from '@tanstack/react-table'
-import { Boxes, Gem, History, Layers, Scale, type LucideIcon } from 'lucide-react'
+import { Boxes, Gem, History, ImageOff, Layers, PackageSearch, Scale, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
+import { flushSync } from 'react-dom'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { AuthedImage } from '@/components/AuthedImage'
@@ -21,6 +22,7 @@ import { useAuth } from '@/lib/auth'
 import { downloadCsv } from '@/lib/csv'
 import { useT } from '@/lib/i18n'
 import { plural } from '@/lib/plural'
+import { downloadPdf } from '@/lib/share'
 import { CheckoutDraftDialog } from '@/pages/app/billing/CheckoutDraftDialog'
 import { CHARGE_UNITS, STOCK_CLASSES, STOCK_STATUSES, type StockItemDto } from '@/shared'
 
@@ -217,6 +219,8 @@ export function StockList() {
   const canEdit = can('inventory.all_stock', 'edit')
   const canDelete = can('inventory.all_stock', 'delete')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+  const [view, setView] = useState<'table' | 'gallery'>('table')
   // seed-only from ?class= (dashboard links); user edits take over after mount.
   const [params] = useSearchParams()
   const [stockClass, setStockClass] = useState(() => {
@@ -247,7 +251,7 @@ export function StockList() {
     minWeight: minWeight || undefined,
     maxWeight: maxWeight || undefined,
   }
-  const { data, isLoading } = useStock({ page, ...filters })
+  const { data, isLoading } = useStock({ page, pageSize, ...filters })
   const navigate = useNavigate()
   const canTags = can('inventory.tag_print', 'view')
   const del = useDeleteStock()
@@ -259,6 +263,7 @@ export function StockList() {
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [viewing, setViewing] = useState<StockItemDto | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [pdfRows, setPdfRows] = useState<StockItemDto[] | null>(null)
   const [checkout, setCheckout] = useState(false)
   const canCheckout = can('billing.showroom_drafts', 'edit')
 
@@ -269,6 +274,19 @@ export function StockList() {
       const header = ['Tag', 'Item', 'Group', 'Class', 'Karat', 'Pcs', 'Gross', 'Net', 'Fine', 'Stone', 'Labour', 'Rate', 'Cost', 'Branch', 'Status']
       const body = all.map((i) => [i.tagNo ?? '', i.itemName.name, i.group.name, i.stockClass, i.karatCode ?? '', i.pcs, i.gross, i.net, i.fine, i.stoneCharge, i.labour, i.rate ?? '', i.purchaseCost ?? '', i.branch.name, i.status])
       downloadCsv(`stock-${status.toLowerCase()}.csv`, [header, ...body])
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  /** PDF = browser print of every filtered row (same fetch-all as CSV) into the hidden .print-area below. */
+  const exportPdf = async () => {
+    setExporting(true)
+    try {
+      const all = await fetchAllStock(filters)
+      flushSync(() => setPdfRows(all))
+      window.addEventListener('afterprint', () => setPdfRows(null), { once: true })
+      downloadPdf()
     } finally {
       setExporting(false)
     }
@@ -435,6 +453,7 @@ export function StockList() {
           <Button className="ml-auto" variant="outline" disabled={exporting} onClick={exportCsv}>
             {exporting ? 'Exporting…' : t('common.export_csv')}
           </Button>
+          <Button variant="outline" disabled={exporting} onClick={exportPdf}>Export PDF</Button>
         </CardContent>
       </Card>
 
@@ -449,15 +468,94 @@ export function StockList() {
         </div>
       )}
 
-      <Card className="p-4">
-        <DataTable
-          columns={columns}
-          data={rows}
-          isLoading={isLoading}
-          emptyText={t('stock.no_items')}
-          pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined}
-        />
-      </Card>
+      <div className="flex justify-end gap-1" role="group" aria-label="Layout">
+        {(['table', 'gallery'] as const).map((v) => (
+          <Button key={v} size="sm" variant={view === v ? 'default' : 'outline'} aria-pressed={view === v} onClick={() => setView(v)}>
+            {v === 'table' ? 'Table' : 'Gallery'}
+          </Button>
+        ))}
+      </div>
+
+      {view === 'table' ? (
+        <Card className="p-4">
+          <DataTable
+            columns={columns}
+            data={rows}
+            isLoading={isLoading}
+            emptyText={t('stock.no_items')}
+            pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: setPageSize } : undefined}
+          />
+        </Card>
+      ) : (
+        <Card className="space-y-4 p-4">
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : rows.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+              <span className="icon-chip"><PackageSearch className="size-5" aria-hidden /></span>
+              <p className="text-sm text-muted-foreground">No items found</p>
+            </div>
+          ) : (
+            <div className="stagger grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {rows.map((r) => (
+                <button key={r.id} type="button" className="rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setViewing(r)}>
+                  <Card className="h-full gap-2 overflow-hidden py-0 hover:-translate-y-1 hover:border-primary">
+                    <div className="flex aspect-square items-center justify-center bg-muted">
+                      {r.photoUrl ? (
+                        <AuthedImage path={`/app/files/stock/${r.id}/photo`} alt={r.itemName.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <ImageOff className="size-6 text-muted-foreground" aria-hidden />
+                      )}
+                    </div>
+                    <CardContent className="space-y-0.5 p-3 pt-0 text-sm">
+                      <div className="truncate font-medium">{r.tagNo ?? r.itemName.name}</div>
+                      <div className="truncate text-muted-foreground">{r.itemName.name}{r.karatCode ? ` · ${r.karatCode}` : ''}</div>
+                      <div className="tabular-nums text-muted-foreground">Net {r.net} g</div>
+                    </CardContent>
+                  </Card>
+                </button>
+              ))}
+            </div>
+          )}
+          {data && data.total > data.pageSize && (
+            <div className="flex items-center justify-end gap-2 text-sm">
+              <span className="text-muted-foreground">{t('table.page_of', { page: data.page, pages: Math.ceil(data.total / data.pageSize), total: data.total })}</span>
+              <Button variant="outline" size="sm" disabled={data.page <= 1} onClick={() => setPage(data.page - 1)}>{t('table.previous')}</Button>
+              <Button variant="outline" size="sm" disabled={data.page * data.pageSize >= data.total} onClick={() => setPage(data.page + 1)}>{t('table.next')}</Button>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {pdfRows && (
+        <div className="print-area hidden print:block">
+          <h2 className="mb-1 text-lg font-semibold">Stock list · {status}{stockClass ? ` · ${CLASS_LABEL[stockClass]}` : ''}</h2>
+          <p className="mb-3 text-xs">{plural(pdfRows.length, 'item')}</p>
+          <table className="w-full border-collapse text-xs">
+            <thead>
+              <tr className="border-b text-left">
+                {['Tag', 'Item', 'Group', 'Karat', 'Pcs', 'Gross', 'Net', 'Fine', 'Branch'].map((h) => <th key={h} className="p-1">{h}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {pdfRows.map((i) => (
+                <tr key={i.id} className="border-b">
+                  <td className="p-1">{i.tagNo ?? '—'}</td><td className="p-1">{i.itemName.name}</td><td className="p-1">{i.group.name}</td><td className="p-1">{i.karatCode ?? '—'}</td>
+                  <td className="p-1">{i.pcs}</td><td className="p-1">{i.gross}</td><td className="p-1">{i.net}</td><td className="p-1">{i.fine}</td><td className="p-1">{i.branch.name}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="font-semibold">
+                <td className="p-1" colSpan={4}>Total</td>
+                <td className="p-1">{pdfRows.reduce((sum, i) => sum + Number(i.pcs), 0)}</td>
+                {(['gross', 'net', 'fine'] as const).map((k) => <td key={k} className="p-1">{pdfRows.reduce((sum, i) => sum + Number(i[k]), 0).toFixed(3)}</td>)}
+                <td />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
 
       {checkout && <CheckoutDraftDialog stockItemIds={ids} onClose={() => setCheckout(false)} onDone={() => { setCheckout(false); setSelected(new Set()) }} />}
       {viewing && <StockDetailSheet item={viewing} onClose={() => setViewing(null)} />}

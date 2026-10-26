@@ -44,7 +44,8 @@ export function OrderList() {
   const [status, setStatus] = useState('')
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
-  const { data, isLoading } = useOrders({ status: status || undefined, q: q || undefined, page })
+  const [pageSize, setPageSize] = useState(20)
+  const { data, isLoading } = useOrders({ status: status || undefined, q: q || undefined, page, pageSize })
   const bulkCancel = useBulkCancelOrders()
   const [sel, setSel] = useState<Set<number>>(new Set())
   const [cancelling, setCancelling] = useState(false)
@@ -70,7 +71,13 @@ export function OrderList() {
     { header: 'Date', cell: ({ row }) => date(row.original.orderDate) },
     { header: 'Delivery', cell: ({ row }) => (row.original.deliveryDate ? date(row.original.deliveryDate) : '—') },
     { header: 'Party', cell: ({ row }) => <span>{row.original.party.name}{row.original.isUrgent && <Badge variant="destructive" className="ml-2">Urgent</Badge>}{row.original.party.mobile && <span className="block text-xs text-muted-foreground">{row.original.party.mobile}</span>}</span> },
-    { header: 'Items', cell: ({ row }) => <span title={row.original.items.map((it) => it.itemName.name).join(', ')}>{row.original.items.length}</span> },
+    {
+      header: 'Product & Details',
+      cell: ({ row }) => {
+        const its = row.original.items
+        return <span title={its.map((it) => it.itemName.name).join(', ')}>{its[0]?.itemName.name ?? '—'}{its.length > 1 && <span className="block text-xs text-muted-foreground">+{its.length - 1} more</span>}</span>
+      },
+    },
     {
       header: 'Gross / Fine (g)',
       cell: ({ row }) => <span className="whitespace-nowrap tabular-nums">{sumOf(row.original.items, (it) => it.gross).toFixed(3)} / {sumOf(row.original.items, (it) => it.fine).toFixed(3)}</span>,
@@ -144,7 +151,7 @@ export function OrderList() {
       </Card>
 
       <Card className="p-4">
-        <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} emptyText="No orders" pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: (p) => { setPage(p); setSel(new Set()) } } : undefined} />
+        <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} emptyText="No orders" pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: (p) => { setPage(p); setSel(new Set()) }, onPageSize: setPageSize } : undefined} />
       </Card>
 
       <MpinDialog

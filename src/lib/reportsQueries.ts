@@ -2,7 +2,7 @@
 import { useQuery } from '@tanstack/react-query'
 
 import { api } from '@/lib/api'
-import { qs } from '@/lib/queries'
+import { fetchAllPaged, qs } from '@/lib/queries'
 import type { ActivityDto, DashboardDto, Gstr1Dto, Gstr3bDto, GstRegisterRowDto, GstSummaryRowDto, HsnSummaryRowDto, Paged } from '@/shared'
 
 export const useDashboard = () => useQuery({ queryKey: ['dashboard'], queryFn: () => api.get<DashboardDto>('/app/dashboard') })
@@ -18,6 +18,10 @@ export const useGstHsn = (params: Record<string, string | number | undefined>) =
 
 export const useGstSummary = (params: Record<string, string | number | undefined>) =>
   useQuery({ queryKey: ['gst-summary', params], queryFn: () => api.get<GstSummaryRowDto[]>(`/app/gst/summary${qs(params)}`) })
+
+/** TASK-97: every register row for a period (all pages) — ITC summary + GSTR-2B reconciliation. */
+export const useGstRegisterAll = (params: { from?: string; to?: string; kind: 'SELL' | 'PURCHASE' }) =>
+  useQuery({ queryKey: ['gst-register-all', params], queryFn: () => fetchAllPaged<GstRegisterRowDto>('/app/gst/register', params) })
 
 // ── Phase 12: GSTR-1 / GSTR-3B (filing period = from..to) ──
 export const useGstr1 = (params: { from?: string; to?: string }) =>

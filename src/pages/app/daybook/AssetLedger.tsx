@@ -5,7 +5,9 @@ import { Link, useParams } from 'react-router-dom'
 
 import { CsvExportButton } from '@/components/CsvExportButton'
 import { DataTable } from '@/components/DataTable'
+import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -41,6 +43,7 @@ export function AssetLedger() {
   const [holder, setHolder] = useState('') // '' all, '0' shop cash, else bank id
   const [metalForm, setMetalForm] = useState('')
   const [q, setQ] = useState('')
+  const [detail, setDetail] = useState<LedgerRowDto | null>(null)
   const filters = {
     asset, from, to, direction: direction || undefined, source: source || undefined, q: q || undefined,
     bankAccountId: isMoney && holder !== '' ? holder : undefined, metalForm: isMetal ? metalForm || undefined : undefined,
@@ -81,6 +84,7 @@ export function AssetLedger() {
     ...(!isMoney && !isMetal ? [{ header: t('daybook.col_total_cost'), cell: ({ row }: { row: { original: LedgerRowDto } }) => (Number(row.original.amount) ? `₹${row.original.amount}` : '—') }] : []),
     { accessorKey: 'balance', header: t('bill.balance'), cell: ({ row }) => <span className="font-medium">{row.original.balance}</span> },
     { accessorKey: 'entryBy', header: t('dash.col_by'), cell: ({ row }) => row.original.entryBy ?? '—' },
+    { id: 'actions', header: '', cell: ({ row }) => <Button variant="ghost" size="sm" onClick={() => setDetail(row.original)}>{t('daybook.details')}</Button> },
   ]
 
   return (
@@ -161,6 +165,40 @@ export function AssetLedger() {
         emptyText={t('daybook.no_rows')}
         pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: setPageSize } : undefined}
       />
+
+      <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{t('daybook.txn_details')}</DialogTitle></DialogHeader>
+          {detail && (
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm tabular-nums">
+              {([
+                [t('udhari.date'), `${date(detail.txnDate)} ${time(detail.createdAt)}`],
+                [t('daybook.col_source'), `${detail.source} #${detail.sourceId}`],
+                [t('daybook.col_dir'), detail.direction],
+                [t('dash.branch'), detail.branch.name],
+                [t('udhari.party'), detail.party?.name],
+                [t('daybook.col_item_narration'), detail.item?.label ?? detail.narration],
+                [t('daybook.col_account'), isMoney ? detail.bankAccount?.name ?? t('daybook.shop_cash') : null],
+                [t('daybook.col_type'), detail.metalForm],
+                [t('stock.col_karat'), detail.karatCode],
+                [t('stock.col_gross'), detail.gross],
+                [t('stock.col_net'), detail.net],
+                [t('stock.col_fine'), detail.fine],
+                [t('stock.col_pcs'), detail.pcs],
+                ['₹', detail.amount],
+                [t('bill.balance'), `${detail.balance} ${unit(asset)}`],
+                [t('dash.col_by'), detail.entryBy],
+              ] as [string, string | number | null | undefined][]).filter(([, v]) => v != null && v !== '').map(([k, v]) => (
+                <div key={k} className="contents"><dt className="text-muted-foreground">{k}</dt><dd className="font-medium">{v}</dd></div>
+              ))}
+              {(detail.isReversal || detail.reversed) && <dd className="col-span-2 text-destructive">{detail.isReversal ? t('daybook.is_reversal') : t('daybook.was_reversed')}</dd>}
+            </dl>
+          )}
+          {detail && sourceHref(detail.source, detail.sourceId) && (
+            <Button asChild variant="outline"><Link to={sourceHref(detail.source, detail.sourceId)!}>{t('daybook.open_document')}</Link></Button>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

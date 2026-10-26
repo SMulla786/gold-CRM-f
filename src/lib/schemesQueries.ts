@@ -33,7 +33,7 @@ export const useEnrollments = (params: Record<string, string | number | undefine
 export const useEnrollment = (id: number) =>
   useQuery({ queryKey: ['enrollment', id], queryFn: () => api.get<EnrollmentDetailDto>(`/app/schemes/enrollments/${id}`), enabled: !!id })
 export const useEnroll = () =>
-  useApiMutation((body: Record<string, unknown>) => api.post<EnrollmentDto>('/app/schemes/enrollments', body), { invalidate: KEYS, success: 'Member enrolled' })
+  useApiMutation((body: Record<string, unknown>) => api.post<EnrollmentDetailDto>('/app/schemes/enrollments', body), { invalidate: KEYS, success: 'Member enrolled' })
 /** Bulk enrol: one independent POST per member (no bulk endpoint needed); each succeeds or fails on its own. */
 export interface BulkEnrollResult { ok: boolean; error?: string }
 export const useBulkEnroll = () => {
@@ -53,7 +53,7 @@ export const useRedeem = () =>
 
 // ── Payments ──
 export const useAddSchemePayment = () =>
-  useApiMutation((body: Record<string, unknown>) => api.post('/app/schemes/payments', body), { invalidate: KEYS, success: 'Payment added' })
+  useApiMutation((body: Record<string, unknown>) => api.post<EnrollmentDetailDto>('/app/schemes/payments', body), { invalidate: KEYS, success: 'Payment added' })
 export const useReversePayment = () =>
   useApiMutation(({ id, mpin }: { id: number; mpin: string }) => api.post(`/app/schemes/payments/${id}/reverse`, undefined, { mpin }), { invalidate: KEYS, success: 'Payment reversed' })
 

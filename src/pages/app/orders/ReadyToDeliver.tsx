@@ -19,6 +19,8 @@ const inr = (s: string | number) => new Intl.NumberFormat('en-IN', { style: 'cur
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
 
 type View = 'READY' | 'DELIVERED' | 'ALL'
+// same choices as DataTable's entries picker (backend max 100)
+const PAGE_SIZES = [10, 20, 50, 100]
 
 /**
  * Ready to deliver (order billing): READY orders to bill, DELIVERED orders already billed, or both.
@@ -30,7 +32,8 @@ export function ReadyToDeliver() {
   const [view, setView] = useState<View>('READY')
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
-  const base = { q: q.trim() || undefined, page }
+  const [pageSize, setPageSize] = useState(20)
+  const base = { q: q.trim() || undefined, page, pageSize }
   const ready = useOrders({ ...base, status: 'READY' }, view !== 'DELIVERED')
   const delivered = useOrders({ ...base, status: 'DELIVERED' }, view !== 'READY')
 
@@ -107,11 +110,19 @@ export function ReadyToDeliver() {
 
       <Card className="p-4">
         <DataTable columns={columns} data={rows} isLoading={isLoading} emptyText={view === 'DELIVERED' ? 'No delivered orders' : 'No orders ready to deliver'} />
-        {loaded && pageCount > 1 && (
-          <div className="mt-3 flex items-center justify-end gap-2 text-sm">
+        {loaded && (pageCount > 1 || total > PAGE_SIZES[0]) && (
+          <div className="mt-3 flex flex-wrap items-center justify-end gap-2 text-sm">
+            <label className="mr-auto flex items-center gap-2 text-muted-foreground">
+              Entries
+              <select className="h-8 rounded-lg border bg-card px-2 text-foreground" value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1) }}>
+                {PAGE_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </label>
             <span className="text-muted-foreground">Page {page} of {pageCount} · {total} orders</span>
-            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
-            <Button variant="outline" size="sm" disabled={page >= pageCount} onClick={() => setPage(page + 1)}>Next</Button>
+            {pageCount > 1 && <>
+              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
+              <Button variant="outline" size="sm" disabled={page >= pageCount} onClick={() => setPage(page + 1)}>Next</Button>
+            </>}
           </div>
         )}
       </Card>

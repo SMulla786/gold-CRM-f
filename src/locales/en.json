@@ -691,5 +691,30 @@
   "jbill.gst_amount": "GST amount",
   "jbill.discount_amount": "Discount amount",
 
-  "bill.totals_row": "Total ({n} lines)"
+  "bill.totals_row": "Total ({n} lines)",
+
+  "udhari.recent_txns": "Recent udhar entries",
+  "bill.jama_udhar": "Jama / Pay udhar ↗",
+  "bill.tag_no_ph": "Tag no. (auto)",
+
+  "daybook.details": "Details",
+  "daybook.txn_details": "Transaction details",
+  "daybook.is_reversal": "This row reverses an earlier entry.",
+  "daybook.was_reversed": "This entry was reversed later.",
+  "daybook.open_document": "Open document",
+  "bill.cols_all": "All",
+  "bill.cols_simple": "Simple",
+  "bill.cols_tunch": "Tunch",
+  "draft.delete_title": "Delete draft #{no}",
+
+  "bill.order_search_ph": "Order no. / party…",
+  "billing.tab_invoice_settings": "Invoice settings",
+
+  "bill.custom_item": "Custom item",
+
+  "draft.slip": "Slip",
+  "draft.back_drafts": "← Drafts",
+  "draft.slip_intro": "Print this slip for the customer to hand to the cashier.",
+  "draft.slip_title": "Showroom draft — show at the billing counter",
+  "draft.slip_valid": "Valid till {date}"
 }

@@ -25,23 +25,39 @@ const str = (v: string | number | null | undefined) => (v == null ? '' : String(
 type Limits = { minWeight: string; maxWeight: string; minPcs: string; maxPcs: string }
 const limitsBody = (l: Limits) => ({ minWeight: optNum(l.minWeight), maxWeight: optNum(l.maxWeight), minPcs: optNum(l.minPcs), maxPcs: optNum(l.maxPcs) })
 
-/** HSN picker fed by the settings HSN master (enabled codes only). */
+/** HSN picker fed by the settings HSN master (enabled codes only), with a client-side 4/6/8-digit filter. */
 function HsnSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const { data } = useHsn({ onlyActive: 'true' })
+  const [digits, setDigits] = useState('any')
+  // Keep the selected code listed even when it falls outside the digit filter.
+  const opts = data?.filter((h) => digits === 'any' || h.code.length === Number(digits) || String(h.id) === value)
   return (
-    <Select value={value || 'none'} onValueChange={(v) => onChange(v === 'none' ? '' : v)}>
-      <SelectTrigger aria-label="HSN code">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="none">No HSN</SelectItem>
-        {data?.map((h) => (
-          <SelectItem key={h.id} value={String(h.id)}>
-            {h.code} · {h.productType}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <div className="flex gap-2">
+      <Select value={value || 'none'} onValueChange={(v) => onChange(v === 'none' ? '' : v)}>
+        <SelectTrigger aria-label="HSN code">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="none">No HSN</SelectItem>
+          {opts?.map((h) => (
+            <SelectItem key={h.id} value={String(h.id)}>
+              {h.code} · {h.productType}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select value={digits} onValueChange={setDigits}>
+        <SelectTrigger className="w-28 shrink-0" aria-label="HSN digits">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="any">Any length</SelectItem>
+          {['4', '6', '8'].map((d) => (
+            <SelectItem key={d} value={d}>{d} digits</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   )
 }
 
@@ -388,16 +404,32 @@ export function ItemNameDialog({ groups, item, stockClass, onCreated, onClose }:
               Save item name
             </Button>
           ) : (
-            <Button
-              disabled={!groupId || !name.trim() || (needsTag && !tagPrefix) || create.isPending}
-              onClick={async () => {
-                const created = await create.mutateAsync({ groupId: Number(groupId), ...body() })
-                onCreated?.(created)
-                onClose()
-              }}
-            >
-              Create
-            </Button>
+            <>
+              {/* 'Continue?': save and keep the dialog open with the same group and settings for the next name. */}
+              {!onCreated && (
+                <Button
+                  variant="outline"
+                  disabled={!groupId || !name.trim() || (needsTag && !tagPrefix) || create.isPending}
+                  onClick={async () => {
+                    await create.mutateAsync({ groupId: Number(groupId), ...body() })
+                    setName('')
+                    setTagPrefix('')
+                  }}
+                >
+                  Save and add another
+                </Button>
+              )}
+              <Button
+                disabled={!groupId || !name.trim() || (needsTag && !tagPrefix) || create.isPending}
+                onClick={async () => {
+                  const created = await create.mutateAsync({ groupId: Number(groupId), ...body() })
+                  onCreated?.(created)
+                  onClose()
+                }}
+              >
+                Create
+              </Button>
+            </>
           )}
         </DialogFooter>
         {newGroup && <GroupDialog defaultClass={groupClass ?? stockClass} onCreated={(gs) => gs[0] && setGroupId(String(gs[0].id))} onClose={() => setNewGroup(false)} />}
@@ -416,15 +448,17 @@ export function ItemMasters() {
   const [gClass, setGClass] = useState('')
   const [gType, setGType] = useState('')
   const [gPage, setGPage] = useState(1)
+  const [gSize, setGSize] = useState(20)
   const { data: gTypes } = useJewelleryTypes(gClass || undefined)
   // Name tab filters + page
   const [nQ, setNQ] = useState('')
   const [nClass, setNClass] = useState('')
   const [nGroup, setNGroup] = useState('')
   const [nPage, setNPage] = useState(1)
+  const [nSize, setNSize] = useState(20)
 
-  const groupsQ = useItemGroups({ page: gPage, q: gQ || undefined, stockClass: gClass || undefined, jewelleryTypeId: gType ? Number(gType) : undefined })
-  const namesQ = useItemNames({ page: nPage, q: nQ || undefined, stockClass: nClass || undefined, groupId: nGroup ? Number(nGroup) : undefined })
+  const groupsQ = useItemGroups({ page: gPage, pageSize: gSize, q: gQ || undefined, stockClass: gClass || undefined, jewelleryTypeId: gType ? Number(gType) : undefined })
+  const namesQ = useItemNames({ page: nPage, pageSize: nSize, q: nQ || undefined, stockClass: nClass || undefined, groupId: nGroup ? Number(nGroup) : undefined })
   // Unfiltered: every group (contract max 100) for pickers + the catalogue totals.
   const allGroupsQ = useItemGroups({ page: 1, pageSize: 100 })
   const allNamesCount = useItemNames({ page: 1, pageSize: 1 })
@@ -580,7 +614,7 @@ export function ItemMasters() {
               data={groupItems}
               isLoading={groupsQ.isLoading}
               emptyText="No item groups"
-              pagination={groupsQ.data ? { page: groupsQ.data.page, pageSize: groupsQ.data.pageSize, total: groupsQ.data.total, onPage: setGPage } : undefined}
+              pagination={groupsQ.data ? { page: groupsQ.data.page, pageSize: groupsQ.data.pageSize, total: groupsQ.data.total, onPage: setGPage, onPageSize: setGSize } : undefined}
             />
           </Card>
         </TabsContent>
@@ -619,7 +653,7 @@ export function ItemMasters() {
               data={nameItems}
               isLoading={namesQ.isLoading}
               emptyText="No item names"
-              pagination={namesQ.data ? { page: namesQ.data.page, pageSize: namesQ.data.pageSize, total: namesQ.data.total, onPage: setNPage } : undefined}
+              pagination={namesQ.data ? { page: namesQ.data.page, pageSize: namesQ.data.pageSize, total: namesQ.data.total, onPage: setNPage, onPageSize: setNSize } : undefined}
             />
           </Card>
         </TabsContent>

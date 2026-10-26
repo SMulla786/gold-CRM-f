@@ -4,7 +4,7 @@ import { Link, useParams } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { useBusinessProfile } from '@/lib/appQueries'
+import { useBusinessProfile, useSettings } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
 import { useJustBill } from '@/lib/justbillQueries'
@@ -22,6 +22,7 @@ export function JustBillView() {
   const { data: bill, isLoading } = useJustBill(Number(id))
   const { data: business } = useBusinessProfile()
   const { data: states } = useStates()
+  const { data: settings } = useSettings()
 
   if (isLoading || !bill) return <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
 
@@ -89,6 +90,8 @@ export function JustBillView() {
           <div className="flex justify-between font-medium"><span>Balance</span><span>{inr(bill.balance)}</span></div>
         </div>
         <p className="mt-2"><span className="text-muted-foreground">In words:</span> {amountInWords(bill.final)}</p>
+        {/* Settings → Invoice → Just Bill disclaimer (printed, so stays as typed) */}
+        {settings?.['invoice.content'].justBillDisclaimer && <p className="border-t pt-2 text-xs whitespace-pre-line text-muted-foreground">{settings['invoice.content'].justBillDisclaimer}</p>}
       </div>
     </div>
   )

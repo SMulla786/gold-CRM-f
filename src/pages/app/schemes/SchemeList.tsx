@@ -124,7 +124,8 @@ export function SchemeList({ kind = 'SAVING' }: { kind?: SchemeKind }) {
   const [active, setActive] = useState('')
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
-  const { data, isLoading } = useSchemes({ kind, type: type || undefined, active: active || undefined, q: q.trim() || undefined, page })
+  const [pageSize, setPageSize] = useState(20)
+  const { data, isLoading } = useSchemes({ kind, type: type || undefined, active: active || undefined, q: q.trim() || undefined, page, pageSize })
   const patch = usePatchScheme()
   const [editing, setEditing] = useState<SchemeDto | null>(null)
   // Drill-down: a scheme's members (Anjuman rows keep the kind preset too).
@@ -201,7 +202,7 @@ export function SchemeList({ kind = 'SAVING' }: { kind?: SchemeKind }) {
       </Card>
 
       <Card className="p-4">
-        <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} emptyText={`No ${kind === 'ANJUMAN' ? 'anjuman schemes' : 'schemes'} yet`} pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined} />
+        <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} emptyText={`No ${kind === 'ANJUMAN' ? 'anjuman schemes' : 'schemes'} yet`} pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: setPageSize } : undefined} />
       </Card>
       {editing && <EditSchemeDialog scheme={editing} onClose={() => setEditing(null)} />}
     </div>

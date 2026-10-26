@@ -156,7 +156,8 @@ export function StockTransfers() {
   const { me } = useAuth()
   const branches = me?.accessibleBranches ?? []
   const [page, setPage] = useState(1)
-  const { data, isLoading } = useStockTransfers({ page })
+  const [pageSize, setPageSize] = useState(20)
+  const { data, isLoading } = useStockTransfers({ page, pageSize })
   const [creating, setCreating] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(null)
 
@@ -212,7 +213,7 @@ export function StockTransfers() {
           data={data?.items ?? []}
           isLoading={isLoading}
           emptyText="No transfers"
-          pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined}
+          pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: setPageSize } : undefined}
         />
       </Card>
       {creating && <NewTransferDialog branches={branches} onClose={() => setCreating(false)} />}

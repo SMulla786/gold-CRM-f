@@ -1,5 +1,5 @@
 import type { ColumnDef } from '@tanstack/react-table'
-import { Hourglass, Lock, Scale, Truck, Wallet, type LucideIcon } from 'lucide-react'
+import { Hourglass, Lock, Printer, Scale, Truck, Wallet, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -103,8 +103,9 @@ export function BhavBookings() {
   const [status, setStatus] = useState('open')
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
   const statusParams = status === 'open' ? { open: 'true' } : status === 'all' ? {} : { status }
-  const { data, isLoading } = useBhavBookings({ side: side || undefined, metal: metal || undefined, q: q || undefined, ...statusParams, page })
+  const { data, isLoading } = useBhavBookings({ side: side || undefined, metal: metal || undefined, q: q || undefined, ...statusParams, page, pageSize })
   const cancel = useCancelBhav()
   const del = useDeleteBhav()
   const [cancelling, setCancelling] = useState<BhavBookingDto | null>(null)
@@ -146,6 +147,7 @@ export function BhavBookings() {
           {canDeliver && isOpen && (activeBranch === String(b.branch.id)
             ? <Button asChild variant="ghost" size="sm"><Link to={`/app/buy_sell/new?booking=${b.id}`}><Truck className="size-4" aria-hidden />Deliver</Link></Button>
             : <Button variant="ghost" size="sm" disabled title={`Switch to branch ${b.branch.name} to deliver`}><Truck className="size-4" aria-hidden />Deliver</Button>)}
+          <Button asChild variant="ghost" size="sm"><Link to={`/app/buy_sell/bhav/${b.id}/print`}><Printer className="size-4" aria-hidden />Print</Link></Button>
           {canEdit && isOpen && <Button variant="ghost" size="sm" onClick={() => setCancelling(b)}>Cancel</Button>}
           {/* only an untouched PENDING booking can be deleted (the server reverses its advance) */}
           {canDelete && b.status === 'PENDING' && <Button variant="ghost" size="sm" onClick={() => setDeleting(b)}>Delete</Button>}
@@ -219,7 +221,7 @@ export function BhavBookings() {
       </Card>
 
       <Card className="p-4">
-        <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} emptyText="No bookings" pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: (p) => { setPage(p); clearSel() } } : undefined} />
+        <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} emptyText="No bookings" pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: (p) => { setPage(p); clearSel() }, onPageSize: (s) => { setPageSize(s); clearSel() } } : undefined} />
       </Card>
       <MpinDialog open={!!cancelling} title={`Cancel booking #${cancelling?.bookingNo ?? ''}`} onConfirm={(mpin) => cancel.mutateAsync({ id: cancelling!.id, mpin })} onClose={() => setCancelling(null)} />
       <MpinDialog open={!!deleting} title={`Delete booking #${deleting?.bookingNo ?? ''}`} onConfirm={(mpin) => del.mutateAsync({ id: deleting!.id, mpin })} onClose={() => setDeleting(null)} />
