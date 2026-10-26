@@ -3,6 +3,7 @@ import { Printer, Search } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
+import { ExcelExportButton } from '@/components/CsvExportButton'
 import { DataTable } from '@/components/DataTable'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -54,14 +55,18 @@ export function GstReports() {
     gstr1: t('gst.gstr1'), gstr3b: t('gst.gstr3b'), itc: t('gst.itc_summary'), reconcile: t('gst.reconcile_2b'),
   }
 
+  // every matching register row (all pages); same header + body for CSV and Excel
+  const registerRows = async () => {
+    const all = await fetchAllPaged<GstRegisterRowDto>('/app/gst/register', { ...r, kind, q: q || undefined })
+    const pur = kind === 'PURCHASE'
+    const header = ['Bill', 'Date', 'Party', 'GSTIN', ...(pur ? ['Supplier inv. no.', 'ITC'] : []), 'HSN', 'GST %', 'Taxable', 'CGST', 'SGST', 'IGST', 'Total']
+    const body = all.map((x) => [x.billNo, date(x.billDate), x.party.name, x.party.gstin ?? '', ...(pur ? [x.supplierInvoiceNo ?? '', itcText(x)] : []), x.hsnCodes.join(' '), x.gstPercent ?? '', x.taxable, x.cgst, x.sgst, x.igst, x.total])
+    return [header, ...body]
+  }
   const exportRegister = async () => {
     setExporting(true)
     try {
-      const all = await fetchAllPaged<GstRegisterRowDto>('/app/gst/register', { ...r, kind, q: q || undefined })
-      const pur = kind === 'PURCHASE'
-      const header = ['Bill', 'Date', 'Party', 'GSTIN', ...(pur ? ['Supplier inv. no.', 'ITC'] : []), 'HSN', 'GST %', 'Taxable', 'CGST', 'SGST', 'IGST', 'Total']
-      const body = all.map((x) => [x.billNo, date(x.billDate), x.party.name, x.party.gstin ?? '', ...(pur ? [x.supplierInvoiceNo ?? '', itcText(x)] : []), x.hsnCodes.join(' '), x.gstPercent ?? '', x.taxable, x.cgst, x.sgst, x.igst, x.total])
-      downloadCsv(`gst-register-${kind.toLowerCase()}.csv`, [header, ...body])
+      downloadCsv(`gst-register-${kind.toLowerCase()}.csv`, await registerRows())
     } finally {
       setExporting(false)
     }
@@ -72,15 +77,23 @@ export function GstReports() {
   const summary = useGstSummary({ ...r, groupBy })
   const period = `${from || '…'}_${to || '…'}`
 
-  const exportHsn = () => downloadCsv(`gst-hsn-${period}.csv`, [
+  const hsnRows = () => [
     ['HSN', 'Class', 'Weight', 'Taxable', 'CGST', 'SGST', 'IGST', 'Total'],
     ...(hsn.data ?? []).map((h) => [h.hsnCode, t(`class.${h.stockClass}`), h.weight, h.taxable, h.cgst, h.sgst, h.igst, h.total]),
-  ])
-  const exportSummary = () => downloadCsv(`gst-summary-${groupBy.toLowerCase()}-${period}.csv`, [
+  ]
+  const summaryRows = () => [
     ['Period', 'Sales taxable', 'Purchase taxable', 'Output GST', 'Input GST', 'Net payable'],
     ...(summary.data ?? []).map((s) => [s.period, s.salesTaxable, s.purchaseTaxable, s.outputGst, s.inputGst, s.netPayable]),
-  ])
+  ]
+  const hsnFile = `gst-hsn-${period}.csv`
+  const summaryFile = `gst-summary-${groupBy.toLowerCase()}-${period}.csv`
+  const exportHsn = () => downloadCsv(hsnFile, hsnRows())
+  const exportSummary = () => downloadCsv(summaryFile, summaryRows())
   const csv = mode === 'register' ? exportRegister : mode === 'hsn' ? exportHsn : mode === 'summary' ? exportSummary : null
+  // Excel = the same rows as the CSV for the current view
+  const excel = mode === 'register' ? { filename: `gst-register-${kind.toLowerCase()}.csv`, rows: registerRows }
+    : mode === 'hsn' ? { filename: hsnFile, rows: hsnRows }
+    : mode === 'summary' ? { filename: summaryFile, rows: summaryRows } : null
 
   const regCols: ColumnDef<GstRegisterRowDto, unknown>[] = [
     { id: 'sn', header: '#', cell: ({ row }) => <span className="text-muted-foreground tabular-nums">{(page - 1) * pageSize + row.index + 1}</span> },
@@ -169,6 +182,7 @@ export function GstReports() {
         )}
         <div className="ml-auto flex flex-wrap gap-2">
           {csv && <Button variant="outline" disabled={exporting} onClick={() => void csv()}>{exporting ? t('bill.exporting') : t('common.export_csv')}</Button>}
+          {excel && <ExcelExportButton disabled={exporting} filename={excel.filename} rows={excel.rows} />}
           {/* "PDF" = the browser's print dialog (Save as PDF) on the .print-area below */}
           <Button variant="outline" onClick={() => window.print()}><Printer aria-hidden />{t('gst.print_pdf')}</Button>
         </div>

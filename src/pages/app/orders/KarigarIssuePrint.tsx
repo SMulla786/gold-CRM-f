@@ -111,6 +111,14 @@ export function KarigarIssuePrint() {
             </ul>
           </div>
         )}
+        {!!issue.samples?.length && (
+          <div className="space-y-1">
+            <div className="font-medium">Tounch samples handed over</div>
+            <ul className="space-y-0.5 text-muted-foreground tabular-nums">
+              {issue.samples.map((s) => <li key={s.id}>#{s.sampleNo} · {s.metal} · gross {s.grossWt}g · tounch {s.tounchPercent}% · fine {s.fine}g</li>)}
+            </ul>
+          </div>
+        )}
         {issue.remark && <p><span className="text-muted-foreground">Remark:</span> {issue.remark}</p>}
 
         <div className="grid grid-cols-2 gap-10 pt-10 text-center text-xs text-muted-foreground">

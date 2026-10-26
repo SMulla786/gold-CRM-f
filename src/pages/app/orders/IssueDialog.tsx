@@ -12,7 +12,7 @@ import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
 import { usePartyBalance } from '@/lib/billingQueries'
 import { useCreateKarigarIssue } from '@/lib/ordersQueries'
-import { SAMPLES_PERM, useIssueSamples } from '@/lib/samplesQueries'
+import { SAMPLES_PERM } from '@/lib/samplesQueries'
 import type { OrderItemDto, PartyRefDto, SamplePickDto } from '@/shared'
 
 const n = (s: string) => Number(s) || 0
@@ -23,8 +23,7 @@ export function IssueDialog({ items, onClose }: { items: OrderItemDto[]; onClose
   const itemIds = items.map((it) => it.id)
   const issue = useCreateKarigarIssue()
   const canSamples = useAuth().can(SAMPLES_PERM, 'edit')
-  const issueSamples = useIssueSamples()
-  // Optional tounch samples handed over with this issue: the issue body has no samples field, so each is issued via POST /app/samples/:id/issue after the issue saves.
+  // Optional tounch samples handed over with this issue: sent as sampleIds and issued in the same transaction (any unavailable sample → 409, nothing saved).
   const [samplesOpen, setSamplesOpen] = useState(false)
   const [samples, setSamples] = useState<SamplePickDto[]>([])
   const { data: banks } = useBankAccounts()
@@ -85,9 +84,8 @@ export function IssueDialog({ items, onClose }: { items: OrderItemDto[]; onClose
           </div>}
         </div>
         <DialogFooter>
-          <Button disabled={!ok || issue.isPending || issueSamples.isPending} onClick={async () => {
-            await issue.mutateAsync({ karigarId: karigar!.id, orderItemIds: itemIds, dueDate: dueDate || undefined, goldFine: n(f.goldFine), silverFine: n(f.silverFine), cash: n(f.cash), online: n(f.online), bankAccountId: n(f.online) > 0 ? Number(f.bankAccountId) : undefined, remark: f.remark || undefined, wastagePercent: f.wastagePercent !== '' ? n(f.wastagePercent) : undefined, wastageGm: f.wastageGm !== '' ? n(f.wastageGm) : undefined })
-            if (samples.length) await issueSamples.mutateAsync({ ids: samples.map((s) => s.id), karigarId: karigar!.id }).catch(() => {})
+          <Button disabled={!ok || issue.isPending} onClick={async () => {
+            await issue.mutateAsync({ karigarId: karigar!.id, orderItemIds: itemIds, dueDate: dueDate || undefined, goldFine: n(f.goldFine), silverFine: n(f.silverFine), cash: n(f.cash), online: n(f.online), bankAccountId: n(f.online) > 0 ? Number(f.bankAccountId) : undefined, remark: f.remark || undefined, wastagePercent: f.wastagePercent !== '' ? n(f.wastagePercent) : undefined, wastageGm: f.wastageGm !== '' ? n(f.wastageGm) : undefined, sampleIds: samples.length ? samples.map((s) => s.id) : undefined })
             onClose()
           }}>Issue</Button>
         </DialogFooter>

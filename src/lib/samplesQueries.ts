@@ -39,15 +39,3 @@ export const useReturnSample = () =>
 
 export const useMeltSample = () =>
   useApiMutation(({ id, body }: { id: number; body: Record<string, unknown> }) => api.post<SampleDetailDto>(`${BASE}/${id}/melt`, body), { invalidate: SAMPLE_KEYS, success: 'Sample marked melted' })
-
-/** Issue several samples to one karigar (one POST per sample; the karigar-issue contract has no samples field). Tries all, then rethrows the first failure. */
-export const useIssueSamples = () =>
-  useApiMutation(
-    async ({ ids, karigarId, note }: { ids: number[]; karigarId?: number; note?: string }) => {
-      const results = await Promise.allSettled(ids.map((id) => api.post<SampleDetailDto>(`${BASE}/${id}/issue`, { karigarId, note })))
-      const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected')
-      if (failed) throw failed.reason
-      return results.length
-    },
-    { invalidate: SAMPLE_KEYS, success: 'Samples issued' },
-  )

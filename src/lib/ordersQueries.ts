@@ -44,7 +44,7 @@ export const useKarigarIssues = (params: Record<string, string | number | undefi
 export const useKarigarIssue = (id?: number) =>
   useQuery({ queryKey: ['karigar-issues', 'one', id], queryFn: () => api.get<KarigarIssueDto>(`/app/karigar-issues/${id}`), enabled: !!id })
 export const useCreateKarigarIssue = () =>
-  useApiMutation((body: Record<string, unknown>) => api.post<KarigarIssueDto>('/app/karigar-issues', body), { invalidate: ORDER_KEYS, success: 'Issued to karigar' })
+  useApiMutation((body: Record<string, unknown>) => api.post<KarigarIssueDto>('/app/karigar-issues', body), { invalidate: [...ORDER_KEYS, ['samples'], ['sample'], ['sample-search']], success: 'Issued to karigar' })
 export const useReceiveKarigarIssue = () =>
   useApiMutation(({ id, body }: { id: number; body: Record<string, unknown> }) => api.post<KarigarIssueDto>(`/app/karigar-issues/${id}/receive`, body), { invalidate: ORDER_KEYS, success: 'Received from karigar' })
 

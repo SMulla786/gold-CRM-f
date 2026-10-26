@@ -1,5 +1,6 @@
 import { Landmark, Receipt, UserX } from 'lucide-react'
 
+import { ExcelExportButton } from '@/components/CsvExportButton'
 import { KpiTile } from '@/components/KpiTile'
 import { SectionCard } from '@/components/SectionCard'
 import { Button } from '@/components/ui/button'
@@ -47,7 +48,8 @@ export function ItcSummary({ from, to }: { from: string; to: string }) {
   const taxable = eligible.reduce((a, r) => a + Number(r.taxable), 0)
   const itc = g3b.data?.itc
 
-  const exportCsv = () => downloadCsv(`gst-itc-${from || 'all'}-${to || 'all'}.csv`, [
+  const itcFile = `gst-itc-${from || 'all'}-${to || 'all'}.csv`
+  const itcRows = () => [
     ['Month', ...HEAD], ...byMonth.map((b) => [b.label, ...cells(b)]),
     [],
     ['Supplier', 'GSTIN', ...HEAD], ...bySupplier.map((b) => [b.label, b.gstin, ...cells(b)]),
@@ -55,7 +57,8 @@ export function ItcSummary({ from, to }: { from: string; to: string }) {
     ['Blocked ITC reason', ...HEAD], ...blocked.map((b) => [b.label, ...cells(b)]),
     [],
     ['Ineligible ITC supplier', 'GSTIN', ...HEAD], ...ineligible.map((b) => [b.label, b.gstin, ...cells(b)]),
-  ])
+  ]
+  const exportCsv = () => downloadCsv(itcFile, itcRows())
 
   const table = (first: string[], rows: Bucket[], lead: (b: Bucket) => React.ReactNode[]) => (
     <Table>
@@ -81,8 +84,9 @@ export function ItcSummary({ from, to }: { from: string; to: string }) {
         <KpiTile tone="slate" label={t('gst.no_gstin_purchases')} icon={UserX} value={reg.data ? reg.data.length - claimable.length : '—'} sub={t('gst.no_itc_unregistered')} />
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
         <Button className="print:hidden" variant="outline" size="sm" disabled={!claimable.length} onClick={exportCsv}>{t('common.export_csv')}</Button>
+        <ExcelExportButton className="print:hidden" size="sm" disabled={!claimable.length} filename={itcFile} rows={itcRows} />
       </div>
 
       <SectionCard title={t('gst.itc_by_month')}>{table(['Month'], byMonth, (b) => [b.label])}</SectionCard>

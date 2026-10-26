@@ -33,6 +33,8 @@ export function Gstr3bReport() {
   const Z = { taxable: '0', cgst: '0', sgst: '0', igst: '0' }
   type Tax = { cgst: string; sgst: string; igst: string }
   const line = (sec: string, desc: string, c: Tax & { taxable?: string } = Z) => [sec, desc, c.taxable ?? '', c.cgst, c.sgst, c.igst]
+  // eligible + blocked taxable (older servers without the split → blank cell, as before)
+  const itcTaxable = (i: { eligibleTaxable?: string; reversedTaxable?: string }) => (i.eligibleTaxable == null ? undefined : (Number(i.eligibleTaxable) + Number(i.reversedTaxable ?? 0)).toFixed(2))
   const plus = (a: Tax, b: Tax = Z) => ({ cgst: (Number(a.cgst) + Number(b.cgst)).toFixed(2), sgst: (Number(a.sgst) + Number(b.sgst)).toFixed(2), igst: (Number(a.igst) + Number(b.igst)).toFixed(2) })
   const rows = data ? [
     ['3.1(a)', t('gst.outward'), data.outward.taxable, data.outward.cgst, data.outward.sgst, data.outward.igst],
@@ -40,8 +42,8 @@ export function Gstr3bReport() {
     line('3.1(c)', t('gst.r3b_nil_exempt'), data.outward.nilExempt),
     line('3.1(d)', t('gst.r3b_reverse_charge'), data.outward.reverseCharge),
     line('3.1(e)', t('gst.r3b_non_gst'), data.outward.nonGst),
-    // 4(A)(5) is gross ITC = eligible (flat itc) + 17(5) blocked, which 4(B)(1) then reverses
-    line('4(A)(5)', t('gst.r3b_other_itc'), plus(data.itc, data.itc.reversed)),
+    // 4(A)(5) is gross ITC = eligible (flat itc) + 17(5) blocked, which 4(B)(1) then reverses; taxable on the same basis (display only)
+    line('4(A)(5)', t('gst.r3b_other_itc'), { ...plus(data.itc, data.itc.reversed), taxable: itcTaxable(data.itc) }),
     line('4(B)(1)', t('gst.r3b_itc_reversed'), data.itc.reversed),
     line('4(D)(2)', t('gst.ineligible_itc'), data.itc.ineligible),
   ] : []
