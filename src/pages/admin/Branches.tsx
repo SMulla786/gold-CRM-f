@@ -1,6 +1,8 @@
+import { zodResolver } from '@hookform/resolvers/zod'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
+import { z } from 'zod'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -11,9 +13,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAuth } from '@/lib/auth'
-import { useAddBranch, useAdminOverview, useBranches, useMoveBranch, useUpdateBranch } from '@/lib/queries'
+import { useAddBranch, useAdminOverview, useBranches, useDistricts, useMoveBranch, useStates, useUpdateBranch } from '@/lib/queries'
 import { BranchOverviewTable } from '@/pages/admin/AdminDashboard'
-import type { BranchNodeDto } from '@/shared'
+import { branchBody, type BranchNodeDto } from '@/shared'
 
 const flatten = (n: BranchNodeDto, out: BranchNodeDto[] = []): BranchNodeDto[] => {
   out.push(n)
@@ -21,7 +23,25 @@ const flatten = (n: BranchNodeDto, out: BranchNodeDto[] = []): BranchNodeDto[] =
   return out
 }
 
-type BranchForm = { name: string; code?: string; isAdminNode: boolean; isActive?: boolean }
+const branchForm = branchBody.omit({ parentId: true }).extend({ isActive: z.boolean().optional() })
+type BranchForm = z.input<typeof branchForm>
+// Empty optional inputs must reach zod as undefined, or the mobile/GSTIN regexes reject ''.
+const opt = { setValueAs: (v: string) => v?.trim() || undefined }
+// Tree node -> dialog defaults (the API returns null for unset details).
+const branchInitial = (n: BranchNodeDto): BranchForm => ({
+  name: n.name,
+  code: n.code ?? undefined,
+  isAdminNode: n.isAdminNode,
+  isActive: n.isActive,
+  inchargeName: n.inchargeName ?? undefined,
+  countryCode: n.countryCode ?? '+91',
+  mobile: n.mobile ?? undefined,
+  gstin: n.gstin ?? undefined,
+  stateId: n.stateId ?? undefined,
+  districtId: n.districtId ?? undefined,
+  address: n.address ?? undefined,
+  disclaimer: n.disclaimer ?? undefined,
+})
 
 function BranchDialog({
   title,
@@ -36,12 +56,17 @@ function BranchDialog({
   onClose: () => void
   showActive?: boolean
 }) {
-  const { register, handleSubmit, watch, setValue } = useForm<BranchForm>({
-    defaultValues: { isAdminNode: false, isActive: true, ...initial },
+  const { register, handleSubmit, watch, setValue, formState } = useForm<BranchForm>({
+    resolver: zodResolver(branchForm),
+    defaultValues: { isAdminNode: false, isActive: true, countryCode: '+91', ...initial },
   })
+  const { data: states } = useStates()
+  const stateId = watch('stateId')
+  const { data: districts } = useDistricts(stateId ? Number(stateId) : undefined)
+  const err = (k: keyof BranchForm) => formState.errors[k] && <p className="text-xs text-destructive">{formState.errors[k]?.message}</p>
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
@@ -52,13 +77,76 @@ function BranchDialog({
           })}
           className="space-y-4"
         >
-          <div className="space-y-1.5">
-            <Label htmlFor="b-name">Branch name</Label>
-            <Input id="b-name" {...register('name', { required: true, minLength: 2 })} />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="b-name">Branch name</Label>
+              <Input id="b-name" {...register('name')} />
+              {err('name')}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="b-code">Code</Label>
+              <Input id="b-code" {...register('code', opt)} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="b-incharge">Incharge name</Label>
+              <Input id="b-incharge" {...register('inchargeName', opt)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="b-mobile">Mobile</Label>
+              <div className="flex gap-2">
+                <Input aria-label="Country code" className="w-16" {...register('countryCode')} />
+                <Input id="b-mobile" inputMode="numeric" {...register('mobile', opt)} />
+              </div>
+              {err('mobile')}
+            </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="b-code">Code</Label>
-            <Input id="b-code" {...register('code')} />
+            <Label htmlFor="b-gstin">GSTIN</Label>
+            <Input id="b-gstin" {...register('gstin', { setValueAs: (v: string) => v?.trim().toUpperCase() || undefined })} />
+            {err('gstin')}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>State</Label>
+              <Select value={stateId ? String(stateId) : ''} onValueChange={(v) => { setValue('stateId', Number(v)); setValue('districtId', undefined) }}>
+                <SelectTrigger aria-label="State">
+                  <SelectValue placeholder="Select state" />
+                </SelectTrigger>
+                <SelectContent>
+                  {states?.map((s) => (
+                    <SelectItem key={s.id} value={String(s.id)}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>District</Label>
+              <Select value={watch('districtId') ? String(watch('districtId')) : ''} onValueChange={(v) => setValue('districtId', Number(v))} disabled={!stateId}>
+                <SelectTrigger aria-label="District">
+                  <SelectValue placeholder="Select district" />
+                </SelectTrigger>
+                <SelectContent>
+                  {districts?.map((d) => (
+                    <SelectItem key={d.id} value={String(d.id)}>
+                      {d.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="b-address">Address</Label>
+            <Input id="b-address" {...register('address', opt)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="b-disclaimer">Disclaimer</Label>
+            <textarea id="b-disclaimer" rows={2} className="w-full rounded-md border bg-transparent px-3 py-2 text-sm" placeholder="Printed on this branch's bills" {...register('disclaimer', opt)} />
+            {err('disclaimer')}
           </div>
           <label className="flex items-center gap-2 text-sm">
             <Checkbox checked={watch('isAdminNode')} onCheckedChange={(v) => setValue('isAdminNode', Boolean(v))} />
@@ -174,16 +262,16 @@ function TreeRow({ node, all, collapsed, toggle }: { node: BranchNodeDto; all: B
         <BranchDialog
           title={`Add sub-branch under ${node.name}`}
           onClose={() => setDialog(null)}
-          onSubmit={(v) => add.mutateAsync({ parentId: node.id, name: v.name, code: v.code || undefined, isAdminNode: v.isAdminNode }).then(() => {})}
+          onSubmit={(v) => add.mutateAsync({ ...v, parentId: node.id, isActive: undefined }).then(() => {})}
         />
       )}
       {dialog === 'edit' && (
         <BranchDialog
           title={`Edit ${node.name}`}
           showActive
-          initial={{ name: node.name, code: node.code ?? undefined, isAdminNode: node.isAdminNode, isActive: node.isActive }}
+          initial={branchInitial(node)}
           onClose={() => setDialog(null)}
-          onSubmit={(v) => update.mutateAsync({ id: node.id, body: { name: v.name, code: v.code || undefined, isAdminNode: v.isAdminNode, isActive: v.isActive } }).then(() => {})}
+          onSubmit={(v) => update.mutateAsync({ id: node.id, body: v }).then(() => {})}
         />
       )}
       {dialog === 'move' && <MoveDialog node={node} all={all} onClose={() => setDialog(null)} />}

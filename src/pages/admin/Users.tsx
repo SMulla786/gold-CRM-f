@@ -1,7 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { ColumnDef } from '@tanstack/react-table'
+import { Copy, Wand2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
+import { toast } from 'sonner'
 
 import { DataTable } from '@/components/DataTable'
 import { PermissionMatrix, grantsToMap, mapToGrants, type GrantMap } from '@/components/PermissionMatrix'
@@ -12,6 +14,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/lib/auth'
 import { createUserBody, updateUserBody } from '@/shared'
 import {
@@ -34,6 +37,26 @@ const flatten = (n: BranchNodeDto, out: BranchNodeDto[] = []): BranchNodeDto[] =
   return out
 }
 
+// No 0/O/1/l/I so credentials read back cleanly over the phone.
+const CHARS = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+const randomString = (len: number, chars = CHARS) => Array.from(crypto.getRandomValues(new Uint32Array(len)), (n) => chars[n % chars.length]).join('')
+
+/** Username must match the contract (/^[a-z0-9._-]{3,40}$/, unique across all shops), hence the random suffix. */
+function generateCredentials(name: string) {
+  const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, '').slice(0, 30) || 'user'
+  return { username: `${base}.${randomString(4, '23456789')}`, password: randomString(10) }
+}
+
+async function copyLoginDetails(shop: string, username: string, password: string) {
+  const text = `Shop: ${shop}\nUsername: ${username}\nPassword: ${password}\nLogin: ${window.location.origin}/login`
+  try {
+    await navigator.clipboard.writeText(text)
+    toast.success('Login details copied')
+  } catch {
+    toast.error('Could not copy - select and copy the details manually')
+  }
+}
+
 type UserForm = {
   name: string
   username?: string
@@ -54,8 +77,9 @@ function UserDialog({ user, onClose }: { user?: UserDto; onClose: () => void }) 
   const create = useCreateUser()
   const update = useUpdateUser()
   const branches = root ? flatten(root) : []
+  const [created, setCreated] = useState<{ username: string; password: string } | null>(null)
 
-  const { register, handleSubmit, watch, setValue, formState } = useForm<UserForm>({
+  const { register, handleSubmit, watch, setValue, getValues, formState } = useForm<UserForm>({
     // runtime schema differs by mode (create needs username/password); cast bridges the two typed resolvers.
     resolver: zodResolver(user ? updateUserBody : createUserBody) as Resolver<UserForm>,
     defaultValues: user
@@ -73,12 +97,51 @@ function UserDialog({ user, onClose }: { user?: UserDto; onClose: () => void }) 
       roleId: v.roleId ? Number(v.roleId) : undefined,
       viewDaysLimit: v.viewDaysLimit ? Number(v.viewDaysLimit) : null,
     }
-    if (user) await update.mutateAsync({ id: user.id, body: common })
-    else await create.mutateAsync({ ...common, username: v.username, password: v.password })
-    onClose()
+    if (user) {
+      await update.mutateAsync({ id: user.id, body: common })
+      return onClose()
+    }
+    const u = await create.mutateAsync({ ...common, username: v.username, password: v.password })
+    setCreated({ username: u.username, password: v.password ?? '' })
   })
 
+  const autoGenerate = () => {
+    const c = generateCredentials(getValues('name') ?? '')
+    setValue('username', c.username, { shouldValidate: formState.isSubmitted })
+    setValue('password', c.password, { shouldValidate: formState.isSubmitted })
+  }
+
   const adminAllowed = branches.find((b) => b.id === Number(watch('branchId')))?.isAdminNode
+
+  if (created) {
+    const shop = me?.business?.name ?? ''
+    return (
+      <Dialog open onOpenChange={(o) => !o && onClose()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>User created</DialogTitle>
+            <DialogDescription>Share these login details with the user. The password is not shown again.</DialogDescription>
+          </DialogHeader>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 rounded-2xl border bg-muted/40 p-4 text-sm">
+            <dt className="text-muted-foreground">Shop</dt>
+            <dd className="font-medium">{shop}</dd>
+            <dt className="text-muted-foreground">Username</dt>
+            <dd className="font-mono">{created.username}</dd>
+            <dt className="text-muted-foreground">Password</dt>
+            <dd className="font-mono">{created.password}</dd>
+            <dt className="text-muted-foreground">Login</dt>
+            <dd className="break-all">{window.location.origin}/login</dd>
+          </dl>
+          <DialogFooter>
+            <Button variant="outline" onClick={onClose}>Done</Button>
+            <Button onClick={() => copyLoginDetails(shop, created.username, created.password)}>
+              <Copy className="size-4" aria-hidden /> Copy login details
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    )
+  }
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -92,6 +155,14 @@ function UserDialog({ user, onClose }: { user?: UserDto; onClose: () => void }) 
             <Input id="u-name" {...register('name')} />
             {formState.errors.name && <p className="text-xs text-destructive">{formState.errors.name.message}</p>}
           </div>
+          {!user && (
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-medium">Login credentials</p>
+              <Button type="button" variant="outline" size="sm" onClick={autoGenerate}>
+                <Wand2 className="size-4" aria-hidden /> Auto-generate
+              </Button>
+            </div>
+          )}
           {!user && (
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -249,10 +320,30 @@ function PermissionsDialog({ user, onClose }: { user: UserDto; onClose: () => vo
 
 const statusVariant = (s: UserDto['status']) => (s === 'ACTIVE' ? 'default' : s === 'BLOCKED' ? 'destructive' : 'secondary')
 
+type StatusTab = 'ALL' | UserDto['status']
+const STATUS_TABS: { value: StatusTab; label: string }[] = [
+  { value: 'ALL', label: 'All' },
+  { value: 'ACTIVE', label: 'Active' },
+  { value: 'BLOCKED', label: 'Blocked' },
+  { value: 'DELETED', label: 'Trash' },
+]
+const statusParam = (t: StatusTab) => (t === 'ALL' ? undefined : t)
+
+function useStatusCounts(): Record<StatusTab, number | undefined> {
+  // pageSize 1: only `total` is read; the list endpoint has no separate counts route.
+  const all = useUsers({ pageSize: 1 }).data?.total
+  const active = useUsers({ pageSize: 1, status: 'ACTIVE' }).data?.total
+  const blocked = useUsers({ pageSize: 1, status: 'BLOCKED' }).data?.total
+  const deleted = useUsers({ pageSize: 1, status: 'DELETED' }).data?.total
+  return { ALL: all, ACTIVE: active, BLOCKED: blocked, DELETED: deleted }
+}
+
 export function Users() {
   const { me } = useAuth()
   const [page, setPage] = useState(1)
-  const { data, isLoading } = useUsers({ page })
+  const [tab, setTab] = useState<StatusTab>('ALL')
+  const { data, isLoading } = useUsers({ page, status: statusParam(tab) })
+  const counts = useStatusCounts()
   const setStatus = useSetUserStatus()
   const [editing, setEditing] = useState<UserDto | null>(null)
   const [creating, setCreating] = useState(false)
@@ -305,6 +396,22 @@ export function Users() {
         </div>
         <Button onClick={() => setCreating(true)}>New user</Button>
       </div>
+      <Tabs
+        value={tab}
+        onValueChange={(v) => {
+          setTab(v as StatusTab)
+          setPage(1)
+        }}
+      >
+        <TabsList>
+          {STATUS_TABS.map((t) => (
+            <TabsTrigger key={t.value} value={t.value} className="gap-2">
+              {t.label}
+              <span className="rounded-full bg-muted px-2 text-xs tabular-nums text-muted-foreground">{counts[t.value] ?? '…'}</span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
       <DataTable
         columns={columns}
         data={data?.items ?? []}
