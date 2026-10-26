@@ -37,9 +37,12 @@ export function PermissionEnquiries() {
   const [rejecting, setRejecting] = useState<PermissionEnquiryDto | null>(null)
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Permission requests</h1>
+        <div>
+          <h1>Permission requests</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Access requests from staff, waiting for your decision.</p>
+        </div>
         <Select value={status || 'all'} onValueChange={(v) => { setStatus(v === 'all' ? '' : v); setPage(1) }}>
           <SelectTrigger className="w-40" aria-label="Status"><SelectValue /></SelectTrigger>
           <SelectContent>

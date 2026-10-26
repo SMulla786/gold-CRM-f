@@ -297,9 +297,12 @@ export function Users() {
   ]
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Users</h1>
+        <div>
+          <h1>Users</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Staff logins, their roles and which branches they can work in.</p>
+        </div>
         <Button onClick={() => setCreating(true)}>New user</Button>
       </div>
       <DataTable

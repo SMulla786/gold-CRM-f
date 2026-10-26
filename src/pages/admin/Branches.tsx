@@ -208,9 +208,12 @@ export function Branches() {
   const all = flatten(root)
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Branches</h1>
+        <div>
+          <h1>Branches</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Your branch tree — create branches, set the main branch and see each one’s stock.</p>
+        </div>
         <Button variant="outline" size="sm" onClick={() => setShowOverview((v) => !v)}>
           {showOverview ? 'Hide overview' : 'Branch overview'}
         </Button>

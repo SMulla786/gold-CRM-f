@@ -28,9 +28,12 @@ export function SubscriptionView() {
   if (isLoading || !data) return <p className="text-sm text-muted-foreground">Loading…</p>
 
   return (
-    <div className="max-w-2xl space-y-4">
+    <div className="max-w-2xl space-y-8">
       <div className="flex items-center gap-3">
-        <h1 className="text-2xl font-semibold">Subscription</h1>
+        <div>
+          <h1>Subscription</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Your plan, limits and usage.</p>
+        </div>
         {data.readOnly && <Badge variant="destructive">Read-only</Badge>}
       </div>
       <Card>

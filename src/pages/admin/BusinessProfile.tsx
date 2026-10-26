@@ -30,8 +30,11 @@ export function BusinessProfile() {
   })
 
   return (
-    <div className="max-w-xl space-y-4">
-      <h1 className="text-2xl font-semibold">Business Settings</h1>
+    <div className="max-w-xl space-y-8">
+      <div>
+        <h1>Business Settings</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Your business name, address, GST and contact details.</p>
+      </div>
       <Card>
         <CardHeader>
           <CardTitle>Profile</CardTitle>

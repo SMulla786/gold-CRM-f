@@ -93,9 +93,12 @@ export function Roles() {
   ]
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Roles & Permissions</h1>
+        <div>
+          <h1>Roles & Permissions</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Define what each role can view, add, edit and delete.</p>
+        </div>
         {canManage && <Button onClick={() => setCreating(true)}>New role</Button>}
       </div>
       <DataTable columns={columns} data={data ?? []} isLoading={isLoading} />

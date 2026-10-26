@@ -215,3 +215,12 @@ body {
   background-image: radial-gradient(1200px 380px at 50% -120px, color-mix(in oklch, var(--brand) 12%, transparent), transparent 70%);
   background-attachment: fixed;
 }
+
+/* TASK-91: one rhythm for every page title without touching 95 files. */
+@layer base {
+  main h1 {
+    font-size: 1.875rem;
+    line-height: 2.25rem;
+    font-weight: 600;
+  }
+}
