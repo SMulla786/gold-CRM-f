@@ -128,7 +128,7 @@ export function KarigarIssues() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-1 text-sm text-muted-foreground">
-                <div>{date(iss.issueDate)}{iss.dueDate ? ` · due ${date(iss.dueDate)}` : ''} · issued {Number(iss.goldFine) ? `${iss.goldFine}g Au ` : ''}{Number(iss.silverFine) ? `${iss.silverFine}g Ag ` : ''}{Number(iss.cash) + Number(iss.online) > 0 ? `₹${Number(iss.cash) + Number(iss.online)}` : ''}</div>
+                <div>{date(iss.issueDate)}{iss.dueDate ? ` · due ${date(iss.dueDate)}` : ''} · issued {Number(iss.goldFine) ? `${iss.goldFine}g Au ` : ''}{Number(iss.silverFine) ? `${iss.silverFine}g Ag ` : ''}{Number(iss.cash) + Number(iss.online) > 0 ? `₹${Number(iss.cash) + Number(iss.online)}` : ''}{iss.wastagePercent != null ? ` · wastage ${iss.wastagePercent}%` : ''}{iss.wastageGm != null ? ` · wastage ${iss.wastageGm}g` : ''}</div>
                 <div>{iss.items.map((it) => `${it.itemName.name} (ord #${it.order.orderNo})`).join(', ')}</div>
                 <ul className="space-y-0.5 text-xs tabular-nums">
                   {iss.items.map((it) => (

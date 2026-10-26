@@ -99,6 +99,8 @@ export function KarigarIssuePrint() {
           <Line label="Silver fine" value={`${issue.silverFine} g`} />
           <Line label="Cash" value={inr(issue.cash)} />
           <Line label={`Online${issue.bankAccount ? ` (${issue.bankAccount.name})` : ''}`} value={inr(issue.online)} />
+          {issue.wastagePercent != null && <Line label="Wastage agreed" value={`${issue.wastagePercent} %`} />}
+          {issue.wastageGm != null && <Line label="Wastage agreed (g)" value={`${issue.wastageGm} g`} />}
         </div>
 
         {received.length > 0 && (

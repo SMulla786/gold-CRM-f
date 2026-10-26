@@ -13,10 +13,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useJewelleryTypes, useShortage, useStock, useUpdateItemGroup, useUpdateItemName } from '@/lib/inventoryQueries'
 import { useAuth } from '@/lib/auth'
-import { plural } from '@/lib/plural'
+import { useT } from '@/lib/i18n'
 import { STOCK_CLASSES, type ShortageRowDto, type StockItemDto } from '@/shared'
 
+const LIMIT_LABEL = { minWeight: 'inv.shortage.min_weight', maxWeight: 'inv.shortage.max_weight', minPcs: 'inv.shortage.min_pcs', maxPcs: 'inv.shortage.max_pcs' } as const
+
 function LimitsDialog({ row, onClose }: { row: ShortageRowDto; onClose: () => void }) {
+  const t = useT()
   const updateGroup = useUpdateItemGroup()
   const updateName = useUpdateItemName()
   const [f, setF] = useState({ minWeight: row.minWeight ?? '', maxWeight: row.maxWeight ?? '', minPcs: row.minPcs?.toString() ?? '', maxPcs: row.maxPcs?.toString() ?? '' })
@@ -34,36 +37,36 @@ function LimitsDialog({ row, onClose }: { row: ShortageRowDto; onClose: () => vo
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>Limits · {row.name}</DialogTitle>
+          <DialogTitle>{t('inv.shortage.limits_title', { name: row.name })}</DialogTitle>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-4">
           {(['minWeight', 'maxWeight', 'minPcs', 'maxPcs'] as const).map((k) => (
             <div key={k} className="space-y-1.5">
-              <Label htmlFor={`sl-${k}`}>{k}</Label>
+              <Label htmlFor={`sl-${k}`}>{t(LIMIT_LABEL[k])}</Label>
               <Input id={`sl-${k}`} type="number" value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} />
             </div>
           ))}
         </div>
         <DialogFooter>
-          <Button onClick={save} disabled={updateGroup.isPending || updateName.isPending}>Save limits</Button>
+          <Button onClick={save} disabled={updateGroup.isPending || updateName.isPending}>{t('inv.shortage.save_limits')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   )
 }
 
-const drillCols: ColumnDef<StockItemDto, unknown>[] = [
-  { id: 'tag', header: 'Tag / Item', cell: ({ row }) => row.original.tagNo ?? row.original.itemName.name },
-  { id: 'item', header: 'Item', cell: ({ row }) => row.original.itemName.name },
-  { id: 'karat', header: 'Karat', cell: ({ row }) => row.original.karatCode ?? '—' },
-  { accessorKey: 'pcs', header: 'Pcs' },
-  { accessorKey: 'gross', header: 'Gross' },
-  { accessorKey: 'net', header: 'Net' },
-  { id: 'branch', header: 'Branch', cell: ({ row }) => row.original.branch.name },
-]
-
 /** Read-only list of the AVAILABLE stock behind one shortage row (group or item name). */
 function StockDrillDialog({ row, onClose }: { row: ShortageRowDto; onClose: () => void }) {
+  const t = useT()
+  const drillCols: ColumnDef<StockItemDto, unknown>[] = [
+    { id: 'tag', header: t('stock.col_tag_item'), cell: ({ row }) => row.original.tagNo ?? row.original.itemName.name },
+    { id: 'item', header: t('bill.col_item'), cell: ({ row }) => row.original.itemName.name },
+    { id: 'karat', header: t('stock.col_karat'), cell: ({ row }) => row.original.karatCode ?? '—' },
+    { accessorKey: 'pcs', header: t('stock.col_pcs') },
+    { accessorKey: 'gross', header: t('stock.col_gross') },
+    { accessorKey: 'net', header: t('stock.col_net') },
+    { id: 'branch', header: t('stock.col_branch'), cell: ({ row }) => row.original.branch.name },
+  ]
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(50)
   const { data, isLoading } = useStock({ page, pageSize, status: 'AVAILABLE', ...(row.level === 'GROUP' ? { groupId: row.id } : { itemNameId: row.id }) })
@@ -71,13 +74,13 @@ function StockDrillDialog({ row, onClose }: { row: ShortageRowDto; onClose: () =
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Available stock · {row.name}</DialogTitle>
+          <DialogTitle>{t('inv.shortage.drill_title', { name: row.name })}</DialogTitle>
         </DialogHeader>
         <DataTable
           columns={drillCols}
           data={data?.items ?? []}
           isLoading={isLoading}
-          emptyText="No available stock"
+          emptyText={t('inv.shortage.drill_empty')}
           pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: setPageSize } : undefined}
         />
       </DialogContent>
@@ -85,11 +88,11 @@ function StockDrillDialog({ row, onClose }: { row: ShortageRowDto; onClose: () =
   )
 }
 
-const CLASS_LABEL: Record<string, string> = { GOLD: 'Gold', SILVER: 'Silver', STONE: 'Stone', ARTIFICIAL: 'Artificial', FRANCHISE: 'Franchise' }
 const badge = (s: string) => (s === 'SHORTAGE' ? 'destructive' : s === 'WARNING' ? 'secondary' : 'default')
 const PAGE_SIZES = [10, 50, 100]
 
 export function Shortage() {
+  const t = useT()
   const { can } = useAuth()
   const canEdit = can('inventory.item_masters', 'edit')
   const [stockClass, setStockClass] = useState('')
@@ -113,6 +116,7 @@ export function Shortage() {
   const underMin = rows.filter((r) => r.status === 'SHORTAGE').length
   const nearMin = rows.filter((r) => r.status === 'WARNING').length
   const healthy = rows.filter((r) => r.status === 'OK').length
+  const pcs = (n: number) => t(n === 1 ? 'dash.pcs_one' : 'dash.pcs_other', { n })
 
   const tile = (label: string, value: string, sub: string | undefined, Icon: LucideIcon) => (
     <Card className="gap-2 hover:-translate-y-1">
@@ -130,24 +134,24 @@ export function Shortage() {
   return (
     <div className="space-y-8">
       <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {tile('Rows listed', data ? String(rows.length) : '—', 'Matching current filters', Layers)}
-        {tile('Under minimum', data ? String(underMin) : '—', 'Reorder now', PackageX)}
-        {tile('Near minimum', data ? String(nearMin) : '—', 'Within 20% above min', TrendingDown)}
-        {tile('Healthy', data ? String(healthy) : '—', 'No reorder needed', PackageCheck)}
+        {tile(t('inv.shortage.rows_listed'), data ? String(rows.length) : '—', t('inv.shortage.rows_listed_sub'), Layers)}
+        {tile(t('inv.shortage.under_min'), data ? String(underMin) : '—', t('inv.shortage.under_min_sub'), PackageX)}
+        {tile(t('inv.shortage.near_min'), data ? String(nearMin) : '—', t('inv.shortage.near_min_sub'), TrendingDown)}
+        {tile(t('inv.shortage.healthy'), data ? String(healthy) : '—', t('inv.shortage.healthy_sub'), PackageCheck)}
       </div>
 
       <Card>
         <CardContent className="flex flex-wrap items-end gap-3 pt-6">
-          <Input className="max-w-xs" placeholder="Search groups…" aria-label="Search groups" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
+          <Input className="max-w-xs" placeholder={t('inv.shortage.search')} aria-label="Search groups" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
           <Select value={stockClass || 'all'} onValueChange={(v) => { setStockClass(v === 'all' ? '' : v); setJewelleryTypeId(''); setPage(1) }}>
             <SelectTrigger className="w-40" aria-label="Stock class">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All classes</SelectItem>
+              <SelectItem value="all">{t('stock.all_classes')}</SelectItem>
               {STOCK_CLASSES.map((c) => (
                 <SelectItem key={c} value={c}>
-                  {CLASS_LABEL[c]}
+                  {t(`class.${c}`)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -157,10 +161,10 @@ export function Shortage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="SHORTAGE">Shortage</SelectItem>
-              <SelectItem value="WARNING">Warning</SelectItem>
-              <SelectItem value="OK">OK</SelectItem>
+              <SelectItem value="all">{t('daybook.all')}</SelectItem>
+              <SelectItem value="SHORTAGE">{t('inv.shortage.st_shortage')}</SelectItem>
+              <SelectItem value="WARNING">{t('inv.shortage.st_warning')}</SelectItem>
+              <SelectItem value="OK">{t('inv.shortage.st_ok')}</SelectItem>
             </SelectContent>
           </Select>
           <Select value={jewelleryTypeId || 'all'} onValueChange={(v) => { setJewelleryTypeId(v === 'all' ? '' : v); setPage(1) }}>
@@ -168,15 +172,15 @@ export function Shortage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All jewellery types</SelectItem>
-              {types?.map((t) => (
-                <SelectItem key={t.id} value={String(t.id)}>
-                  {t.name}
+              <SelectItem value="all">{t('inv.shortage.all_types')}</SelectItem>
+              {types?.map((jt) => (
+                <SelectItem key={jt.id} value={String(jt.id)}>
+                  {jt.name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <Button variant="ghost" disabled={!stockClass && !status && !jewelleryTypeId && !q} onClick={resetFilters}>Reset</Button>
+          <Button variant="ghost" disabled={!stockClass && !status && !jewelleryTypeId && !q} onClick={resetFilters}>{t('inv.shortage.reset')}</Button>
         </CardContent>
       </Card>
 
@@ -184,37 +188,37 @@ export function Shortage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Level</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Class</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Current</TableHead>
-              <TableHead>Min / Max</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>{t('inv.shortage.col_level')}</TableHead>
+              <TableHead>{t('inv.shortage.col_name')}</TableHead>
+              <TableHead>{t('gst.col_class')}</TableHead>
+              <TableHead>{t('daybook.col_type')}</TableHead>
+              <TableHead>{t('inv.shortage.col_current')}</TableHead>
+              <TableHead>{t('inv.shortage.col_min_max')}</TableHead>
+              <TableHead>{t('stock.col_status')}</TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={8} className="h-24 text-center text-muted-foreground">Loading…</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="h-24 text-center text-muted-foreground">{t('common.loading')}</TableCell></TableRow>
             ) : data?.length ? (
               pageRows.map((r) => (
                 <TableRow key={`${r.level}-${r.id}`} className="cursor-pointer" onClick={() => setDrill(r)}>
                   <TableCell className="text-muted-foreground">{r.level}</TableCell>
                   <TableCell className="font-medium">
-                    <button type="button" className="rounded-sm text-left font-medium text-primary hover:underline focus-visible:underline focus-visible:outline-none" title="Show available stock" onClick={(e) => { e.stopPropagation(); setDrill(r) }}>
+                    <button type="button" className="rounded-sm text-left font-medium text-primary hover:underline focus-visible:underline focus-visible:outline-none" title={t('inv.shortage.show_stock')} onClick={(e) => { e.stopPropagation(); setDrill(r) }}>
                       {r.name}
                     </button>
                   </TableCell>
-                  <TableCell>{CLASS_LABEL[r.stockClass]}</TableCell>
+                  <TableCell>{t(`class.${r.stockClass}`)}</TableCell>
                   <TableCell className="text-muted-foreground">{r.jewelleryType ?? '—'}</TableCell>
-                  <TableCell className="tabular-nums">{r.currentWeight} g · {plural(r.currentPcs, 'pc')}</TableCell>
+                  <TableCell className="tabular-nums">{r.currentWeight} g · {pcs(r.currentPcs)}</TableCell>
                   <TableCell className="tabular-nums text-muted-foreground">
                     {r.minWeight ?? '—'} / {r.maxWeight ?? '—'}
-                    {(r.minPcs != null || r.maxPcs != null) && <div className="text-xs">{r.minPcs ?? '—'} / {r.maxPcs ?? '—'} pcs</div>}
+                    {(r.minPcs != null || r.maxPcs != null) && <div className="text-xs">{t('inv.shortage.pcs_range', { min: r.minPcs ?? '—', max: r.maxPcs ?? '—' })}</div>}
                   </TableCell>
                   <TableCell><Badge variant={badge(r.status)}>{r.status}</Badge></TableCell>
-                  <TableCell>{canEdit && <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setEditing(r) }}>Edit limits</Button>}</TableCell>
+                  <TableCell>{canEdit && <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setEditing(r) }}>{t('inv.shortage.edit_limits')}</Button>}</TableCell>
                 </TableRow>
               ))
             ) : (
@@ -222,7 +226,7 @@ export function Shortage() {
                 <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                   <div className="flex flex-col items-center justify-center gap-2 py-4">
                     <span className="icon-chip"><PackageCheck className="size-5" aria-hidden /></span>
-                    <span>Nothing below minimum</span>
+                    <span>{t('inv.shortage.empty')}</span>
                   </div>
                 </TableCell>
               </TableRow>
@@ -232,7 +236,7 @@ export function Shortage() {
         {rows.length > 0 && (
           <div className="flex flex-wrap items-center justify-end gap-2 px-2 pt-3 pb-1 text-sm">
             <div className="mr-auto flex items-center gap-2 text-muted-foreground">
-              <span>Show</span>
+              <span>{t('inv.shortage.show')}</span>
               <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1) }}>
                 <SelectTrigger className="h-8 w-20" aria-label="Rows per page">
                   <SelectValue />
@@ -244,9 +248,9 @@ export function Shortage() {
                 </SelectContent>
               </Select>
             </div>
-            <span className="text-muted-foreground">Page {curPage} of {pageCount} · {plural(rows.length, 'row')}</span>
-            <Button variant="outline" size="sm" disabled={curPage <= 1} onClick={() => setPage(curPage - 1)}>Previous</Button>
-            <Button variant="outline" size="sm" disabled={curPage >= pageCount} onClick={() => setPage(curPage + 1)}>Next</Button>
+            <span className="text-muted-foreground">{t('inv.shortage.page_of', { page: curPage, pages: pageCount, rows: t(rows.length === 1 ? 'inv.count.row_one' : 'inv.count.row_other', { n: rows.length }) })}</span>
+            <Button variant="outline" size="sm" disabled={curPage <= 1} onClick={() => setPage(curPage - 1)}>{t('table.previous')}</Button>
+            <Button variant="outline" size="sm" disabled={curPage >= pageCount} onClick={() => setPage(curPage + 1)}>{t('table.next')}</Button>
           </div>
         )}
       </Card>

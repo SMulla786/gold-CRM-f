@@ -13,6 +13,8 @@ import { downloadPdf, shareOnWhatsApp } from '@/lib/share'
 import { useBhavBooking, useBuySell, useExchange } from '@/lib/tradeQueries'
 import type { ExchangeDto, PartyRefDto } from '@/shared'
 
+import { PaymentLines } from './TradeExtras'
+
 const inr = (s: string | number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
 const time = (s: string) => new Date(s).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
@@ -122,6 +124,7 @@ export function ExchangePrint() {
           <Line label="Final amount" value={inr(e.finalAmount)} />
           <Line label="Cash" value={inr(e.cash)} />
           <Line label={`Online${e.bankAccount ? ` (${e.bankAccount.name})` : ''}`} value={inr(e.online)} />
+          <PaymentLines payments={e.payments} />
           <div className="flex justify-between font-medium"><span>Balance</span><span>{inr(e.balance)}</span></div>
         </>}
         {!money && <p className="text-xs text-muted-foreground">Settled in metal (no money rate).</p>}
@@ -163,6 +166,7 @@ export function BuySellPrint() {
         <Line label="Total amount" value={inr(t.totalAmount)} strong />
         <Line label={`${paidLabel} cash`} value={inr(t.cash)} />
         <Line label={`${paidLabel} online${t.bankAccount ? ` (${t.bankAccount.name})` : ''}`} value={inr(t.online)} />
+        <PaymentLines payments={t.payments} />
         <div className="flex justify-between font-medium"><span>Balance</span><span>{inr(t.balance)}</span></div>
       </div>
       {t.narration && <p><span className="text-muted-foreground">Narration:</span> {t.narration}</p>}
@@ -188,10 +192,25 @@ export function BhavPrint() {
         <Item label="Weight">{b.weight} g</Item>
         <Item label="Rate">{inr(b.rate)}</Item>
         <Item label="Pending weight">{b.pendingWeight} g</Item>
+        {b.entryType === 'ONLY_ENTRY' && <Item label="Entry">Record only</Item>}
+        {b.verifiedAt && <Item label="Verified">{date(b.verifiedAt)}{b.verifiedBy ? ` · ${b.verifiedBy}` : ''}</Item>}
       </dl>
+      {!!b.lines?.length && (
+        <div className="overflow-x-auto print:overflow-visible">
+          <Table>
+            <TableHeader><TableRow><TableHead>#</TableHead><TableHead className="text-right">Weight (g)</TableHead><TableHead className="text-right">Rate</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
+            <TableBody>
+              {b.lines.map((l, i) => (
+                <TableRow key={l.id}><TableCell>{i + 1}</TableCell><TableCell className="text-right tabular-nums">{l.weight}</TableCell><TableCell className="text-right tabular-nums">{inr(l.rate)}</TableCell><TableCell className="text-right tabular-nums">{inr(l.amount)}</TableCell></TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
       <div className="ml-auto max-w-xs space-y-1 tabular-nums">
         <Line label="Amount" value={inr(b.amount)} strong />
         <Line label={`Advance${b.bankAccount ? ` (incl. online, ${b.bankAccount.name})` : ''}`} value={inr(b.advance)} />
+        <PaymentLines payments={b.payments} />
       </div>
       {b.narration && <p><span className="text-muted-foreground">Narration:</span> {b.narration}</p>}
     </PrintShell>
@@ -205,15 +224,14 @@ function Item({ label, children }: { label: string; children: ReactNode }) {
 /** /app/exchange/print?side&metal&q&ptype — every row matching the Exchanges list filters, as a printable list. */
 export function ExchangeListPrint() {
   const [sp] = useSearchParams()
-  const filters = { side: sp.get('side') ?? undefined, metal: sp.get('metal') ?? undefined, q: sp.get('q') ?? undefined }
-  const ptype = sp.get('ptype') ?? ''
+  const get = (k: string) => sp.get(k) ?? undefined
+  const filters = { side: get('side'), metal: get('metal'), q: get('q'), partyType: get('partyType') ?? get('ptype'), processed: get('processed'), from: get('from'), to: get('to') }
   const { data, isLoading } = useQuery({ queryKey: ['exchange', 'print-all', filters], queryFn: () => fetchAllPaged<ExchangeDto>('/app/exchange', filters) })
   if (isLoading || !data) return <Loading />
-  // Party type is not a list filter on the server, so it is applied here over all fetched rows.
-  const rows = ptype ? data.filter((e) => e.party.type === ptype) : data
+  const rows = data
   const fineOf = (m: string) => rows.filter((e) => e.metal === m).reduce((a, e) => a + Number(e.afterFine), 0)
   const amount = rows.filter((e) => Number(e.rate) > 0).reduce((a, e) => a + Number(e.finalAmount), 0)
-  const applied = [filters.side, filters.metal, ptype, filters.q && `“${filters.q}”`].filter(Boolean).join(' · ') || 'All'
+  const applied = [filters.side, filters.metal, filters.partyType, filters.processed && (filters.processed === 'true' ? 'sent to melt' : 'not sent to melt'), (filters.from || filters.to) && `${filters.from ?? '…'} to ${filters.to ?? '…'}`, filters.q && `“${filters.q}”`].filter(Boolean).join(' · ') || 'All'
   return (
     <PrintShell back="/app/exchange" backLabel="Exchanges" note="Exchanges matching the list filters, all pages. Print it or save it as a PDF." title="EXCHANGE LIST">
       <p className="text-center text-muted-foreground">Filters: {applied} · {rows.length} entries</p>

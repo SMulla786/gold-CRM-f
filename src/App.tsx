@@ -76,6 +76,7 @@ const ReadyToDeliver = lazy(() => import('@/pages/app/orders/ReadyToDeliver').th
 const RepairBoard = lazy(() => import('@/pages/app/repair/RepairBoard').then((m) => ({ default: m.RepairBoard })))
 const RepairLedger = lazy(() => import('@/pages/app/repair/RepairLedger').then((m) => ({ default: m.RepairLedger })))
 const RepairSlip = lazy(() => import('@/pages/app/repair/RepairSlip').then((m) => ({ default: m.RepairSlip })))
+const RepairConsumables = lazy(() => import('@/pages/app/repair/RepairConsumables').then((m) => ({ default: m.RepairConsumables })))
 const GirviLayout = lazy(() => import('@/pages/app/girvi/GirviLayout').then((m) => ({ default: m.GirviLayout })))
 const NewGirvi = lazy(() => import('@/pages/app/girvi/NewGirvi').then((m) => ({ default: m.NewGirvi })))
 const GirviImport = lazy(() => import('@/pages/app/girvi/GirviImport').then((m) => ({ default: m.GirviImport })))
@@ -223,6 +224,7 @@ export default function App() {
             <Route path="repair">
               <Route index element={<RepairBoard />} />
               <Route path="ledger" element={<RepairLedger />} />
+              <Route path="consumables" element={<RepairConsumables />} />
               <Route path="slip/:id" element={<RepairSlip />} />
             </Route>
             <Route path="exchange" element={<ExchangeLayout />}>

@@ -18,7 +18,7 @@ export function BusinessProfile() {
   const { data, isLoading } = useAdminBusiness()
   const { data: states } = useStates()
   const update = useUpdateAdminBusiness()
-  const { register, handleSubmit, reset, watch, setValue } = useForm<ProfileForm>({ resolver: zodResolver(updateBusinessBody) })
+  const { register, handleSubmit, reset, watch, setValue, formState } = useForm<ProfileForm>({ resolver: zodResolver(updateBusinessBody) })
   const stateId = watch('stateId')
   const { data: districts } = useDistricts(stateId ? Number(stateId) : undefined)
 
@@ -27,6 +27,7 @@ export function BusinessProfile() {
       reset({
         name: data.name,
         mobile: data.mobile,
+        alternateMobile: data.alternateMobile,
         email: data.email ?? undefined,
         gstin: data.gstin ?? undefined,
         address: data.address ?? undefined,
@@ -67,9 +68,17 @@ export function BusinessProfile() {
                 <Input id="p-email" type="email" {...register('email')} />
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="p-gstin">GSTIN</Label>
-              <Input id="p-gstin" {...register('gstin')} />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="p-gstin">GSTIN</Label>
+                <Input id="p-gstin" {...register('gstin')} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="p-alt-mobile">Alternate No</Label>
+                {/* blank -> null so saving clears it */}
+                <Input id="p-alt-mobile" inputMode="numeric" maxLength={10} {...register('alternateMobile', { setValueAs: (v) => (v?.trim() ? v.trim() : null) })} />
+                {formState.errors.alternateMobile && <p className="text-xs text-destructive">{formState.errors.alternateMobile.message}</p>}
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">

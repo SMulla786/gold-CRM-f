@@ -6,11 +6,13 @@ import { CaptureDialog } from '@/components/PartyImagePicker'
 import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
+import { useT } from '@/lib/i18n'
 import { useApiMutation } from '@/lib/queries'
 import type { GirviItemDto } from '@/shared'
 
 /** Pledged-item photo: thumbnail (prints on the receipt) + upload/capture for girvi.entry editors. Uploads immediately. */
 export function GirviItemPhoto({ item, printable = true }: { item: GirviItemDto; printable?: boolean }) {
+  const t = useT()
   const { can } = useAuth()
   const [ver, setVer] = useState(0)
   const [capturing, setCapturing] = useState(false)
@@ -22,7 +24,7 @@ export function GirviItemPhoto({ item, printable = true }: { item: GirviItemDto;
       fd.append('file', file)
       return api.post<{ url: string }>(path, fd)
     },
-    { invalidate: [['girvi-batch']], success: 'Item photo saved' },
+    { invalidate: [['girvi-batch']], success: t('girvi.photo_saved') },
   )
   const save = async (file: File | undefined) => {
     if (!file) return

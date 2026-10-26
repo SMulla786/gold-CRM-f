@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useBusinessProfile } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
+import { useJewelleryTypes } from '@/lib/inventoryQueries'
 import { useOrder } from '@/lib/ordersQueries'
 
 const inr = (s: string | number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
@@ -19,6 +20,7 @@ export function OrderPrint() {
   const { me } = useAuth()
   const { data: order, isLoading } = useOrder(Number(id))
   const { data: business } = useBusinessProfile()
+  const { data: jewelleryTypes } = useJewelleryTypes()
 
   if (isLoading || !order) return <p className="text-sm text-muted-foreground">Loading…</p>
 
@@ -70,13 +72,13 @@ export function OrderPrint() {
             <TableHeader>
               <TableRow>
                 <TableHead>Item</TableHead><TableHead>Metal</TableHead><TableHead>Size</TableHead><TableHead>Pcs</TableHead><TableHead>Gross</TableHead><TableHead>Less</TableHead><TableHead>Net</TableHead>
-                <TableHead>Touch</TableHead><TableHead>Wst%</TableHead><TableHead>Fine</TableHead><TableHead>Making</TableHead><TableHead>Other</TableHead><TableHead className="text-right">Est.</TableHead>
+                <TableHead>Touch</TableHead><TableHead>Wst%</TableHead><TableHead>Wst g</TableHead><TableHead>Fine</TableHead><TableHead>Making</TableHead><TableHead>Other</TableHead><TableHead>Labour</TableHead><TableHead className="text-right">Est.</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {order.items.map((it) => (
                 <TableRow key={it.id}>
-                  <TableCell className="break-words">{it.itemName.name}{it.remark ? <div className="text-xs text-muted-foreground">{it.remark}</div> : null}</TableCell>
+                  <TableCell className="break-words">{it.itemName.name}{it.jewelleryTypeId ? <div className="text-xs text-muted-foreground">{jewelleryTypes?.find((jt) => jt.id === it.jewelleryTypeId)?.name}</div> : null}{it.remark ? <div className="text-xs text-muted-foreground">{it.remark}</div> : null}</TableCell>
                   <TableCell>{it.metal} {it.karatCode ?? ''}</TableCell>
                   <TableCell>{it.size ?? '—'}</TableCell>
                   <TableCell className="tabular-nums">{it.pcs}</TableCell>
@@ -85,9 +87,11 @@ export function OrderPrint() {
                   <TableCell className="tabular-nums">{it.net}</TableCell>
                   <TableCell className="tabular-nums">{it.touch}</TableCell>
                   <TableCell className="tabular-nums">{it.wastage}</TableCell>
+                  <TableCell className="tabular-nums">{it.wastageGm}</TableCell>
                   <TableCell className="tabular-nums">{it.fine}</TableCell>
                   <TableCell className="tabular-nums">{it.making}{UNIT[it.makingUnit] ?? ''}</TableCell>
                   <TableCell className="tabular-nums">{it.other}</TableCell>
+                  <TableCell className="tabular-nums">{it.labour}</TableCell>
                   <TableCell className="text-right tabular-nums">{inr(it.estTotal)}</TableCell>
                 </TableRow>
               ))}
@@ -97,9 +101,9 @@ export function OrderPrint() {
                 <TableCell className="tabular-nums">{totals.gross.toFixed(3)}</TableCell>
                 <TableCell />
                 <TableCell className="tabular-nums">{totals.net.toFixed(3)}</TableCell>
-                <TableCell /><TableCell />
+                <TableCell /><TableCell /><TableCell />
                 <TableCell className="tabular-nums">{totals.fine.toFixed(3)}</TableCell>
-                <TableCell /><TableCell />
+                <TableCell /><TableCell /><TableCell />
                 <TableCell className="text-right tabular-nums">{inr(order.estTotal)}</TableCell>
               </TableRow>
             </TableBody>
@@ -119,6 +123,7 @@ export function OrderPrint() {
             {order.remark && <p><span className="text-muted-foreground">Remark:</span> {order.remark}</p>}
           </div>
           <div className="ml-auto w-full max-w-xs space-y-1 tabular-nums">
+            {n(order.miscCharges) > 0 && <Line label="Misc charges (incl.)" value={inr(order.miscCharges)} />}
             <Line label="Estimated total" value={inr(order.estTotal)} />
             <Line label="Advance" value={inr(order.advance)} />
             <div className="flex justify-between border-t-2 border-brand pt-1 text-base font-bold"><span>Balance due</span><span>{inr(balanceDue)}</span></div>

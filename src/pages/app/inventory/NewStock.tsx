@@ -11,12 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useKarats } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
+import { useT } from '@/lib/i18n'
 import { useCreateStockEntry, useItemGroups, useItemNames } from '@/lib/inventoryQueries'
-import { plural } from '@/lib/plural'
 import { ItemNameDialog } from '@/pages/app/inventory/ItemMasters'
 import { CHARGE_UNITS, STOCK_CLASSES, computeLine } from '@/shared'
-
-const CLASS_LABEL: Record<string, string> = { GOLD: 'Gold', SILVER: 'Silver', STONE: 'Stone', ARTIFICIAL: 'Artificial', FRANCHISE: 'Franchise' }
 
 interface Row {
   itemNameId: string
@@ -41,6 +39,7 @@ const todayLocal = () => new Date().toLocaleDateString('en-CA')
 const blank = (): Row => ({ itemNameId: '', tagNo: '', huid: '', karatCode: '', pcs: '1', gross: '', less: '0', tunch: '', wastage: '0', stoneCharge: '0', other: '0', labour: '0', labourUnit: 'PER_GRAM', rate: '', purchaseCost: '', remarks: '' })
 
 export function NewStock() {
+  const t = useT()
   const navigate = useNavigate()
   const [stockClass, setStockClass] = useState('GOLD')
   const [method, setMethod] = useState('LOOSE')
@@ -136,21 +135,21 @@ export function NewStock() {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-xl">Stock entry batch</h2>
-        <p className="text-sm text-muted-foreground">Add one or more pieces in a single batch; weights update as you type.</p>
+        <h2 className="text-xl">{t('inv.newstock.title')}</h2>
+        <p className="text-sm text-muted-foreground">{t('inv.newstock.intro')}</p>
       </div>
 
       <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {tile('Rows in batch', String(rows.length), `${readyRows} ready to save`, Layers)}
-        {tile('Pieces', String(totals.pcs), 'Across all rows', Package)}
-        {tile('Gross weight', totals.gross.toFixed(3), `Net ${totals.net.toFixed(3)} g`, Scale)}
-        {tile('Fine weight', totals.fine.toFixed(3), 'Live preview, grams', Gem)}
+        {tile(t('inv.newstock.rows_in_batch'), String(rows.length), t('inv.newstock.ready_rows', { n: readyRows }), Layers)}
+        {tile(t('inv.newstock.pieces'), String(totals.pcs), t('inv.newstock.pieces_sub'), Package)}
+        {tile(t('inv.newstock.gross_weight'), totals.gross.toFixed(3), t('inv.newstock.net_sub', { g: totals.net.toFixed(3) }), Scale)}
+        {tile(t('inv.newstock.fine_weight'), totals.fine.toFixed(3), t('inv.newstock.fine_sub'), Gem)}
       </div>
 
       <Card>
         <CardContent className="flex flex-wrap items-end gap-3 pt-6">
           <div className="space-y-1.5">
-            <Label>Stock class</Label>
+            <Label>{t('bill.stock_class')}</Label>
             <Select value={stockClass} onValueChange={(v) => { setStockClass(v); setRows([blank()]) }}>
               <SelectTrigger className="w-40" aria-label="Stock class">
                 <SelectValue />
@@ -158,31 +157,31 @@ export function NewStock() {
               <SelectContent>
                 {STOCK_CLASSES.map((c) => (
                   <SelectItem key={c} value={c}>
-                    {CLASS_LABEL[c]}
+                    {t(`class.${c}`)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>Entry method</Label>
+            <Label>{t('inv.newstock.entry_method')}</Label>
             <Select value={method} onValueChange={setMethod}>
               <SelectTrigger className="w-40" aria-label="Entry method">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="LOOSE">Loose</SelectItem>
-                <SelectItem value="TAG">Tag</SelectItem>
+                <SelectItem value="LOOSE">{t('inv.newstock.loose')}</SelectItem>
+                <SelectItem value="TAG">{t('inv.newstock.tag')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="ns-date">Entry date</Label>
+            <Label htmlFor="ns-date">{t('inv.newstock.entry_date')}</Label>
             <Input id="ns-date" type="date" className="w-40" max={todayLocal()} value={txnDate} onChange={(e) => setTxnDate(e.target.value)} />
           </div>
           <div className="flex items-center gap-2 pb-2">
             <Checkbox id="ns-clear" checked={clearAfterSave} onCheckedChange={(v) => setClearAfterSave(v === true)} />
-            <Label htmlFor="ns-clear" className="font-normal">Clear rows after save</Label>
+            <Label htmlFor="ns-clear" className="font-normal">{t('inv.newstock.clear_after_save')}</Label>
           </div>
         </CardContent>
       </Card>
@@ -192,24 +191,24 @@ export function NewStock() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="min-w-40">Item</TableHead>
-                {method === 'TAG' && <TableHead>Tag</TableHead>}
+                <TableHead className="min-w-40">{t('bill.col_item')}</TableHead>
+                {method === 'TAG' && <TableHead>{t('inv.newstock.tag')}</TableHead>}
                 <TableHead>HUID</TableHead>
-                <TableHead>Karat</TableHead>
-                <TableHead>Pcs</TableHead>
-                <TableHead>Gross</TableHead>
-                <TableHead>Less</TableHead>
-                <TableHead>Tunch</TableHead>
-                <TableHead>Wst%</TableHead>
-                <TableHead>Net</TableHead>
-                <TableHead>Fine</TableHead>
-                <TableHead>Stone</TableHead>
-                <TableHead>Other</TableHead>
-                <TableHead>Labour</TableHead>
-                <TableHead>Unit</TableHead>
-                <TableHead>Rate</TableHead>
-                <TableHead>Cost</TableHead>
-                <TableHead>Remark</TableHead>
+                <TableHead>{t('stock.col_karat')}</TableHead>
+                <TableHead>{t('stock.col_pcs')}</TableHead>
+                <TableHead>{t('stock.col_gross')}</TableHead>
+                <TableHead>{t('bill.col_less')}</TableHead>
+                <TableHead>{t('bill.col_tunch')}</TableHead>
+                <TableHead>{t('bill.col_wastage')}</TableHead>
+                <TableHead>{t('stock.col_net')}</TableHead>
+                <TableHead>{t('stock.col_fine')}</TableHead>
+                <TableHead>{t('class.STONE')}</TableHead>
+                <TableHead>{t('bill.col_other')}</TableHead>
+                <TableHead>{t('bill.col_labour')}</TableHead>
+                <TableHead>{t('bill.col_unit')}</TableHead>
+                <TableHead>{t('udhari.rate')}</TableHead>
+                <TableHead>{t('inv.newstock.col_cost')}</TableHead>
+                <TableHead>{t('udhari.remark')}</TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
@@ -222,7 +221,7 @@ export function NewStock() {
                       <div className="flex items-center gap-1">
                         <Select value={r.itemNameId} onValueChange={(v) => set(i, 'itemNameId', v)}>
                           <SelectTrigger aria-label="Item name">
-                            <SelectValue placeholder="Item" />
+                            <SelectValue placeholder={t('bill.col_item')} />
                           </SelectTrigger>
                           <SelectContent>
                             {names?.items.filter((n) => n.isActive || String(n.id) === r.itemNameId).map((n) => (
@@ -233,7 +232,7 @@ export function NewStock() {
                           </SelectContent>
                         </Select>
                         {canCreateItem && (
-                          <Button type="button" variant="ghost" size="icon" className="shrink-0" aria-label="New item name for this row" title="New item name" onClick={() => setNewItemRow(i)}>
+                          <Button type="button" variant="ghost" size="icon" className="shrink-0" aria-label="New item name for this row" title={t('inv.newstock.new_item_name')} onClick={() => setNewItemRow(i)}>
                             <Plus className="size-4" aria-hidden />
                           </Button>
                         )}
@@ -241,10 +240,10 @@ export function NewStock() {
                     </TableCell>
                     {method === 'TAG' && (
                       <TableCell>
-                        <Input className="w-24" placeholder="auto" value={r.tagNo} onChange={(e) => set(i, 'tagNo', e.target.value.toUpperCase())} />
+                        <Input className="w-24" placeholder={t('inv.newstock.tag_auto')} value={r.tagNo} onChange={(e) => set(i, 'tagNo', e.target.value.toUpperCase())} />
                       </TableCell>
                     )}
-                    <TableCell><Input className="w-24" placeholder="6 chars" aria-label="HUID" value={r.huid} maxLength={6} onChange={(e) => set(i, 'huid', e.target.value.toUpperCase())} /></TableCell>
+                    <TableCell><Input className="w-24" placeholder={t('inv.newstock.huid_ph')} aria-label="HUID" value={r.huid} maxLength={6} onChange={(e) => set(i, 'huid', e.target.value.toUpperCase())} /></TableCell>
                     <TableCell>
                       <Select value={r.karatCode} onValueChange={(v) => set(i, 'karatCode', v)}>
                         <SelectTrigger className="w-24" aria-label="Karat">
@@ -287,8 +286,8 @@ export function NewStock() {
                     <TableCell><Input className="w-24" type="number" value={r.purchaseCost} onChange={(e) => set(i, 'purchaseCost', e.target.value)} /></TableCell>
                     <TableCell><Input className="w-28" aria-label="Remark" value={r.remarks} onChange={(e) => set(i, 'remarks', e.target.value)} /></TableCell>
                     <TableCell className="whitespace-nowrap">
-                      <Button variant="ghost" size="sm" aria-label="Duplicate row" onClick={() => setRows((rs) => [...rs.slice(0, i + 1), { ...r }, ...rs.slice(i + 1)])} title="Duplicate (same)">⧉</Button>
-                      <Button variant="ghost" size="sm" aria-label="Remove row" disabled={rows.length === 1} onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} title="Remove">✕</Button>
+                      <Button variant="ghost" size="sm" aria-label="Duplicate row" onClick={() => setRows((rs) => [...rs.slice(0, i + 1), { ...r }, ...rs.slice(i + 1)])} title={t('inv.newstock.duplicate')}>⧉</Button>
+                      <Button variant="ghost" size="sm" aria-label="Remove row" disabled={rows.length === 1} onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} title={t('inv.newstock.remove')}>✕</Button>
                     </TableCell>
                   </TableRow>
                 )
@@ -299,34 +298,34 @@ export function NewStock() {
 
         <div className="flex flex-wrap items-center gap-3">
           <Button variant="outline" onClick={() => setRows((rs) => [...rs, blank()])}>
-            + Add row
+            {t('inv.newstock.add_row')}
           </Button>
           <div className="flex items-center gap-1">
             <Input className="w-16" type="number" min={1} aria-label="Repeat count" value={repeat} onChange={(e) => setRepeat(e.target.value)} />
-            <Button variant="outline" onClick={() => setRows((rs) => [...rs, ...Array.from({ length: Math.max(1, Number(repeat) || 1) }, () => ({ ...rs[rs.length - 1]! }))])} title="Duplicate the last row N times">
-              Repeat last
+            <Button variant="outline" onClick={() => setRows((rs) => [...rs, ...Array.from({ length: Math.max(1, Number(repeat) || 1) }, () => ({ ...rs[rs.length - 1]! }))])} title={t('inv.newstock.repeat_hint')}>
+              {t('inv.newstock.repeat_last')}
             </Button>
           </div>
           <div className="flex items-center gap-2">
-            <Input className="w-24" type="number" min={0} placeholder="Rate" aria-label="Rate for rows" value={bulkRate} onChange={(e) => setBulkRate(e.target.value)} />
-            <Button variant="outline" disabled={bulkRate === ''} onClick={applyRate} title="Fill this rate into rows whose rate is blank">
-              Apply rate
+            <Input className="w-24" type="number" min={0} placeholder={t('udhari.rate')} aria-label="Rate for rows" value={bulkRate} onChange={(e) => setBulkRate(e.target.value)} />
+            <Button variant="outline" disabled={bulkRate === ''} onClick={applyRate} title={t('inv.newstock.apply_rate_hint')}>
+              {t('inv.newstock.apply_rate')}
             </Button>
             <Checkbox id="ns-rate-overwrite" checked={overwriteRate} onCheckedChange={(v) => setOverwriteRate(v === true)} />
-            <Label htmlFor="ns-rate-overwrite" className="font-normal">Overwrite filled rates</Label>
+            <Label htmlFor="ns-rate-overwrite" className="font-normal">{t('inv.newstock.overwrite_rates')}</Label>
           </div>
           <div className="ml-auto flex items-center gap-2">
             {method === 'TAG' && (
               <Button variant="outline" disabled={!valid || create.isPending} onClick={saveAndPrint}>
-                {create.isPending ? 'Saving…' : 'Save & print'}
+                {create.isPending ? t('bill.saving') : t('inv.newstock.save_print')}
               </Button>
             )}
             <Button disabled={!valid || create.isPending} onClick={submit}>
-              {create.isPending ? 'Saving…' : `Save ${plural(rows.length, 'item')}`}
+              {create.isPending ? t('bill.saving') : t(rows.length === 1 ? 'inv.newstock.save_one' : 'inv.newstock.save_other', { n: rows.length })}
             </Button>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">Net/Fine shown live; the server recomputes authoritatively on save.</p>
+        <p className="text-xs text-muted-foreground">{t('inv.newstock.footnote')}</p>
       </div>
       {newItemRow !== null && (
         <ItemNameDialog

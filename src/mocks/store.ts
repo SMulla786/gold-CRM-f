@@ -90,6 +90,7 @@ export const businesses: BusinessDetailDto[] = [
   {
     id: 1, name: 'Demo Jewellers', ownerName: 'Demo Owner', mobile: '9000000001', status: 'ACTIVE',
     subscriptionState: 'active', planName: 'Growth', endsAt: iso(200), branchCount: 4, userCount: 3, createdAt: iso(-180),
+    alternateMobile: null,
     email: 'owner@demo.in', gstin: '27ABCDE1234F1Z5', address: 'FC Road, Pune', state: { id: 27, name: 'MAHARASHTRA' },
     district: { id: 2701, name: 'Pune' },
     owner: { id: 1, name: 'Demo Owner', username: 'demo.owner', mobile: '9000000001', email: 'owner@demo.in', lastLoginAt: iso(0) },
@@ -98,6 +99,7 @@ export const businesses: BusinessDetailDto[] = [
   {
     id: 2, name: 'Sunrise Gold', ownerName: 'Vikram Rao', mobile: '9000000002', status: 'ACTIVE',
     subscriptionState: 'expiring', planName: 'Starter', endsAt: iso(9), branchCount: 1, userCount: 2, createdAt: iso(-350),
+    alternateMobile: null,
     email: null, gstin: null, address: 'Residency Road, Bengaluru', state: { id: 29, name: 'KARNATAKA' },
     district: { id: 2901, name: 'Bengaluru Urban' },
     owner: { id: 20, name: 'Vikram Rao', username: 'sunrise.owner', mobile: '9000000002', email: null, lastLoginAt: iso(-1) },
@@ -106,6 +108,7 @@ export const businesses: BusinessDetailDto[] = [
   {
     id: 3, name: 'Heritage Ornaments', ownerName: 'Suresh Jain', mobile: '9000000003', status: 'SUSPENDED',
     subscriptionState: 'expired', planName: 'Starter', endsAt: iso(-20), branchCount: 2, userCount: 4, createdAt: iso(-400),
+    alternateMobile: null,
     email: 'suresh@heritage.in', gstin: '24ABCDE5678G1Z2', address: 'CG Road, Ahmedabad', state: { id: 24, name: 'GUJARAT' },
     district: { id: 2401, name: 'Ahmedabad' },
     owner: { id: 30, name: 'Suresh Jain', username: 'heritage.owner', mobile: '9000000003', email: 'suresh@heritage.in', lastLoginAt: iso(-25) },
@@ -180,7 +183,7 @@ export const counters: CounterDto[] = [
 ]
 
 export const adminProfile = {
-  id: 1, name: 'Demo Jewellers', ownerName: 'Demo Owner', mobile: '9000000001', email: 'owner@demo.in',
+  id: 1, name: 'Demo Jewellers', ownerName: 'Demo Owner', mobile: '9000000001', alternateMobile: null, email: 'owner@demo.in',
   gstin: '27ABCDE1234F1Z5', address: 'FC Road, Pune', stateId: 27, districtId: 2701,
 }
 

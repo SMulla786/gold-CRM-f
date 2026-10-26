@@ -12,11 +12,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useBankAccounts } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { useEnroll, useSchemeGroups, useSchemes } from '@/lib/schemesQueries'
-import { businessDayISO, SCHEME_PAY_MEDIUMS, type PartyRefDto, type SchemeDto } from '@/shared'
-import { bankMedium } from './AddMoneyDialog'
+import { businessDayISO, SCHEME_BANK_MEDIUMS, SCHEME_PAY_MEDIUMS, type PartyRefDto, type SchemeDto } from '@/shared'
 
 const today = businessDayISO
 const n = (s: string) => Number(s) || 0
+const bankMedium = (m: string) => SCHEME_BANK_MEDIUMS.includes(m) // ONLINE / CHEQUE need a bank
 
 export function EnrollMember() {
   const navigate = useNavigate()

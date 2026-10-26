@@ -1,5 +1,5 @@
 import type { ColumnDef } from '@tanstack/react-table'
-import { Hourglass, Lock, Printer, Scale, Truck, Wallet, type LucideIcon } from 'lucide-react'
+import { BadgeCheck, Hourglass, Lock, MoreHorizontal, Plus, Printer, Scale, Truck, Wallet, X, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -12,65 +12,122 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useBankAccounts, useSettings } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { metalRateUnitGrams } from '@/lib/billingQueries'
-import { useBhavBookings, useBulkDeleteBhav, useCancelBhav, useCreateBhav, useDeleteBhav } from '@/lib/tradeQueries'
+import { useBhavBookings, useBulkDeleteBhav, useCancelBhav, useCreateBhav, useDeleteBhav, useUndeliverBhav, useUpdateBhav, useVerifyBhav } from '@/lib/tradeQueries'
 import { BHAV_STATUSES, businessDayISO, METALS, TRADE_SIDES, metalToMoney, type BhavBookingDto, type PartyRefDto } from '@/shared'
+
+import { blankPay, payBody, payRowsFrom, payTotal, payValid, type PayRow } from './splitPay'
+import { DateRangeFilter, HistoryDialog, SplitPaymentTable, SplitToggle } from './TradeExtras'
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
 const n = (s: string) => Number(s) || 0
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = { PENDING: 'default', PARTIAL: 'secondary', DELIVERED: 'outline', CANCELLED: 'outline' }
 
-function NewBookingDialog() {
+let uid = 0
+interface WRow { key: string; weight: string; rate: string }
+const blankW = (weight = '', rate = ''): WRow => ({ key: `w${uid++}`, weight, rate })
+
+/** Create / edit form. Unmounts with the dialog, so it starts fresh (or from `editing`) every time it opens. */
+function BookingForm({ editing, onDone }: { editing?: BhavBookingDto; onDone: () => void }) {
   const { activeBranch } = useAuth()
-  const branchReady = activeBranch !== '' && activeBranch !== 'all'
+  const branchReady = !!editing || (activeBranch !== '' && activeBranch !== 'all')
   const { data: banks } = useBankAccounts()
   const { data: settings } = useSettings()
   const create = useCreateBhav()
-  const [open, setOpen] = useState(false)
-  const [party, setParty] = useState<PartyRefDto | null>(null)
-  const blank = () => ({ side: 'BUY', metal: 'GOLD', txnDate: businessDayISO(), weight: '', rate: '', cash: '0', online: '0', bankAccountId: '', narration: '' })
-  const [f, setF] = useState(blank)
+  const update = useUpdateBhav()
+  const [party, setParty] = useState<PartyRefDto | null>(editing?.party ?? null)
+  const [f, setF] = useState(() => editing
+    ? { side: editing.side as string, metal: editing.metal as string, txnDate: editing.txnDate, weight: editing.weight, rate: editing.rate, cash: editing.cash ?? editing.advance, online: editing.online ?? '0', bankAccountId: editing.bankAccount ? String(editing.bankAccount.id) : '', narration: editing.narration ?? '', entryType: editing.entryType ?? 'LEDGER' }
+    : { side: 'BUY', metal: 'GOLD', txnDate: businessDayISO(), weight: '', rate: '', cash: '0', online: '0', bankAccountId: '', narration: '', entryType: 'LEDGER' })
   const set = (k: keyof typeof f, v: string) => setF((s) => ({ ...s, [k]: v }))
+  const [multi, setMulti] = useState(!!editing?.lines?.length)
+  const [lines, setLines] = useState<WRow[]>(() => editing?.lines?.length ? editing.lines.map((l) => blankW(l.weight, l.rate)) : [blankW(), blankW()])
+  const [split, setSplit] = useState(!!editing?.payments?.length)
+  const [pays, setPays] = useState<PayRow[]>(() => (editing?.payments?.length ? payRowsFrom(editing.payments) : [blankPay()]))
+  const [askMpin, setAskMpin] = useState(false)
 
   // Read-only preview (the server computes and posts the real figures).
-  const finalAmount = Number(metalToMoney(n(f.weight), n(f.rate), metalRateUnitGrams(f.metal, settings)))
-  const totalPaid = n(f.cash) + n(f.online)
+  const unit = metalRateUnitGrams(f.metal, settings)
+  const rowAmount = (r: WRow) => Number(metalToMoney(n(r.weight), n(r.rate), unit))
+  const multiWeight = lines.reduce((a, r) => a + n(r.weight), 0)
+  const avgRate = multiWeight > 0 ? Math.round((lines.reduce((a, r) => a + n(r.weight) * n(r.rate), 0) / multiWeight) * 100) / 100 : 0
+  const finalAmount = multi ? lines.reduce((a, r) => a + rowAmount(r), 0) : Number(metalToMoney(n(f.weight), n(f.rate), unit))
+  const totalPaid = split ? payTotal(pays) : n(f.cash) + n(f.online)
   const remaining = finalAmount - totalPaid
 
-  const valid = branchReady && !!party && n(f.weight) > 0 && n(f.rate) > 0 && (n(f.online) === 0 || f.bankAccountId)
+  const figuresOk = multi ? lines.every((r) => n(r.weight) > 0 && n(r.rate) > 0) : n(f.weight) > 0 && n(f.rate) > 0
+  const valid = branchReady && !!party && figuresOk && (split ? payValid(pays) : n(f.online) === 0 || f.bankAccountId)
+  const body = () => ({
+    side: f.side, partyId: party!.id, metal: f.metal, txnDate: f.txnDate || undefined,
+    ...(multi ? { lines: lines.map((r) => ({ weight: n(r.weight), rate: n(r.rate) })) } : { weight: n(f.weight), rate: n(f.rate) }),
+    entryType: f.entryType,
+    ...(split ? payBody(pays) : { cash: n(f.cash), online: n(f.online), bankAccountId: n(f.online) > 0 ? Number(f.bankAccountId) : undefined }),
+    narration: f.narration || undefined,
+  })
   const submit = async () => {
-    await create.mutateAsync({
-      side: f.side, partyId: party!.id, metal: f.metal, txnDate: f.txnDate || undefined, weight: n(f.weight), rate: n(f.rate),
-      cash: n(f.cash), online: n(f.online), bankAccountId: n(f.online) > 0 ? Number(f.bankAccountId) : undefined, narration: f.narration || undefined,
-    })
-    setOpen(false); setParty(null); setF(blank())
+    if (editing) { setAskMpin(true); return }
+    await create.mutateAsync(body())
+    onDone()
   }
+  const pending = create.isPending || update.isPending
+  const setLine = (i: number, k: 'weight' | 'rate', v: string) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, [k]: v } : l)))
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild><Button>New booking</Button></DialogTrigger>
-      <DialogContent>
-        <DialogHeader><DialogTitle>Book a rate (bhav)</DialogTitle></DialogHeader>
-        {!branchReady && <SelectBranchForTxn note="A booking is held at one branch. Select a branch." />}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5"><Label>Side</Label>
-            <Select value={f.side} onValueChange={(v) => set('side', v)}><SelectTrigger aria-label="Side"><SelectValue /></SelectTrigger>
-              <SelectContent>{TRADE_SIDES.map((s) => <SelectItem key={s} value={s}>{s === 'BUY' ? 'Buy (we buy later)' : 'Sell (we sell later)'}</SelectItem>)}</SelectContent></Select>
+    <>
+      {!branchReady && <SelectBranchForTxn note="A booking is held at one branch. Select a branch." />}
+      <div className="grid max-h-[65vh] grid-cols-2 gap-4 overflow-y-auto pr-1">
+        <div className="space-y-1.5"><Label>Side</Label>
+          <Select value={f.side} onValueChange={(v) => set('side', v)}><SelectTrigger aria-label="Side"><SelectValue /></SelectTrigger>
+            <SelectContent>{TRADE_SIDES.map((s) => <SelectItem key={s} value={s}>{s === 'BUY' ? 'Buy (we buy later)' : 'Sell (we sell later)'}</SelectItem>)}</SelectContent></Select>
+        </div>
+        <div className="space-y-1.5"><Label>Metal</Label>
+          <Select value={f.metal} onValueChange={(v) => set('metal', v)}><SelectTrigger aria-label="Metal"><SelectValue /></SelectTrigger>
+            <SelectContent>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select>
+        </div>
+        <div className="space-y-1.5"><Label htmlFor="bk-party">Party</Label><PartyPicker value={party} onChange={setParty} placeholder="Search name / mobile" id="bk-party" ariaLabel="Party" /></div>
+        <div className="space-y-1.5"><Label htmlFor="bk-date">Date</Label><Input id="bk-date" type="date" value={f.txnDate} onChange={(e) => set('txnDate', e.target.value)} /></div>
+        <div className="col-span-2 flex items-center gap-2">
+          <Checkbox id="bk-multi" checked={multi} onCheckedChange={(c) => setMulti(c === true)} />
+          <Label htmlFor="bk-multi" className="font-normal">Several weight / rate rows</Label>
+        </div>
+        {multi ? (
+          <div className="col-span-2 space-y-2">
+            {lines.map((l, i) => (
+              <div key={l.key} className="flex items-center gap-2">
+                <span className="w-5 text-sm tabular-nums text-muted-foreground">{i + 1}</span>
+                <Input type="number" step="0.001" aria-label={`Row ${i + 1} weight`} placeholder="Weight (g)" value={l.weight} onChange={(e) => setLine(i, 'weight', e.target.value)} />
+                <Input type="number" aria-label={`Row ${i + 1} rate`} placeholder={`Rate (${f.metal === 'GOLD' ? '/10g' : '/kg'})`} value={l.rate} onChange={(e) => setLine(i, 'rate', e.target.value)} />
+                <span className="w-28 shrink-0 text-right text-sm tabular-nums text-muted-foreground">{inr(String(rowAmount(l)))}</span>
+                <Button variant="ghost" size="sm" aria-label={`Remove row ${i + 1}`} disabled={lines.length === 1} onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))}><X className="size-4" aria-hidden /></Button>
+              </div>
+            ))}
+            <div className="flex items-center justify-between text-sm">
+              <Button variant="outline" size="sm" onClick={() => setLines((ls) => [...ls, blankW()])}><Plus className="size-4" aria-hidden />Add row</Button>
+              <span className="tabular-nums text-muted-foreground">{multiWeight.toFixed(3)} g · average rate {avgRate.toFixed(2)}</span>
+            </div>
           </div>
-          <div className="space-y-1.5"><Label>Metal</Label>
-            <Select value={f.metal} onValueChange={(v) => set('metal', v)}><SelectTrigger aria-label="Metal"><SelectValue /></SelectTrigger>
-              <SelectContent>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select>
-          </div>
-          <div className="space-y-1.5"><Label htmlFor="bk-party">Party</Label><PartyPicker value={party} onChange={setParty} placeholder="Search name / mobile" id="bk-party" ariaLabel="Party" /></div>
-          <div className="space-y-1.5"><Label htmlFor="bk-date">Date</Label><Input id="bk-date" type="date" value={f.txnDate} onChange={(e) => set('txnDate', e.target.value)} /></div>
+        ) : <>
           <div className="space-y-1.5"><Label htmlFor="bk-wt">Weight (g)</Label><Input id="bk-wt" type="number" step="0.001" value={f.weight} onChange={(e) => set('weight', e.target.value)} /></div>
           <div className="space-y-1.5"><Label htmlFor="bk-rate">Rate ({f.metal === 'GOLD' ? '/10g' : '/kg'})</Label><Input id="bk-rate" type="number" value={f.rate} onChange={(e) => set('rate', e.target.value)} /></div>
+        </>}
+        <div className="col-span-2 space-y-1.5"><Label>Entry type</Label>
+          <Select value={f.entryType} onValueChange={(v) => set('entryType', v)}><SelectTrigger aria-label="Entry type"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="LEDGER">Post advance to ledger and party account</SelectItem>
+              <SelectItem value="ONLY_ENTRY">Record only (advance not posted)</SelectItem>
+            </SelectContent></Select>
+        </div>
+        <div className="col-span-2"><SplitToggle id="bk-split" checked={split} onChange={setSplit} /></div>
+        {split ? (
+          <div className="col-span-2"><SplitPaymentTable rows={pays} onChange={setPays} /></div>
+        ) : <>
           <div className="space-y-1.5"><Label htmlFor="bk-cash">Advance cash ₹</Label><Input id="bk-cash" type="number" value={f.cash} onChange={(e) => set('cash', e.target.value)} /></div>
           <div className="space-y-1.5"><Label htmlFor="bk-online">Advance online ₹</Label><Input id="bk-online" type="number" value={f.online} onChange={(e) => set('online', e.target.value)} /></div>
           {n(f.online) > 0 && (
@@ -79,16 +136,71 @@ function NewBookingDialog() {
                 <SelectContent>{banks?.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.bankName} · {b.accountNo}</SelectItem>)}</SelectContent></Select>
             </div>
           )}
-          <div className="col-span-2 space-y-1.5"><Label htmlFor="bk-narr">Narration</Label><Input id="bk-narr" value={f.narration} onChange={(e) => set('narration', e.target.value)} /></div>
-        </div>
-        <div className="space-y-1 rounded-xl bg-muted px-3 py-2 text-sm tabular-nums">
-          <div className="flex justify-between"><span className="text-muted-foreground">Final amount</span><span className="font-medium">{inr(String(finalAmount))}</span></div>
-          <div className="flex justify-between"><span className="text-muted-foreground">Advance paid</span><span>{inr(String(totalPaid))}</span></div>
-          <div className="flex justify-between"><span className="text-muted-foreground">Remaining</span><span className="font-medium">{inr(String(remaining))}</span></div>
-        </div>
-        <DialogFooter><Button disabled={!valid || create.isPending} onClick={() => void submit().catch(() => {})}>{create.isPending ? 'Saving…' : 'Book'}</Button></DialogFooter>
+        </>}
+        <div className="col-span-2 space-y-1.5"><Label htmlFor="bk-narr">Narration</Label><Input id="bk-narr" value={f.narration} onChange={(e) => set('narration', e.target.value)} /></div>
+      </div>
+      <div className="space-y-1 rounded-xl bg-muted px-3 py-2 text-sm tabular-nums">
+        <div className="flex justify-between"><span className="text-muted-foreground">Final amount</span><span className="font-medium">{inr(String(finalAmount))}</span></div>
+        <div className="flex justify-between"><span className="text-muted-foreground">Advance paid</span><span>{inr(String(totalPaid))}</span></div>
+        <div className="flex justify-between"><span className="text-muted-foreground">Remaining</span><span className="font-medium">{inr(String(remaining))}</span></div>
+      </div>
+      <DialogFooter><Button disabled={!valid || pending} onClick={() => void submit().catch(() => {})}>{pending ? 'Saving…' : editing ? 'Save changes' : 'Book'}</Button></DialogFooter>
+      {editing && (
+        <MpinDialog open={askMpin} title={`Save changes to #${editing.bookingNo}`} onClose={() => setAskMpin(false)}
+          onConfirm={async (mpin) => { await update.mutateAsync({ id: editing.id, mpin, body: body() }); onDone() }} />
+      )}
+    </>
+  )
+}
+
+function NewBookingDialog() {
+  const [open, setOpen] = useState(false)
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild><Button>New booking</Button></DialogTrigger>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Book a rate (bhav)</DialogTitle></DialogHeader>
+        <BookingForm onDone={() => setOpen(false)} />
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** Verified stamp shown next to the status. */
+export function VerifiedBadge({ b }: { b: BhavBookingDto }) {
+  if (!b.verifiedAt) return null
+  return <Badge variant="outline" title={`Verified${b.verifiedBy ? ` by ${b.verifiedBy}` : ''} on ${new Date(b.verifiedAt).toLocaleString('en-IN')}`}><BadgeCheck className="size-3.5" aria-hidden />Verified</Badge>
+}
+
+/** Secondary row actions: Edit (pending only), History, Verify / Remove verification, Undeliver (MPIN). */
+export function BhavRowMenu({ b }: { b: BhavBookingDto }) {
+  const { can } = useAuth()
+  const canEdit = can('buy_sell.bhav_booking', 'edit')
+  const verify = useVerifyBhav()
+  const undeliver = useUndeliverBhav()
+  const [editOpen, setEditOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [undelivering, setUndelivering] = useState(false)
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild><Button variant="ghost" size="sm" aria-label={`More actions for #${b.bookingNo}`}><MoreHorizontal className="size-4" aria-hidden /></Button></DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {canEdit && b.status === 'PENDING' && <DropdownMenuItem onSelect={() => setEditOpen(true)}>Edit</DropdownMenuItem>}
+          <DropdownMenuItem onSelect={() => setHistoryOpen(true)}>History</DropdownMenuItem>
+          {canEdit && <DropdownMenuItem onSelect={() => verify.mutate({ id: b.id, verified: !b.verifiedAt })}>{b.verifiedAt ? 'Remove verification' : 'Verify'}</DropdownMenuItem>}
+          {canEdit && (b.status === 'DELIVERED' || b.status === 'PARTIAL') && <DropdownMenuItem onSelect={() => setUndelivering(true)}>Undeliver</DropdownMenuItem>}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit rate lock #{b.bookingNo}</DialogTitle></DialogHeader>
+          <BookingForm editing={b} onDone={() => setEditOpen(false)} />
+        </DialogContent>
+      </Dialog>
+      <HistoryDialog kind="bhav-booking" id={historyOpen ? b.id : undefined} title={`History of #${b.bookingNo}`} onClose={() => setHistoryOpen(false)} />
+      <MpinDialog open={undelivering} title={`Mark #${b.bookingNo} undelivered`} onConfirm={(mpin) => undeliver.mutateAsync({ id: b.id, mpin })} onClose={() => setUndelivering(false)} />
+    </>
   )
 }
 
@@ -102,10 +214,12 @@ export function BhavBookings() {
   // 'open' = PENDING + PARTIAL (the default view: bookings still to be delivered); 'all' = no status filter.
   const [status, setStatus] = useState('open')
   const [q, setQ] = useState('')
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const statusParams = status === 'open' ? { open: 'true' } : status === 'all' ? {} : { status }
-  const { data, isLoading } = useBhavBookings({ side: side || undefined, metal: metal || undefined, q: q || undefined, ...statusParams, page, pageSize })
+  const { data, isLoading } = useBhavBookings({ side: side || undefined, metal: metal || undefined, q: q || undefined, from: from || undefined, to: to || undefined, ...statusParams, page, pageSize })
   const cancel = useCancelBhav()
   const del = useDeleteBhav()
   const [cancelling, setCancelling] = useState<BhavBookingDto | null>(null)
@@ -136,8 +250,8 @@ export function BhavBookings() {
     { header: 'Pending', cell: ({ row }) => `${row.original.pendingWeight} g` },
     { header: 'Rate', cell: ({ row }) => row.original.rate },
     { header: 'Amount', cell: ({ row }) => inr(row.original.amount) },
-    { header: 'Advance', cell: ({ row }) => inr(row.original.advance) },
-    { header: 'Status', cell: ({ row }) => <Badge variant={STATUS_VARIANT[row.original.status]}>{row.original.status}</Badge> },
+    { header: 'Advance', cell: ({ row }) => <span>{inr(row.original.advance)}{row.original.entryType === 'ONLY_ENTRY' && <span className="block text-xs text-muted-foreground">record only</span>}</span> },
+    { header: 'Status', cell: ({ row }) => <div className="flex flex-wrap gap-1"><Badge variant={STATUS_VARIANT[row.original.status]}>{row.original.status}</Badge><VerifiedBadge b={row.original} /></div> },
     { id: 'actions', header: '', cell: ({ row }) => {
       const b = row.original
       const isOpen = b.status === 'PENDING' || b.status === 'PARTIAL'
@@ -151,6 +265,7 @@ export function BhavBookings() {
           {canEdit && isOpen && <Button variant="ghost" size="sm" onClick={() => setCancelling(b)}>Cancel</Button>}
           {/* only an untouched PENDING booking can be deleted (the server reverses its advance) */}
           {canDelete && b.status === 'PENDING' && <Button variant="ghost" size="sm" onClick={() => setDeleting(b)}>Delete</Button>}
+          <BhavRowMenu b={b} />
         </div>
       )
     } },
@@ -212,6 +327,7 @@ export function BhavBookings() {
               {BHAV_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
             </SelectContent>
           </Select>
+          <DateRangeFilter from={from} to={to} onChange={(a, b) => { setFrom(a); setTo(b); setPage(1); clearSel() }} />
           {canDelete && selected.length > 0 && (
             <Button variant="outline" className="ml-auto text-destructive hover:text-destructive" disabled={bulkDelete.isPending} onClick={() => setBulkDeleting(true)}>
               Delete selected ({selected.length})

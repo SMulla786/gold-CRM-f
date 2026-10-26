@@ -1,5 +1,5 @@
 import { BadgeIndianRupee, HandCoins, Package, Printer, Wallet, type LucideIcon } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { MpinDialog } from '@/components/MpinDialog'
@@ -12,9 +12,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { api } from '@/lib/api'
 import { useBankAccounts } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
-import { useAddOrderAdvance, useCancelOrder, useOrder } from '@/lib/ordersQueries'
+import { useJewelleryTypes } from '@/lib/inventoryQueries'
+import { orderDesignPath, useAddOrderAdvance, useCancelOrder, useOrder, useRemoveOrderDesign, useUploadOrderDesign } from '@/lib/ordersQueries'
 import type { OrderDto } from '@/shared'
 
 import { IssueDialog } from './IssueDialog'
@@ -59,11 +61,54 @@ function AdvanceDialog({ order, onClose }: { order: OrderDto; onClose: () => voi
   )
 }
 
+/** Order design file: image preview or "Open design" for a PDF (blob-fetched: the stream needs the bearer header). */
+function DesignCard({ order }: { order: OrderDto }) {
+  const { can } = useAuth()
+  const canEdit = can('orders.create', 'edit')
+  const upload = useUploadOrderDesign()
+  const remove = useRemoveOrderDesign()
+  const input = useRef<HTMLInputElement>(null)
+  const [file, setFile] = useState<{ url: string; pdf: boolean } | null>(null)
+  useEffect(() => {
+    if (!order.designUrl) return
+    let active = true
+    let obj: string | null = null
+    api.blob(orderDesignPath(order.id)).then((b) => { if (active) { obj = URL.createObjectURL(b); setFile({ url: obj, pdf: b.type === 'application/pdf' }) } }).catch(() => {})
+    return () => { active = false; setFile(null); if (obj) URL.revokeObjectURL(obj) }
+  }, [order.id, order.designUrl])
+  const save = async (f: File | undefined) => {
+    if (f) await upload.mutateAsync({ id: order.id, file: f }).catch(() => {})
+    if (input.current) input.current.value = ''
+  }
+  return (
+    <section className="space-y-3">
+      <h2 className="text-xl">Design</h2>
+      <Card>
+        <CardContent className="flex flex-wrap items-center gap-4 pt-6 text-sm">
+          {!order.designUrl ? <span className="text-muted-foreground">No design file.</span>
+            : !file ? <span className="text-muted-foreground">Loading design…</span>
+            : file.pdf ? <Button asChild size="sm" variant="outline"><a href={file.url} target="_blank" rel="noreferrer">Open design</a></Button>
+            : <a href={file.url} target="_blank" rel="noreferrer"><img src={file.url} alt={`Order #${order.orderNo} design`} className="max-h-48 rounded-xl border object-contain" /></a>}
+          {canEdit && (
+            <div className="flex flex-wrap items-center gap-2">
+              <input ref={input} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="hidden" aria-label="Design file" onChange={(e) => void save(e.target.files?.[0])} />
+              <Button type="button" size="sm" variant="outline" disabled={upload.isPending} onClick={() => input.current?.click()}>{order.designUrl ? 'Replace design' : 'Upload design'}</Button>
+              {order.designUrl && <Button type="button" size="sm" variant="ghost" disabled={remove.isPending} onClick={() => void remove.mutateAsync(order.id).catch(() => {})}>Remove design</Button>}
+              <span className="text-xs text-muted-foreground">Image or PDF, up to 2 MB</span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </section>
+  )
+}
+
 export function OrderDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { can } = useAuth()
   const { data: order, isLoading } = useOrder(Number(id))
+  const { data: jewelleryTypes } = useJewelleryTypes()
   const cancel = useCancelOrder()
   const [sel, setSel] = useState<Set<number>>(new Set())
   const [issuing, setIssuing] = useState(false)
@@ -106,7 +151,8 @@ export function OrderDetail() {
           </div>
           <p className="text-sm text-muted-foreground">
             {order.party.name} · {order.party.mobile} · {date(order.orderDate)}{order.deliveryDate ? ` → ${date(order.deliveryDate)}` : ''} · {order.rateType === 'FIXED' ? 'Fixed rate' : 'Rate on delivery'}
-            {' · '}Est. {inr(order.estTotal)} · Advance {inr(order.advance)}
+            {order.goldRate ? ` · Gold ${inr(order.goldRate)}` : ''}{order.silverRate ? ` · Silver ${inr(order.silverRate)}` : ''}
+            {' · '}Est. {inr(order.estTotal)}{n(order.miscCharges) ? ` (incl. misc ${inr(order.miscCharges)})` : ''} · Advance {inr(order.advance)}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -132,8 +178,8 @@ export function OrderDetail() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead /><TableHead>Item</TableHead><TableHead>Metal</TableHead><TableHead>Pcs</TableHead><TableHead>Gross</TableHead><TableHead>Net</TableHead><TableHead>Fine</TableHead>
-                <TableHead>Touch</TableHead><TableHead>Wst%</TableHead><TableHead>Making</TableHead><TableHead>Other ₹</TableHead>
+                <TableHead /><TableHead>Item</TableHead><TableHead>Type</TableHead><TableHead>Metal</TableHead><TableHead>Pcs</TableHead><TableHead>Gross</TableHead><TableHead>Net</TableHead><TableHead>Fine</TableHead>
+                <TableHead>Touch</TableHead><TableHead>Wst%</TableHead><TableHead>Wst g</TableHead><TableHead>Making</TableHead><TableHead>Other ₹</TableHead><TableHead>Line labour ₹</TableHead>
                 <TableHead>Est.</TableHead><TableHead>Status</TableHead><TableHead>Karigar</TableHead>
                 <TableHead>Returned g / n / f</TableHead><TableHead>Ghat (g)</TableHead><TableHead>Labour ₹</TableHead>
               </TableRow>
@@ -143,6 +189,7 @@ export function OrderDetail() {
                 <TableRow key={it.id}>
                   <TableCell>{it.status === 'PENDING' && canIssue ? <Checkbox aria-label={`Select ${it.itemName.name}`} checked={sel.has(it.id)} onCheckedChange={() => toggle(it.id)} /> : null}</TableCell>
                   <TableCell>{it.itemName.name}{it.size ? ` · ${it.size}` : ''}{it.remark ? <span className="block text-xs text-muted-foreground">{it.remark}</span> : null}</TableCell>
+                  <TableCell>{jewelleryTypes?.find((jt) => jt.id === it.jewelleryTypeId)?.name ?? '—'}</TableCell>
                   <TableCell>{it.metal} {it.karatCode ?? ''}</TableCell>
                   <TableCell>{it.pcs}</TableCell>
                   <TableCell className="tabular-nums">{it.gross}</TableCell>
@@ -150,8 +197,10 @@ export function OrderDetail() {
                   <TableCell className="tabular-nums">{it.fine}</TableCell>
                   <TableCell className="tabular-nums">{it.touch}</TableCell>
                   <TableCell className="tabular-nums">{it.wastage}</TableCell>
+                  <TableCell className="tabular-nums">{it.wastageGm}</TableCell>
                   <TableCell className="whitespace-nowrap tabular-nums">{it.making}{MAKING_UNIT[it.makingUnit] ?? ''}</TableCell>
                   <TableCell className="tabular-nums">{it.other}</TableCell>
+                  <TableCell className="tabular-nums">{inr(it.labour)}</TableCell>
                   <TableCell className="tabular-nums">{inr(it.estTotal)}</TableCell>
                   <TableCell><Badge variant="secondary">{it.status}</Badge></TableCell>
                   <TableCell>{it.karigarIssue ? `#${it.karigarIssue.issueNo} ${it.karigarIssue.karigar.name}` : '—'}</TableCell>
@@ -164,6 +213,8 @@ export function OrderDetail() {
           </Table>
         </Card>
       </section>
+
+      <DesignCard order={order} />
 
       {order.payments.length > 0 && (
         <section className="space-y-3">

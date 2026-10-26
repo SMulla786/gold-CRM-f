@@ -7,12 +7,11 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useBankAccounts } from '@/lib/appQueries'
 import { useAddSchemePayment } from '@/lib/schemesQueries'
-import { businessDayISO, SCHEME_PAY_MEDIUMS, type EnrollmentDetailDto, type EnrollmentDto } from '@/shared'
+import { businessDayISO, SCHEME_BANK_MEDIUMS, SCHEME_PAY_MEDIUMS, type EnrollmentDetailDto, type EnrollmentDto } from '@/shared'
 import { SchemeReceiptDialog } from './SchemeReceipt'
 
 const n = (s: string) => Number(s) || 0
-/** media that move money into a bank account (CHEQUE posts like ONLINE) */
-export const bankMedium = (m: string) => m === 'ONLINE' || m === 'CHEQUE'
+const bankMedium = (m: string) => SCHEME_BANK_MEDIUMS.includes(m) // ONLINE / CHEQUE need a bank
 
 /** Collect a scheme installment. Reused by Members list and the enrolment detail. */
 export function AddMoneyDialog({ enrollment, onClose }: { enrollment: EnrollmentDto; onClose: () => void }) {

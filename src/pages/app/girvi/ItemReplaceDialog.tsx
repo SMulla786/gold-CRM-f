@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useReplaceGirviItem } from '@/lib/girviQueries'
+import { useT } from '@/lib/i18n'
 import { girviItemReplaceBody, type GirviItemDto } from '@/shared'
 
 type Form = z.input<typeof girviItemReplaceBody>
@@ -16,6 +17,7 @@ type Out = z.output<typeof girviItemReplaceBody>
 
 /** Replace / revalue a PLEDGED item (PATCH /app/girvi/:id/items/:itemId, MPIN). Server rejects if the loan exceeds the new valuation. */
 export function ItemReplaceDialog({ batchId, item, onClose }: { batchId: number; item: GirviItemDto; onClose: () => void }) {
+  const t = useT()
   const replace = useReplaceGirviItem()
   const [pending, setPending] = useState<Out | null>(null)
   const { register, handleSubmit, formState } = useForm<Form, unknown, Out>({
@@ -36,43 +38,43 @@ export function ItemReplaceDialog({ batchId, item, onClose }: { batchId: number;
       <Dialog open={!pending} onOpenChange={(o) => !o && onClose()}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Replace / revalue · {item.name}</DialogTitle>
-            <DialogDescription>Correct or swap this pledged item. The loan must stay within the new valuation.</DialogDescription>
+            <DialogTitle>{t('girvi.replace_title', { name: item.name })}</DialogTitle>
+            <DialogDescription>{t('girvi.replace_desc')}</DialogDescription>
           </DialogHeader>
           <form id="rp-form" onSubmit={handleSubmit((v) => setPending(v))} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="rp-category">Category</Label>
+                <Label htmlFor="rp-category">{t('girvi.col_category')}</Label>
                 <Input id="rp-category" {...register('category')} />
                 {err('category')}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="rp-name">Item name</Label>
+                <Label htmlFor="rp-name">{t('bill.item_name')}</Label>
                 <Input id="rp-name" {...register('name')} />
                 {err('name')}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              {num('gross', 'Gross (g)')}
-              {num('net', 'Net (g)')}
-              {num('purity', 'Purity %')}
-              {num('rate', 'Rate (per g fine)')}
+              {num('gross', t('girvi.gross_g'))}
+              {num('net', t('girvi.net_g'))}
+              {num('purity', t('girvi.purity_pct'))}
+              {num('rate', t('girvi.rate_per_g_fine'))}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="rp-remark">Reason</Label>
-              <Input id="rp-remark" placeholder="e.g. customer swapped chain for bangle" {...register('remark')} />
+              <Label htmlFor="rp-remark">{t('draft.reason')}</Label>
+              <Input id="rp-remark" placeholder={t('girvi.replace_placeholder')} {...register('remark')} />
               {err('remark')}
             </div>
           </form>
           <DialogFooter>
-            <Button variant="outline" onClick={onClose}>Cancel</Button>
-            <Button type="submit" form="rp-form">Continue</Button>
+            <Button variant="outline" onClick={onClose}>{t('common.cancel')}</Button>
+            <Button type="submit" form="rp-form">{t('girvi.continue')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
       <MpinDialog
         open={!!pending}
-        title={`Confirm change to ${item.name}`}
+        title={t('girvi.confirm_change', { name: item.name })}
         onConfirm={async (mpin) => {
           await replace.mutateAsync({ id: batchId, itemId: item.id, body: pending as Record<string, unknown>, mpin })
           onClose()

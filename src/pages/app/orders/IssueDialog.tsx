@@ -23,7 +23,7 @@ export function IssueDialog({ items, onClose }: { items: OrderItemDto[]; onClose
   const tot = (pick: (it: OrderItemDto) => string) => items.reduce((a, it) => a + n(pick(it)), 0).toFixed(3)
   const fineBy = (metal: 'GOLD' | 'SILVER') => items.filter((it) => it.metal === metal).reduce((a, it) => a + n(it.fine), 0)
   const [dueDate, setDueDate] = useState('')
-  const [f, setF] = useState({ goldFine: '0', silverFine: '0', cash: '0', online: '0', bankAccountId: '', remark: '' })
+  const [f, setF] = useState({ goldFine: '0', silverFine: '0', cash: '0', online: '0', bankAccountId: '', remark: '', wastagePercent: '', wastageGm: '' })
   const set = (key: keyof typeof f, v: string) => setF((s) => ({ ...s, [key]: v }))
   const ok = !!karigar && (n(f.online) === 0 || f.bankAccountId)
   return (
@@ -48,6 +48,8 @@ export function IssueDialog({ items, onClose }: { items: OrderItemDto[]; onClose
             <div className="space-y-1.5"><Label htmlFor="ki-due">Due date</Label><Input id="ki-due" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} /></div>
             <div className="space-y-1.5"><Label htmlFor="ki-gold">Gold fine (g)</Label><Input id="ki-gold" type="number" step="0.001" value={f.goldFine} onChange={(e) => set('goldFine', e.target.value)} /></div>
             <div className="space-y-1.5"><Label htmlFor="ki-silver">Silver fine (g)</Label><Input id="ki-silver" type="number" step="0.001" value={f.silverFine} onChange={(e) => set('silverFine', e.target.value)} /></div>
+            <div className="space-y-1.5"><Label htmlFor="ki-wst-pct">Wastage %</Label><Input id="ki-wst-pct" type="number" step="0.01" min="0" max="100" value={f.wastagePercent} onChange={(e) => set('wastagePercent', e.target.value)} /></div>
+            <div className="space-y-1.5"><Label htmlFor="ki-wst-gm">Wastage (g)</Label><Input id="ki-wst-gm" type="number" step="0.001" min="0" value={f.wastageGm} onChange={(e) => set('wastageGm', e.target.value)} /></div>
             <div className="space-y-1.5"><Label htmlFor="ki-cash">Cash ₹</Label><Input id="ki-cash" type="number" value={f.cash} onChange={(e) => set('cash', e.target.value)} /></div>
             <div className="space-y-1.5"><Label htmlFor="ki-online">Online ₹</Label><Input id="ki-online" type="number" value={f.online} onChange={(e) => set('online', e.target.value)} /></div>
             {n(f.online) > 0 && (
@@ -63,7 +65,7 @@ export function IssueDialog({ items, onClose }: { items: OrderItemDto[]; onClose
         </div>
         <DialogFooter>
           <Button disabled={!ok || issue.isPending} onClick={async () => {
-            await issue.mutateAsync({ karigarId: karigar!.id, orderItemIds: itemIds, dueDate: dueDate || undefined, goldFine: n(f.goldFine), silverFine: n(f.silverFine), cash: n(f.cash), online: n(f.online), bankAccountId: n(f.online) > 0 ? Number(f.bankAccountId) : undefined, remark: f.remark || undefined })
+            await issue.mutateAsync({ karigarId: karigar!.id, orderItemIds: itemIds, dueDate: dueDate || undefined, goldFine: n(f.goldFine), silverFine: n(f.silverFine), cash: n(f.cash), online: n(f.online), bankAccountId: n(f.online) > 0 ? Number(f.bankAccountId) : undefined, remark: f.remark || undefined, wastagePercent: f.wastagePercent !== '' ? n(f.wastagePercent) : undefined, wastageGm: f.wastageGm !== '' ? n(f.wastageGm) : undefined })
             onClose()
           }}>Issue</Button>
         </DialogFooter>

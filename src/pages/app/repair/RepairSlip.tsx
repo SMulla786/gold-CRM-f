@@ -9,7 +9,7 @@ import { useAuth } from '@/lib/auth'
 import { useRepair } from '@/lib/repairQueries'
 import { downloadPdf, shareOnWhatsApp } from '@/lib/share'
 
-import { date, estCharge, inr, STATUS_LABEL } from './repairUtils'
+import { addedMetalLabel, addedValue, date, estCharge, inr, n, STATUS_LABEL } from './repairUtils'
 
 /** Printable repair slip (customer copy) — same .print-area pattern as the bill / statement views. */
 export function RepairSlip() {
@@ -62,8 +62,8 @@ export function RepairSlip() {
         </div>
 
         <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
-          <Item label="Item">{t.category}</Item>
-          <Item label="Metal">{t.metal}{t.karatCode ? ` · ${t.karatCode}` : ''}</Item>
+          <Item label="Item">{t.category}{t.subCategory ? ` · ${t.subCategory}` : ''}</Item>
+          <Item label="Metal">{t.metal}{t.karatCode ? ` · ${t.karatCode}` : ''}{t.purity ? ` · ${t.purity}%` : ''}</Item>
           <Item label="Pieces">{t.pcs}</Item>
           <Item label="Gross weight">{t.gross} g</Item>
           <Item label="Net weight">{t.net ? `${t.net} g` : '—'}</Item>
@@ -77,8 +77,11 @@ export function RepairSlip() {
         <div className="ml-auto max-w-xs space-y-1 tabular-nums">
           <Line label="Labour" value={inr(t.labourCharge)} />
           <Line label="Other" value={inr(t.otherCharge)} />
-          <div className="flex justify-between border-t-2 border-brand pt-1 text-base font-bold"><span>Est. charge</span><span>{inr(estCharge(t))}</span></div>
+          {n(t.addedFine ?? '0') > 0 && <Line label={`Metal added (${addedMetalLabel(t)}, ${t.addedFine} g)`} value={inr(addedValue(t))} />}
+          <div className="flex justify-between border-t-2 border-brand pt-1 text-base font-bold"><span>Est. charge</span><span>{inr((Number(estCharge(t)) + Number(addedValue(t))).toFixed(2))}</span></div>
           <Line label="Advance paid" value={inr(t.advance)} />
+          {t.status === 'DELIVERED' && <Line label="Paid cash at delivery" value={inr(t.deliveryCash ?? '0')} />}
+          {t.status === 'DELIVERED' && <Line label={`Paid online at delivery${t.deliveryBank ? ` (${t.deliveryBank.name})` : ''}`} value={inr(t.deliveryOnline ?? '0')} />}
           <div className="flex justify-between font-medium"><span>Balance</span><span>{inr(t.balance)}</span></div>
         </div>
 

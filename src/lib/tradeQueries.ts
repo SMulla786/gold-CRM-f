@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { ApiException } from '@/lib/errors'
 import { qs, useApiMutation } from '@/lib/queries'
-import type { BhavBookingDto, BuySellDto, ExchangeDto, KachaBalanceDto, KachaProcessDto, Paged } from '@/shared'
+import type { BhavBookingDto, BuySellDto, ExchangeDto, KachaBalanceDto, KachaProcessDto, Paged, TradeHistoryDto } from '@/shared'
 
 const TRADE_KEYS = [['exchange'], ['kacha'], ['kacha-balance'], ['buy-sell'], ['bhav-booking'], ['ledger'], ['day-book'], ['party-balance'], ['dashboard']]
 
@@ -17,6 +17,8 @@ export const useExchange = (id: number) =>
   useQuery({ queryKey: ['exchange', 'one', id], queryFn: () => api.get<ExchangeDto>(`/app/exchange/${id}`), enabled: Number.isInteger(id) && id > 0 })
 export const useCreateExchange = () =>
   useApiMutation((body: Record<string, unknown>) => api.post<ExchangeDto>('/app/exchange', body), { invalidate: TRADE_KEYS, success: 'Exchange saved' })
+export const useUpdateExchange = () =>
+  useApiMutation(({ id, mpin, body }: { id: number; mpin: string; body: Record<string, unknown> }) => api.put<ExchangeDto>(`/app/exchange/${id}`, body, { mpin }), { invalidate: TRADE_KEYS, success: 'Exchange updated' })
 export const useDeleteExchange = () =>
   useApiMutation(({ id, mpin }: { id: number; mpin: string }) => api.del(`/app/exchange/${id}`, { mpin }), { invalidate: TRADE_KEYS, success: 'Exchange deleted' })
 
@@ -24,7 +26,7 @@ export const useDeleteExchange = () =>
 export const useKachaList = (params: Record<string, string | number | undefined>) =>
   useQuery({ queryKey: ['kacha', params], queryFn: () => api.get<Paged<KachaProcessDto>>(`/app/kacha${qs(params)}`) })
 export const useKachaBalance = (metal: string) =>
-  useQuery({ queryKey: ['kacha-balance', metal], queryFn: () => api.get<KachaBalanceDto>(`/app/kacha/balance${qs({ metal })}`) })
+  useQuery({ queryKey: ['kacha-balance', metal], queryFn: () => api.get<KachaBalanceDto>(`/app/kacha/balance${qs({ metal: metal || undefined })}`) })
 export const useKachaProcess = () =>
   useApiMutation(({ body, mpin }: { body: Record<string, unknown>; mpin: string }) => api.post<KachaProcessDto>('/app/kacha/process', body, { mpin }), { invalidate: TRADE_KEYS, success: 'Processed' })
 export const useRevertKacha = () =>
@@ -38,6 +40,8 @@ export const useBuySell = (id: number) =>
   useQuery({ queryKey: ['buy-sell', 'one', id], queryFn: () => api.get<BuySellDto>(`/app/buy-sell/${id}`), enabled: Number.isInteger(id) && id > 0 })
 export const useCreateBuySell = () =>
   useApiMutation((body: Record<string, unknown>) => api.post<BuySellDto>('/app/buy-sell', body), { invalidate: TRADE_KEYS, success: 'Trade saved' })
+export const useUpdateBuySell = () =>
+  useApiMutation(({ id, mpin, body }: { id: number; mpin: string; body: Record<string, unknown> }) => api.put<BuySellDto>(`/app/buy-sell/${id}`, body, { mpin }), { invalidate: TRADE_KEYS, success: 'Trade updated' })
 export const useDeleteBuySell = () =>
   useApiMutation(({ id, mpin }: { id: number; mpin: string }) => api.del(`/app/buy-sell/${id}`, { mpin }), { invalidate: TRADE_KEYS, success: 'Trade deleted' })
 
@@ -48,6 +52,12 @@ export const useBhavBooking = (id?: number) =>
   useQuery({ queryKey: ['bhav-booking', 'one', id], queryFn: () => api.get<BhavBookingDto>(`/app/bhav-booking/${id}`), enabled: !!id })
 export const useCreateBhav = () =>
   useApiMutation((body: Record<string, unknown>) => api.post<BhavBookingDto>('/app/bhav-booking', body), { invalidate: TRADE_KEYS, success: 'Booking saved' })
+export const useUpdateBhav = () =>
+  useApiMutation(({ id, mpin, body }: { id: number; mpin: string; body: Record<string, unknown> }) => api.put<BhavBookingDto>(`/app/bhav-booking/${id}`, body, { mpin }), { invalidate: TRADE_KEYS, success: 'Booking updated' })
+export const useUndeliverBhav = () =>
+  useApiMutation(({ id, mpin }: { id: number; mpin: string }) => api.post(`/app/bhav-booking/${id}/undeliver`, undefined, { mpin }), { invalidate: TRADE_KEYS, success: 'Marked undelivered' })
+export const useVerifyBhav = () =>
+  useApiMutation(({ id, verified }: { id: number; verified: boolean }) => api.post(`/app/bhav-booking/${id}/${verified ? 'verify' : 'unverify'}`), { invalidate: [['bhav-booking']], success: 'Saved' })
 export const useCancelBhav = () =>
   useApiMutation(({ id, mpin }: { id: number; mpin: string }) => api.post(`/app/bhav-booking/${id}/cancel`, undefined, { mpin }), { invalidate: TRADE_KEYS, success: 'Booking cancelled' })
 export const useDeleteBhav = () =>
@@ -80,3 +90,7 @@ export const useBulkDeleteBhav = () => {
     onSettled: () => TRADE_KEYS.forEach((key) => qc.invalidateQueries({ queryKey: key })),
   })
 }
+
+/** Audit trail of one trade document (GET /app/{exchange|buy-sell|bhav-booking}/:id/history). */
+export const useTradeHistory = (kind: 'exchange' | 'buy-sell' | 'bhav-booking', id?: number) =>
+  useQuery({ queryKey: [kind, 'history', id], queryFn: () => api.get<TradeHistoryDto[]>(`/app/${kind}/${id}/history`), enabled: !!id })

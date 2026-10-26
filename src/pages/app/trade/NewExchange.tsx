@@ -1,7 +1,8 @@
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
+import { MpinDialog } from '@/components/MpinDialog'
 import { PartyPicker } from '@/components/PartyPicker'
 import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
 import { Button } from '@/components/ui/button'
@@ -13,9 +14,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useBankAccounts, useCurrentRates, useSettings } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { metalRateUnitGrams } from '@/lib/billingQueries'
-import { useCreateExchange } from '@/lib/tradeQueries'
+import { useCreateExchange, useExchange, useUpdateExchange } from '@/lib/tradeQueries'
 import { businessDayISO, METALS, TRADE_SIDES, computeLine, metalToMoney, type PartyRefDto } from '@/shared'
 
+import { blankPay, payBody, payRowsFrom, payTotal, payValid, type PayRow } from './splitPay'
+import { SplitPaymentTable, SplitToggle } from './TradeExtras'
 import { fineRate } from './tradeRates'
 
 let uid = 0
@@ -36,6 +39,7 @@ export function NewExchange() {
   const { data: banks } = useBankAccounts()
   const { data: rates } = useCurrentRates()
   const create = useCreateExchange()
+  const update = useUpdateExchange()
 
   const [side, setSide] = useState('BUY')
   const [party, setParty] = useState<PartyRefDto | null>(null)
@@ -44,6 +48,26 @@ export function NewExchange() {
   const [rows, setRows] = useState<Row[]>([blankRow()])
   const [f, setF] = useState({ diffFine: '0', rate: '0', charges: '0', discount: '0', cash: '0', online: '0', bankAccountId: '', remark: '' })
   const set = (key: keyof typeof f, v: string) => setF((s) => ({ ...s, [key]: v }))
+  const [split, setSplit] = useState(false)
+  const [pays, setPays] = useState<PayRow[]>(() => [blankPay()])
+  const [askMpin, setAskMpin] = useState(false)
+
+  // ?edit=<id> opens this form prefilled with a saved exchange; saving replaces it (same number) after MPIN.
+  const [params] = useSearchParams()
+  const editParam = Number(params.get('edit'))
+  const editId = Number.isInteger(editParam) && editParam > 0 && editParam <= 2_147_483_647 ? editParam : 0
+  const { data: editing } = useExchange(editId)
+  const [prefilled, setPrefilled] = useState<number | null>(null)
+  if (editing && prefilled !== editing.id) {
+    setPrefilled(editing.id)
+    setSide(editing.side)
+    setParty(editing.party)
+    setMetal(editing.metal)
+    setTxnDate(editing.txnDate)
+    setRows(editing.lines.map((l) => ({ key: k(), weight: l.weight, touch: l.touch, serialNo: l.serialNo ?? '' })))
+    setF({ diffFine: editing.diffFine, rate: editing.rate, charges: editing.charges, discount: editing.discount, cash: editing.cash, online: editing.online, bankAccountId: editing.bankAccount ? String(editing.bankAccount.id) : '', remark: editing.remark ?? '' })
+    if (editing.payments?.length) { setSplit(true); setPays(payRowsFrom(editing.payments)) }
+  }
 
   const setRow = (i: number, key: keyof Row, v: string) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, [key]: v } : r)))
   const totalFine = rows.reduce((a, r) => a + fineOf(r), 0)
@@ -51,27 +75,45 @@ export function NewExchange() {
   const moneyMode = n(f.rate) > 0
   const todayRate = fineRate(rates, metal, side, settings) // hint only; the rate field stays manual
   const finalAmount = moneyMode ? Number(metalToMoney(afterFine, n(f.rate), metalRateUnitGrams(metal, settings))) + n(f.charges) - n(f.discount) : 0
-  const paid = n(f.cash) + n(f.online)
+  const splitOn = split && moneyMode
+  const paid = splitOn ? payTotal(pays) : n(f.cash) + n(f.online)
   const balance = finalAmount - paid
 
   const valid = branchReady && !!party && rows.every((r) => n(r.weight) > 0 && n(r.touch) > 0) && afterFine > 0
-    && (moneyMode || (paid === 0 && n(f.charges) === 0 && n(f.discount) === 0)) && (n(f.online) === 0 || f.bankAccountId)
+    && (moneyMode || (paid === 0 && n(f.charges) === 0 && n(f.discount) === 0))
+    && (splitOn ? payValid(pays) : n(f.online) === 0 || f.bankAccountId)
+    && !(editing && editing.processed)
 
+  const body = () => ({
+    side, partyId: party!.id, metal, txnDate,
+    lines: rows.map((r) => ({ weight: n(r.weight), touch: n(r.touch), serialNo: r.serialNo || undefined })),
+    diffFine: n(f.diffFine), rate: n(f.rate), charges: n(f.charges), discount: n(f.discount),
+    ...(splitOn ? payBody(pays) : { cash: n(f.cash), online: n(f.online), bankAccountId: n(f.online) > 0 ? Number(f.bankAccountId) : undefined }),
+    remark: f.remark || undefined,
+  })
   const submit = async () => {
-    const body = {
-      side, partyId: party!.id, metal, txnDate,
-      lines: rows.map((r) => ({ weight: n(r.weight), touch: n(r.touch), serialNo: r.serialNo || undefined })),
-      diffFine: n(f.diffFine), rate: n(f.rate), charges: n(f.charges), discount: n(f.discount),
-      cash: n(f.cash), online: n(f.online), bankAccountId: n(f.online) > 0 ? Number(f.bankAccountId) : undefined, remark: f.remark || undefined,
-    }
-    const saved = await create.mutateAsync(body)
+    if (editing) { setAskMpin(true); return }
+    const saved = await create.mutateAsync(body())
     navigate(`/app/exchange`)
     toast(`Exchange #${saved.exchangeNo} receipt is ready`, { action: { label: 'Print receipt', onClick: () => navigate(`/app/exchange/${saved.id}/print`) } })
   }
+  const saveEdit = async (mpin: string) => {
+    await update.mutateAsync({ id: editing!.id, mpin, body: body() })
+    navigate('/app/exchange')
+  }
+  const pending = create.isPending || update.isPending
 
   return (
     <div className="space-y-8">
       {!branchReady && <SelectBranchForTxn note="An exchange is booked at one branch. Select a branch." />}
+      {editing && (
+        <Card>
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-6 text-sm">
+            <span>Editing exchange #{editing.exchangeNo}. Saving replaces its entries (same number) and needs your MPIN.{editing.processed && ' It was sent to melt / refine, so revert that processing before editing.'}</span>
+            <Button asChild variant="outline" size="sm"><Link to="/app/exchange">Cancel edit</Link></Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader><CardTitle>Transaction details</CardTitle></CardHeader>
@@ -127,14 +169,19 @@ export function NewExchange() {
             {moneyMode && <>
               <div className="space-y-1.5"><Label htmlFor="ex-charges">Charges ₹</Label><Input id="ex-charges" type="number" value={f.charges} onChange={(e) => set('charges', e.target.value)} /></div>
               <div className="space-y-1.5"><Label htmlFor="ex-disc">Discount ₹</Label><Input id="ex-disc" type="number" value={f.discount} onChange={(e) => set('discount', e.target.value)} /></div>
-              <div className="space-y-1.5"><Label htmlFor="ex-cash">{side === 'BUY' ? 'Cash paid ₹' : 'Cash recd ₹'}</Label><Input id="ex-cash" type="number" value={f.cash} onChange={(e) => set('cash', e.target.value)} /></div>
-              <div className="space-y-1.5"><Label htmlFor="ex-online">Online ₹</Label><Input id="ex-online" type="number" value={f.online} onChange={(e) => set('online', e.target.value)} /></div>
-              {n(f.online) > 0 && (
-                <div className="space-y-1.5 sm:col-span-2"><Label>Bank</Label>
-                  <Select value={f.bankAccountId} onValueChange={(v) => set('bankAccountId', v)}><SelectTrigger aria-label="Bank account"><SelectValue placeholder="Bank" /></SelectTrigger>
-                    <SelectContent>{banks?.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.bankName} · {b.accountNo}</SelectItem>)}</SelectContent></Select>
-                </div>
-              )}
+              <div className="sm:col-span-2 lg:col-span-3"><SplitToggle id="ex-split" checked={split} onChange={setSplit} /></div>
+              {split ? (
+                <div className="sm:col-span-2 lg:col-span-3"><SplitPaymentTable rows={pays} onChange={setPays} /></div>
+              ) : <>
+                <div className="space-y-1.5"><Label htmlFor="ex-cash">{side === 'BUY' ? 'Cash paid ₹' : 'Cash recd ₹'}</Label><Input id="ex-cash" type="number" value={f.cash} onChange={(e) => set('cash', e.target.value)} /></div>
+                <div className="space-y-1.5"><Label htmlFor="ex-online">Online ₹</Label><Input id="ex-online" type="number" value={f.online} onChange={(e) => set('online', e.target.value)} /></div>
+                {n(f.online) > 0 && (
+                  <div className="space-y-1.5 sm:col-span-2"><Label>Bank</Label>
+                    <Select value={f.bankAccountId} onValueChange={(v) => set('bankAccountId', v)}><SelectTrigger aria-label="Bank account"><SelectValue placeholder="Bank" /></SelectTrigger>
+                      <SelectContent>{banks?.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.bankName} · {b.accountNo}</SelectItem>)}</SelectContent></Select>
+                  </div>
+                )}
+              </>}
             </>}
             <div className="space-y-1.5 sm:col-span-2 lg:col-span-3"><Label htmlFor="ex-remark">Remark</Label><Input id="ex-remark" value={f.remark} onChange={(e) => set('remark', e.target.value)} /></div>
           </CardContent>
@@ -159,10 +206,11 @@ export function NewExchange() {
       </div>
 
       <div className="flex justify-end">
-        <Button className="w-full sm:w-auto" disabled={!valid || create.isPending} onClick={() => void submit().catch(() => {})}>
-          {create.isPending ? 'Saving…' : `Save ${side === 'BUY' ? 'purchase' : 'sale'}`}
+        <Button className="w-full sm:w-auto" disabled={!valid || pending} onClick={() => void submit().catch(() => {})}>
+          {pending ? 'Saving…' : editing ? 'Save changes' : `Save ${side === 'BUY' ? 'purchase' : 'sale'}`}
         </Button>
       </div>
+      <MpinDialog open={askMpin} title={`Save changes to exchange #${editing?.exchangeNo ?? ''}`} onConfirm={saveEdit} onClose={() => setAskMpin(false)} />
     </div>
   )
 }

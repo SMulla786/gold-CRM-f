@@ -7,8 +7,9 @@
  */
 import { z } from 'zod';
 import { id, pageQuery } from './common';
-import { decimalInput, METALS } from './masters';
+import { decimalInput, METALS, PARTY_TYPES } from './masters';
 import type { PartyRefDto } from './masters';
+import type { ActivityAction } from '../enums';
 
 const weight = z.coerce.number().finite().min(0).max(1_000_000);
 const money = { cash: decimalInput.default(0), online: decimalInput.default(0), bankAccountId: id.optional() };
@@ -17,6 +18,46 @@ const bankRule = <T extends { online: number; bankAccountId?: number }>(b: T) =>
 export const TRADE_SIDES = ['BUY', 'SELL'] as const;
 export type TradeSide = (typeof TRADE_SIDES)[number];
 export const BHAV_STATUSES = ['PENDING', 'PARTIAL', 'DELIVERED', 'CANCELLED'] as const;
+export const BHAV_ENTRY_TYPES = ['LEDGER', 'ONLY_ENTRY'] as const;
+
+// ───────────── TASK-97 shared additions (all optional; absent = behaviour unchanged) ─────────────
+
+/** txnDate range (inclusive) for the trade lists */
+const range = { from: z.coerce.date().optional(), to: z.coerce.date().optional() };
+
+export const TRADE_PAY_MODES = ['CASH', 'ONLINE'] as const;
+/** One split-payment row. ONLINE needs a bank account. */
+export const tradePaymentInput = z
+  .object({
+    mode: z.enum(TRADE_PAY_MODES),
+    amount: decimalInput.positive(),
+    bankAccountId: id.optional(),
+    reference: z.string().trim().max(100).optional(),
+  })
+  .refine((p) => p.mode === 'CASH' || p.bankAccountId != null, { message: 'Select a bank account', path: ['bankAccountId'] });
+/** When present, REPLACES cash / online / bankAccountId (those must then be left 0): totals = sums by mode, one MONEY ledger row per payment. */
+const split = { payments: z.array(tradePaymentInput).min(1).max(20).optional() };
+const splitRule = (b: { cash: number; online: number; payments?: unknown[] }) => !b.payments || (b.cash === 0 && b.online === 0);
+const splitMsg = { message: 'Use either split payments or cash / online, not both', path: ['payments'] };
+
+export interface TradePaymentDto {
+  id: number;
+  mode: 'CASH' | 'ONLINE' | 'METAL';
+  amount: string;
+  bankAccount: { id: number; name: string } | null;
+  reference: string | null;
+}
+
+/** GET /app/{exchange|buy-sell|bhav-booking}/:id/history — the document's ActivityLog rows, oldest first. */
+export interface TradeHistoryDto {
+  id: string;
+  action: ActivityAction;
+  summary: string;
+  user: string | null;
+  createdAt: string;
+  /** EDITED rows: { before, after } document snapshots */
+  meta: unknown;
+}
 
 // ───────────── Exchange ─────────────
 
@@ -42,14 +83,25 @@ export const exchangeBody = z
     discount: decimalInput.default(0),
     remark: z.string().trim().max(300).optional(),
     ...money,
+    ...split,
   })
   .refine(bankRule, { message: 'Select a bank account', path: ['bankAccountId'] })
   .refine((b) => b.rate > 0 || (b.cash === 0 && b.online === 0 && b.charges === 0 && b.discount === 0), {
     message: 'Enter the rate to settle in money',
     path: ['rate'],
-  });
+  })
+  .refine(splitRule, splitMsg)
+  .refine((b) => b.rate > 0 || !b.payments, { message: 'Enter the rate to settle in money', path: ['rate'] });
 
-export const exchangeListQuery = pageQuery.extend({ side: z.enum(TRADE_SIDES).optional(), metal: z.enum(METALS).optional(), partyId: id.optional() });
+export const exchangeListQuery = pageQuery.extend({
+  side: z.enum(TRADE_SIDES).optional(),
+  metal: z.enum(METALS).optional(),
+  partyId: id.optional(),
+  ...range,
+  partyType: z.enum(PARTY_TYPES).optional(),
+  /** 'true' = has an active (non-reverted) kacha process; 'false' = none */
+  processed: z.enum(['true', 'false']).optional(),
+});
 
 export interface ExchangeLineDto {
   id: number;
@@ -85,6 +137,8 @@ export interface ExchangeDto {
   processed: boolean;
   createdBy: string | null;
   createdAt: string;
+  /** split-payment rows (empty when paid via cash / online) */
+  payments?: TradePaymentDto[];
 }
 
 // ───────────── Kacha processing (the branch's kacha pool) ─────────────
@@ -105,8 +159,9 @@ export const kachaProcessBody = z
   })
   .refine((b) => b.type === 'REFINE' || b.ravalFine === 0, { message: 'Raval applies to refining only', path: ['ravalFine'] });
 
-export const kachaListQuery = pageQuery.extend({ metal: z.enum(METALS).optional() });
-export const kachaBalanceQuery = z.object({ metal: z.enum(METALS) });
+export const kachaListQuery = pageQuery.extend({ metal: z.enum(METALS).optional(), type: z.enum(['MELT', 'REFINE']).optional() });
+/** metal omitted = All: top-level fields are GOLD (back-compat) and byMetal carries both metals separately */
+export const kachaBalanceQuery = z.object({ metal: z.enum(METALS).optional() });
 
 export interface KachaProcessDto {
   id: number;
@@ -129,6 +184,8 @@ export interface KachaBalanceDto {
   metal: 'GOLD' | 'SILVER';
   kachaFine: string;
   bullionFine: string;
+  /** only when the query had no metal (All) */
+  byMetal?: Array<{ metal: 'GOLD' | 'SILVER'; kachaFine: string; bullionFine: string }>;
 }
 
 // ───────────── Buy-sell (bullion) ─────────────
@@ -147,10 +204,12 @@ export const buySellBody = z
     bhavBookingId: id.optional(),
     narration: z.string().trim().max(300).optional(),
     ...money,
+    ...split,
   })
-  .refine(bankRule, { message: 'Select a bank account', path: ['bankAccountId'] });
+  .refine(bankRule, { message: 'Select a bank account', path: ['bankAccountId'] })
+  .refine(splitRule, splitMsg);
 
-export const buySellListQuery = pageQuery.extend({ side: z.enum(TRADE_SIDES).optional(), metal: z.enum(METALS).optional(), partyId: id.optional() });
+export const buySellListQuery = pageQuery.extend({ side: z.enum(TRADE_SIDES).optional(), metal: z.enum(METALS).optional(), partyId: id.optional(), ...range });
 
 export interface BuySellDto {
   id: number;
@@ -172,6 +231,7 @@ export interface BuySellDto {
   lines: Array<{ id: number; weight: string; rate: string; amount: string }>;
   createdBy: string | null;
   createdAt: string;
+  payments?: TradePaymentDto[];
 }
 
 // ───────────── Bhav booking ─────────────
@@ -182,13 +242,25 @@ export const bhavBookingBody = z
     partyId: id,
     metal: z.enum(METALS),
     txnDate: z.coerce.date().optional(),
-    weight: weight.positive(),
-    rate: decimalInput.positive(),
+    /** required unless lines[] is given */
+    weight: weight.positive().optional(),
+    /** required unless lines[] is given */
+    rate: decimalInput.positive().optional(),
+    /**
+     * Multi-row booking. When present: weight = sum of row weights, amount = sum of metalToMoney(weight, rate) per row,
+     * rate = sum(weight x rate) / sum(weight) rounded to 2 dp (the locked delivery rate); weight / rate above are ignored.
+     */
+    lines: z.array(buySellLineInput).min(1).max(50).optional(),
+    /** ONLY_ENTRY = record only: the advance is NOT posted to the ledger / party udhar */
+    entryType: z.enum(BHAV_ENTRY_TYPES).default('LEDGER'),
     narration: z.string().trim().max(300).optional(),
     /** advance */
     ...money,
+    ...split,
   })
-  .refine(bankRule, { message: 'Select a bank account', path: ['bankAccountId'] });
+  .refine(bankRule, { message: 'Select a bank account', path: ['bankAccountId'] })
+  .refine((b) => !!b.lines || (b.weight != null && b.rate != null), { message: 'Enter the weight and rate', path: ['weight'] })
+  .refine(splitRule, splitMsg);
 
 export const bhavListQuery = pageQuery.extend({
   side: z.enum(TRADE_SIDES).optional(),
@@ -197,6 +269,9 @@ export const bhavListQuery = pageQuery.extend({
   open: z.enum(['true', 'false']).optional(),
   partyId: id.optional(),
   metal: z.enum(METALS).optional(),
+  ...range,
+  /** DELIVERED + CANCELLED only (Old bookings) */
+  closed: z.enum(['true', 'false']).optional(),
 });
 
 export interface BhavBookingDto {
@@ -217,4 +292,13 @@ export interface BhavBookingDto {
   narration: string | null;
   createdBy: string | null;
   createdAt: string;
+  /** advance split (advance = cash + online) */
+  cash?: string;
+  online?: string;
+  entryType?: (typeof BHAV_ENTRY_TYPES)[number];
+  verifiedAt?: string | null;
+  verifiedBy?: string | null;
+  /** multi-row bookings only (empty for a single weight / rate booking) */
+  lines?: Array<{ id: number; weight: string; rate: string; amount: string }>;
+  payments?: TradePaymentDto[];
 }

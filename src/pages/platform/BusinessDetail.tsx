@@ -224,6 +224,7 @@ export function BusinessDetail() {
           <CardContent>
             <Row k="Owner" v={b.owner ? `${b.owner.name} (${b.owner.username})` : '—'} />
             <Row k="Mobile" v={b.mobile} />
+            <Row k="Alternate No" v={b.alternateMobile ?? '—'} />
             <Row k="Email" v={b.email ?? '—'} />
             <Row k="GSTIN" v={b.gstin ?? '—'} />
             <Row k="State" v={b.state?.name ?? '—'} />

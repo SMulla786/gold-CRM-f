@@ -38,7 +38,7 @@ function CreateWizard() {
     reset()
   }
   const next = async () => {
-    const ok = await trigger(step === 1 ? (['name', 'ownerName', 'mobile'] as const) : (['owner'] as const))
+    const ok = await trigger(step === 1 ? (['name', 'ownerName', 'mobile', 'alternateMobile'] as const) : (['owner'] as const))
     if (ok) setStep((s) => s + 1)
   }
   const onSubmit = handleSubmit(async (values) => {
@@ -73,9 +73,14 @@ function CreateWizard() {
                   <Input type="email" {...register('email')} />
                 </Field>
               </div>
-              <Field label="GSTIN">
-                <Input {...register('gstin')} />
-              </Field>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Alternate No" error={formState.errors.alternateMobile?.message}>
+                  <Input inputMode="numeric" maxLength={10} {...register('alternateMobile', { setValueAs: (v) => (v?.trim() ? v.trim() : undefined) })} />
+                </Field>
+                <Field label="GSTIN">
+                  <Input {...register('gstin')} />
+                </Field>
+              </div>
               <Field label="State">
                 <Select value={watch('stateId') ? String(watch('stateId')) : ''} onValueChange={(v) => setValue('stateId', Number(v))}>
                   <SelectTrigger aria-label="State">

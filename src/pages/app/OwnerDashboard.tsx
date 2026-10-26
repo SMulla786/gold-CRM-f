@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { DisplaySettings, SchemesOverview, TodayActivity, useDashboardPrefs } from '@/pages/app/DashboardExtras'
+import { DisplaySettings, SchemesOverview, TodayActivity, Trend, UdharOverdueCard, useDashboardPrefs } from '@/pages/app/DashboardExtras'
 import { ShopRateCard } from '@/pages/app/ShopRateCard'
 import { useOccasions } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
@@ -246,22 +246,23 @@ export function OwnerDashboard() {
   }
 
   const metal = (g: string, sym: string) => (Number(g) ? ` · ${g}g ${sym}` : '')
+  const lm = data.lastMonth
   return (
     <div className="space-y-8 tabular-nums">
       <Header actions={<DisplaySettings prefs={prefs} />} />
       {prefs.show('kpis') && (
         <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <TileLink to="/app/billing/list"><KpiTile icon={ReceiptIndianRupee} label={t('dash.sales_today')} value={inr(data.sales.todayTotal)} sub={t(data.sales.todayCount === 1 ? 'dash.sales_today_sub_one' : 'dash.sales_today_sub_other', { n: data.sales.todayCount, amt: inr(data.sales.todayReceived) })} /></TileLink>
-          <TileLink to="/app/billing/list"><KpiTile icon={TrendingUp} label={t('dash.sales_month')} value={inr(data.sales.monthTotal)} sub={t('dash.year', { amt: inr(data.sales.yearTotal) })} /></TileLink>
-          <TileLink to="/app/billing/list"><KpiTile icon={Hourglass} label={t('dash.pending')} value={inr(data.sales.pendingBalance)} /></TileLink>
-          <TileLink to="/app/billing/list"><KpiTile icon={ShoppingCart} tone="slate" label={t('dash.purchases_month')} value={inr(data.purchases.monthTotal)} /></TileLink>
+          <TileLink to="/app/billing/list"><KpiTile icon={ReceiptIndianRupee} label={t('dash.sales_today')} value={inr(data.sales.todayTotal)} sub={<>{t(data.sales.todayCount === 1 ? 'dash.sales_today_sub_one' : 'dash.sales_today_sub_other', { n: data.sales.todayCount, amt: inr(data.sales.todayReceived) })}<Trend cur={data.sales.todayTotal} prev={lm?.todayTotal} /></>} /></TileLink>
+          <TileLink to="/app/billing/list"><KpiTile icon={TrendingUp} label={t('dash.sales_month')} value={inr(data.sales.monthTotal)} sub={<>{t('dash.year', { amt: inr(data.sales.yearTotal) })}<Trend cur={data.sales.monthTotal} prev={lm?.monthTotal} /></>} /></TileLink>
+          <TileLink to="/app/billing/list"><KpiTile icon={Hourglass} label={t('dash.pending')} value={inr(data.sales.pendingBalance)} sub={data.billsAdvance != null ? `Bills advance ${inr(data.billsAdvance)}` : undefined} /></TileLink>
+          <TileLink to="/app/billing/list"><KpiTile icon={ShoppingCart} tone="slate" label={t('dash.purchases_month')} value={inr(data.purchases.monthTotal)} sub={Number(lm?.purchasesMonthTotal) ? <Trend cur={data.purchases.monthTotal} prev={lm?.purchasesMonthTotal} /> : undefined} /></TileLink>
         </div>
       )}
       {prefs.show('secondary') && (
         <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <TileLink to="/app/udhari/ledger"><KpiTile size="sm" icon={HandCoins} label={t('dash.udhari_receivable')} value={inr(data.udhari.amount)} sub={`${t('dash.collected_month', { amt: inr(data.udhari.collectedThisMonth) })}${metal(data.udhari.gold, 'Au')}${metal(data.udhari.silver, 'Ag')}`} /></TileLink>
+          <TileLink to="/app/udhari/ledger"><KpiTile size="sm" icon={HandCoins} label={t('dash.udhari_receivable')} value={inr(data.udhari.amount)} sub={<>{`${t('dash.collected_month', { amt: inr(data.udhari.collectedThisMonth) })}${metal(data.udhari.gold, 'Au')}${metal(data.udhari.silver, 'Ag')}`}<Trend cur={data.udhari.collectedThisMonth} prev={lm?.collectedThisMonth} prefix="Collected" /></>} /></TileLink>
           <TileLink to="/app/daybook"><KpiTile size="sm" icon={Wallet} tone="slate" label={t('dash.cash_in_hand')} value={inr(data.cash.inHand)} sub={t('dash.bank', { amt: inr(data.cash.bank) })} /></TileLink>
-          <TileLink to="/app/settings/parties?type=CUSTOMER"><KpiTile size="sm" icon={Users} tone="slate" label={t('dash.customers')} value={String(data.parties.customers)} sub={t('dash.new_this_month', { n: data.parties.customersNewThisMonth })} /></TileLink>
+          <TileLink to="/app/settings/parties?type=CUSTOMER"><KpiTile size="sm" icon={Users} tone="slate" label={t('dash.customers')} value={String(data.parties.customers)} sub={<>{t('dash.new_this_month', { n: data.parties.customersNewThisMonth })}<Trend cur={data.parties.customersNewThisMonth} prev={lm?.customersNewThisMonth} prefix="New" /></>} /></TileLink>
           <TileLink to="/app/settings/parties?type=SUPPLIER"><KpiTile size="sm" icon={Factory} tone="slate" label={t('dash.suppliers')} value={String(data.parties.suppliers)} /></TileLink>
         </div>
       )}
@@ -291,6 +292,7 @@ export function OwnerDashboard() {
               </Table>
             </SectionCard>
           )}
+          {prefs.show('overdue') && <UdharOverdueCard rows={data.udharOverdue} />}
           {prefs.show('occasions') && <OccasionsCard />}
         </div>
       </div>

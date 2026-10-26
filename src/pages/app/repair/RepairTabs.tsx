@@ -4,6 +4,7 @@ import { PageTabs } from '@/components/PageTabs'
 const TABS = [
   { to: '/app/repair', label: 'Board', end: true },
   { to: '/app/repair/ledger', label: 'Ledger' },
+  { to: '/app/repair/consumables', label: 'Consumables' },
 ]
 
 export function RepairTabs() {

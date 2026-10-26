@@ -235,7 +235,7 @@ function buildBusiness(a: { name: string; ownerName: string; mobile: string; ema
   const biz: BusinessDetailDto = {
     id, name: a.name, ownerName: a.ownerName, mobile: a.mobile, status: 'ACTIVE', subscriptionState: 'active',
     planName: plan.name, endsAt: sub.endsAt, branchCount: 1, userCount: 1, createdAt: new Date().toISOString(),
-    email: a.email, gstin: null, address: null, state: null, district: null,
+    alternateMobile: null, email: a.email, gstin: null, address: null, state: null, district: null,
     owner: { id: db.nextId(), name: a.ownerName, username: a.ownerUsername ?? a.ownerName.toLowerCase().replace(/\s+/g, '.'), mobile: a.mobile, email: a.email, lastLoginAt: null },
     subscriptions: [sub], payments: [],
   }

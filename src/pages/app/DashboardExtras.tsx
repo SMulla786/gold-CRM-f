@@ -1,4 +1,4 @@
-import { Activity, CalendarClock, Gem, HandCoins, Settings2, Users } from 'lucide-react'
+import { Activity, ArrowDownRight, ArrowUpRight, CalendarClock, Gem, HandCoins, Settings2, Users } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -29,6 +29,7 @@ export const DASHBOARD_BLOCKS = [
   { key: 'schemes', label: 'dash.schemes_overview' },
   { key: 'branches', label: 'dash.by_branch' },
   { key: 'occasions', label: 'dash.occasions' },
+  { key: 'overdue', label: 'Udhar overdue' }, // plain English until an i18n key is added (t() echoes unknown keys)
   { key: 'activity', label: 'dash.recent_activity' },
 ] as const
 export type DashboardBlock = (typeof DASHBOARD_BLOCKS)[number]['key']
@@ -165,6 +166,45 @@ export function SchemesOverview() {
         </ul>
       )}
       {data && !schemes.length && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Activity className="size-4" aria-hidden /> {t('dash.no_schemes')}</p>}
+    </SectionCard>
+  )
+}
+
+// ───── "% vs last month" on KPI tiles (DashboardDto.lastMonth) ─────
+
+/** "+12% vs last month" (green up / red down); nothing when last month is 0 or unknown. */
+export function Trend({ cur, prev, prefix }: { cur: string | number; prev?: string | number; prefix?: string }) {
+  const p = Number(prev ?? 0)
+  if (!p) return null
+  const pct = Math.round(((Number(cur) - p) / Math.abs(p)) * 100)
+  const up = pct >= 0
+  const Icon = up ? ArrowUpRight : ArrowDownRight
+  return (
+    <span className={`mt-1 flex items-center gap-0.5 font-semibold ${up ? 'text-green-600 dark:text-green-500' : 'text-destructive'}`}>
+      <Icon className="size-3.5" aria-hidden />
+      {prefix ? `${prefix} ` : ''}{up ? '+' : ''}{pct}% vs last month
+    </span>
+  )
+}
+
+// ───── Udhar overdue list (DashboardDto.udharOverdue) ─────
+
+export function UdharOverdueCard({ rows }: { rows?: DashboardDto['udharOverdue'] }) {
+  if (!rows?.length) return null
+  const metal = (g: string, sym: string) => (Number(g) ? `${g}g ${sym}` : '')
+  return (
+    <SectionCard title="Udhar overdue" actions={<Link to="/app/udhari/ledger" className="text-xs font-medium text-brand hover:underline">View ledger</Link>} bodyClassName="divide-y text-sm">
+      {rows.map((r) => (
+        <div key={r.party.id} className="flex flex-wrap justify-between gap-x-3 gap-y-1 px-6 py-3">
+          <div className="min-w-0">
+            <Link to={`/app/udhari/statement/${r.party.id}`} className="font-medium hover:underline">{r.party.name}</Link>
+            <div className="text-xs text-muted-foreground">{r.daysOverdue} days overdue · since {new Date(r.since).toLocaleDateString('en-IN')}</div>
+          </div>
+          <div className="text-right font-semibold">
+            {[Number(r.amount) ? inr(Number(r.amount)) : '', metal(r.gold, 'Au'), metal(r.silver, 'Ag')].filter(Boolean).join(' · ')}
+          </div>
+        </div>
+      ))}
     </SectionCard>
   )
 }

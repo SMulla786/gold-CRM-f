@@ -45,7 +45,8 @@ export function OrderList() {
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
-  const { data, isLoading } = useOrders({ status: status || undefined, q: q || undefined, page, pageSize })
+  // OPEN = multi-status preset (statuses=PENDING,IN_PROCESS); any other value is a single status
+  const { data, isLoading } = useOrders({ ...(status === 'OPEN' ? { statuses: 'PENDING,IN_PROCESS' } : { status: status || undefined }), q: q || undefined, page, pageSize })
   const bulkCancel = useBulkCancelOrders()
   const [sel, setSel] = useState<Set<number>>(new Set())
   const [cancelling, setCancelling] = useState(false)
@@ -139,6 +140,7 @@ export function OrderList() {
             <SelectTrigger className="w-44" aria-label="Status"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="OPEN">Open (pending + in process)</SelectItem>
               {ORDER_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
             </SelectContent>
           </Select>

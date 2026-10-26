@@ -1,7 +1,8 @@
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
+import { MpinDialog } from '@/components/MpinDialog'
 import { PartyPicker } from '@/components/PartyPicker'
 import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
 import { Button } from '@/components/ui/button'
@@ -13,9 +14,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useBankAccounts, useCurrentRates, useSettings } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { metalRateUnitGrams } from '@/lib/billingQueries'
-import { useBhavBooking, useBhavBookings, useCreateBuySell } from '@/lib/tradeQueries'
+import { useBhavBooking, useBhavBookings, useBuySell, useCreateBuySell, useUpdateBuySell } from '@/lib/tradeQueries'
 import { businessDayISO, METALS, TRADE_SIDES, metalToMoney, type BhavBookingDto, type PartyRefDto } from '@/shared'
 
+import { blankPay, payBody, payRowsFrom, payTotal, payValid, type PayRow } from './splitPay'
+import { SplitPaymentTable, SplitToggle } from './TradeExtras'
 import { fineRate } from './tradeRates'
 
 let uid = 0
@@ -35,6 +38,7 @@ export function NewBuySell() {
   const { data: banks } = useBankAccounts()
   const { data: rates } = useCurrentRates()
   const create = useCreateBuySell()
+  const update = useUpdateBuySell()
 
   const [side, setSide] = useState('BUY')
   const [party, setParty] = useState<PartyRefDto | null>(null)
@@ -44,6 +48,9 @@ export function NewBuySell() {
   const [booking, setBooking] = useState<BhavBookingDto | null>(null)
   const [f, setF] = useState({ discount: '0', cash: '0', online: '0', bankAccountId: '', narration: '' })
   const set = (key: keyof typeof f, v: string) => setF((s) => ({ ...s, [key]: v }))
+  const [split, setSplit] = useState(false)
+  const [pays, setPays] = useState<PayRow[]>(() => [blankPay()])
+  const [askMpin, setAskMpin] = useState(false)
 
   // "Deliver" from the bhav booking list opens this page with ?booking=<id>: prefill side, metal, party and
   // the locked rate once, with the pending weight as the first line. Everything stays editable as usual.
@@ -61,8 +68,28 @@ export function NewBuySell() {
     setRows([{ ...blankRow(preBooking.rate), weight: preBooking.pendingWeight }])
   }
 
-  // open bookings for the picker: same side/metal/party, PENDING+PARTIAL
+  // ?edit=<id> opens a saved trade prefilled; saving replaces it (same number) after MPIN.
+  const editParam = Number(params.get('edit'))
+  const editId = Number.isInteger(editParam) && editParam > 0 && editParam <= 2_147_483_647 ? editParam : 0
+  const { data: editing } = useBuySell(editId)
+  const { data: editBooking } = useBhavBooking(editing?.bhavBooking?.id)
+  const [editPrefilled, setEditPrefilled] = useState<number | null>(null)
+  if (editing && editPrefilled !== editing.id && (!editing.bhavBooking || editBooking)) {
+    setEditPrefilled(editing.id)
+    setSide(editing.side)
+    setParty(editing.party)
+    setMetal(editing.metal)
+    setTxnDate(editing.txnDate)
+    setBooking(editBooking ?? null)
+    setRows(editing.lines.map((l) => ({ key: k(), weight: l.weight, rate: l.rate })))
+    setF({ discount: editing.discount, cash: editing.cash, online: editing.online, bankAccountId: editing.bankAccount ? String(editing.bankAccount.id) : '', narration: editing.narration ?? '' })
+    if (editing.payments?.length) { setSplit(true); setPays(payRowsFrom(editing.payments)) }
+  }
+
+  // open bookings for the picker: same side/metal/party, PENDING+PARTIAL (+ the edited trade's own booking)
   const { data: bookings } = useBhavBookings({ open: 'true', side, metal, partyId: party?.id })
+  const openBookings = bookings?.items ?? []
+  const bookingOptions = booking && !openBookings.some((b) => b.id === booking.id) ? [booking, ...openBookings] : openBookings
 
   const unit = metalRateUnitGrams(metal, settings)
   const setRow = (i: number, key: keyof Row, v: string) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, [key]: v } : r)))
@@ -73,34 +100,49 @@ export function NewBuySell() {
   const totalWeight = rows.reduce((a, r) => a + n(r.weight), 0)
   const gross = rows.reduce((a, r) => a + amountOf(r), 0)
   const totalAmount = gross - n(f.discount)
-  const paid = n(f.cash) + n(f.online)
+  const paid = split ? payTotal(pays) : n(f.cash) + n(f.online)
   const advance = booking ? n(booking.advance) : 0 // nets like an order advance (party credit)
   const balance = totalAmount - paid - advance
 
   // selecting a booking locks every line to its rate (spec: deliver at the booking rate)
   const pickBooking = (id: string) => {
-    const b = bookings?.items.find((x) => String(x.id) === id) ?? null
+    const b = bookingOptions.find((x) => String(x.id) === id) ?? null
     setBooking(b)
     if (b) setRows((rs) => rs.map((r) => ({ ...r, rate: b.rate })))
   }
 
-  const valid = branchReady && !!party && rows.every((r) => n(r.weight) > 0 && n(rateOf(r)) > 0) && totalWeight > 0 && (n(f.online) === 0 || f.bankAccountId)
+  const valid = branchReady && !!party && rows.every((r) => n(r.weight) > 0 && n(rateOf(r)) > 0) && totalWeight > 0 && (split ? payValid(pays) : n(f.online) === 0 || f.bankAccountId)
 
+  const body = () => ({
+    side, partyId: party!.id, metal, txnDate,
+    lines: rows.map((r) => ({ weight: n(r.weight), rate: n(rateOf(r)) })),
+    discount: n(f.discount), bhavBookingId: booking?.id,
+    ...(split ? payBody(pays) : { cash: n(f.cash), online: n(f.online), bankAccountId: n(f.online) > 0 ? Number(f.bankAccountId) : undefined }),
+    narration: f.narration || undefined,
+  })
   const submit = async () => {
-    const saved = await create.mutateAsync({
-      side, partyId: party!.id, metal, txnDate,
-      lines: rows.map((r) => ({ weight: n(r.weight), rate: n(rateOf(r)) })),
-      discount: n(f.discount), bhavBookingId: booking?.id,
-      cash: n(f.cash), online: n(f.online), bankAccountId: n(f.online) > 0 ? Number(f.bankAccountId) : undefined,
-      narration: f.narration || undefined,
-    })
+    if (editing) { setAskMpin(true); return }
+    const saved = await create.mutateAsync(body())
     navigate('/app/buy_sell')
     toast(`Trade #${saved.buySellNo} slip is ready`, { action: { label: 'Print slip', onClick: () => navigate(`/app/buy_sell/${saved.id}/print`) } })
   }
+  const saveEdit = async (mpin: string) => {
+    await update.mutateAsync({ id: editing!.id, mpin, body: body() })
+    navigate('/app/buy_sell')
+  }
+  const pending = create.isPending || update.isPending
 
   return (
     <div className="space-y-8">
       {!branchReady && <SelectBranchForTxn note="A trade is booked at one branch. Select a branch." />}
+      {editing && (
+        <Card>
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-6 text-sm">
+            <span>Editing trade #{editing.buySellNo}. Saving replaces its entries (same number) and needs your MPIN.</span>
+            <Button asChild variant="outline" size="sm"><Link to="/app/buy_sell">Cancel edit</Link></Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader><CardTitle>Trade details</CardTitle></CardHeader>
@@ -121,14 +163,14 @@ export function NewBuySell() {
             </Select>
           </div>
           <div className="space-y-1.5"><Label htmlFor="bs-date">Date</Label><Input id="bs-date" type="date" value={txnDate} onChange={(e) => setTxnDate(e.target.value)} /></div>
-          {!!bookings?.items.length && (
+          {!!bookingOptions.length && (
             <div className="space-y-1.5 lg:col-span-2">
               <Label>Deliver against bhav booking</Label>
               <Select value={booking ? String(booking.id) : 'none'} onValueChange={(v) => pickBooking(v === 'none' ? '' : v)}>
                 <SelectTrigger aria-label="Bhav booking"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">None (spot rate)</SelectItem>
-                  {bookings.items.map((b) => <SelectItem key={b.id} value={String(b.id)}>#{b.bookingNo} · {b.pendingWeight}g pending @ {b.rate}</SelectItem>)}
+                  {bookingOptions.map((b) => <SelectItem key={b.id} value={String(b.id)}>#{b.bookingNo} · {b.pendingWeight}g pending @ {b.rate}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -165,15 +207,19 @@ export function NewBuySell() {
           <CardContent className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5"><Label htmlFor="bs-disc">Discount ₹</Label><Input id="bs-disc" type="number" value={f.discount} onChange={(e) => set('discount', e.target.value)} /></div>
-              <div className="space-y-1.5"><Label htmlFor="bs-cash">{side === 'BUY' ? 'Cash paid ₹' : 'Cash recd ₹'}</Label><Input id="bs-cash" type="number" value={f.cash} onChange={(e) => set('cash', e.target.value)} /></div>
-              <div className="space-y-1.5"><Label htmlFor="bs-online">Online ₹</Label><Input id="bs-online" type="number" value={f.online} onChange={(e) => set('online', e.target.value)} /></div>
-              {n(f.online) > 0 && (
-                <div className="space-y-1.5"><Label>Bank</Label>
-                  <Select value={f.bankAccountId} onValueChange={(v) => set('bankAccountId', v)}><SelectTrigger aria-label="Bank account"><SelectValue placeholder="Bank" /></SelectTrigger>
-                    <SelectContent>{banks?.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.bankName} · {b.accountNo}</SelectItem>)}</SelectContent></Select>
-                </div>
-              )}
+              {!split && <>
+                <div className="space-y-1.5"><Label htmlFor="bs-cash">{side === 'BUY' ? 'Cash paid ₹' : 'Cash recd ₹'}</Label><Input id="bs-cash" type="number" value={f.cash} onChange={(e) => set('cash', e.target.value)} /></div>
+                <div className="space-y-1.5"><Label htmlFor="bs-online">Online ₹</Label><Input id="bs-online" type="number" value={f.online} onChange={(e) => set('online', e.target.value)} /></div>
+                {n(f.online) > 0 && (
+                  <div className="space-y-1.5"><Label>Bank</Label>
+                    <Select value={f.bankAccountId} onValueChange={(v) => set('bankAccountId', v)}><SelectTrigger aria-label="Bank account"><SelectValue placeholder="Bank" /></SelectTrigger>
+                      <SelectContent>{banks?.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.bankName} · {b.accountNo}</SelectItem>)}</SelectContent></Select>
+                  </div>
+                )}
+              </>}
             </div>
+            <SplitToggle id="bs-split" checked={split} onChange={setSplit} />
+            {split && <SplitPaymentTable rows={pays} onChange={setPays} />}
             <div className="space-y-1.5"><Label htmlFor="bs-narr">Narration</Label><Input id="bs-narr" value={f.narration} onChange={(e) => set('narration', e.target.value)} /></div>
           </CardContent>
         </Card>
@@ -188,13 +234,14 @@ export function NewBuySell() {
             {!!advance && <div className="flex justify-between"><span className="text-muted-foreground">Booking advance</span><span>−{inr(advance)}</span></div>}
             <div className="flex justify-between font-medium"><span>Balance ({side === 'BUY' ? 'shop owes' : 'party owes'})</span><span>{inr(Math.abs(balance))}</span></div>
             <div className="flex justify-end pt-2">
-              <Button className="w-full" disabled={!valid || create.isPending} onClick={() => void submit().catch(() => {})}>
-                {create.isPending ? 'Saving…' : `Save ${side === 'BUY' ? 'purchase' : 'sale'}`}
+              <Button className="w-full" disabled={!valid || pending} onClick={() => void submit().catch(() => {})}>
+                {pending ? 'Saving…' : editing ? 'Save changes' : `Save ${side === 'BUY' ? 'purchase' : 'sale'}`}
               </Button>
             </div>
           </CardContent>
         </Card>
       </div>
+      <MpinDialog open={askMpin} title={`Save changes to trade #${editing?.buySellNo ?? ''}`} onConfirm={saveEdit} onClose={() => setAskMpin(false)} />
     </div>
   )
 }

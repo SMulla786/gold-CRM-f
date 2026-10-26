@@ -74,9 +74,9 @@ export function GirviList() {
         </div>
       ),
     },
-    { header: 'Mode & type', cell: ({ row }) => <span className="whitespace-nowrap">{mode(row.original)}<span className="block text-xs text-muted-foreground">{row.original.interestType ?? ''} {row.original.ratePercent ? `${Number(row.original.ratePercent)}%` : ''}</span></span> },
+    { header: t('girvi.col_mode_type'), cell: ({ row }) => <span className="whitespace-nowrap">{mode(row.original)}<span className="block text-xs text-muted-foreground">{row.original.interestType ?? ''} {row.original.ratePercent ? `${Number(row.original.ratePercent)}%` : ''}</span></span> },
     {
-      header: 'Principal (in / out)',
+      header: t('girvi.col_principal_in_out'),
       cell: ({ row }) => (
         <span className="whitespace-nowrap tabular-nums">
           <span className="text-destructive">{inr(row.original.principalGiven)}</span> / <span className="text-green-600 dark:text-green-500">{inr(row.original.principalReturned)}</span>
@@ -85,7 +85,7 @@ export function GirviList() {
       ),
     },
     {
-      header: 'Interest (paid / due)',
+      header: t('girvi.col_interest_paid_due'),
       cell: ({ row }) => (
         <span className="whitespace-nowrap tabular-nums">
           <span className="text-green-600 dark:text-green-500">{inr(row.original.interestPaid)}</span> / {inr(row.original.interestDue)}
@@ -109,23 +109,23 @@ export function GirviList() {
         </Select>
         <Select value={partyType || 'all'} onValueChange={(v) => reset(setPartyType)(v === 'all' ? '' : v)}>
           <SelectTrigger className="w-36" aria-label="Party type"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="all">All types</SelectItem><SelectItem value="CUSTOMER">Customers</SelectItem><SelectItem value="SUPPLIER">Suppliers</SelectItem></SelectContent>
+          <SelectContent><SelectItem value="all">{t('udhari.all_types')}</SelectItem><SelectItem value="CUSTOMER">{t('dash.customers')}</SelectItem><SelectItem value="SUPPLIER">{t('dash.suppliers')}</SelectItem></SelectContent>
         </Select>
         <Input type="date" className="w-40" aria-label="Issued from" value={from} onChange={(e) => reset(setFrom)(e.target.value)} />
         <Input type="date" className="w-40" aria-label="Issued to" value={to} onChange={(e) => reset(setTo)(e.target.value)} />
         <Select value={String(pageSize)} onValueChange={(v) => reset(setPageSize)(Number(v))}>
           <SelectTrigger className="w-24" aria-label="Rows per page"><SelectValue /></SelectTrigger>
-          <SelectContent>{[10, 20, 50, 100].map((n) => <SelectItem key={n} value={String(n)}>{n} rows</SelectItem>)}</SelectContent>
+          <SelectContent>{[10, 20, 50, 100].map((n) => <SelectItem key={n} value={String(n)}>{t('girvi.n_rows', { n })}</SelectItem>)}</SelectContent>
         </Select>
         <Button variant="outline" className="ml-auto" onClick={() => void exportCsv()} disabled={!data?.total}>
-          <Download aria-hidden /> Excel (CSV)
+          <Download aria-hidden /> {t('girvi.excel_csv')}
         </Button>
       </Card>
       {partyId && (
         <div className="flex items-center gap-3 rounded-2xl border border-brand/30 bg-brand/10 px-4 py-2 text-sm">
-          Showing one customer's loans{data?.items[0] ? `: ${data.items[0].party.name}` : ''}.
-          <Link to={`/app/girvi/new?partyId=${partyId}`} className="font-medium text-brand-strong hover:underline">New loan for this customer</Link>
-          <button type="button" className="ml-auto font-medium hover:underline" onClick={() => { setParams({}); setPage(1) }}>Show all customers</button>
+          {data?.items[0] ? t('girvi.showing_customer_named', { name: data.items[0].party.name }) : t('girvi.showing_customer')}
+          <Link to={`/app/girvi/new?partyId=${partyId}`} className="font-medium text-brand-strong hover:underline">{t('girvi.new_loan_for_customer')}</Link>
+          <button type="button" className="ml-auto font-medium hover:underline" onClick={() => { setParams({}); setPage(1) }}>{t('girvi.show_all_customers')}</button>
         </div>
       )}
       <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} emptyText={t('girvi.no_loans')} pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined} />

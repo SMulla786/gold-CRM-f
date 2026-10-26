@@ -38,7 +38,7 @@ function NewSchemeDialog({ kind }: { kind: SchemeKind }) {
   const branchReady = activeBranch !== '' && activeBranch !== 'all'
   const create = useCreateScheme()
   const [open, setOpen] = useState(false)
-  const [f, setF] = useState({ type: 'CASH', name: '', description: '', emiAmount: '', tenureMonths: '12', bonusType: 'NONE', bonusValue: '0', startDate: today(), validityDate: '' })
+  const [f, setF] = useState({ type: 'CASH', name: '', title: '', description: '', emiAmount: '', tenureMonths: '12', bonusType: 'NONE', bonusValue: '0', startDate: today(), validityDate: '' })
   const set = (k: keyof typeof f, v: string) => setF((s) => ({ ...s, [k]: v }))
   const needsBonusValue = f.bonusType === 'PERCENT' || f.bonusType === 'FIXED'
   // Anjuman may run without a fixed EMI: no EMI / tenure, deposits are ad-hoc (contract allows tenure 0 for ANJUMAN)
@@ -49,7 +49,7 @@ function NewSchemeDialog({ kind }: { kind: SchemeKind }) {
     && (f.bonusType !== 'ONE_EMI' || (emiOn && n(f.emiAmount) > 0)) && (!needsBonusValue || n(f.bonusValue) > 0)
   const submit = async () => {
     await create.mutateAsync({
-      kind, type: f.type, name: f.name.trim(), description: f.description.trim() || undefined,
+      kind, type: f.type, name: f.name.trim(), title: f.title.trim() || undefined, description: f.description.trim() || undefined,
       emiAmount: emiOn ? n(f.emiAmount) : 0, tenureMonths: emiOn ? n(f.tenureMonths) : 0, bonusType: f.bonusType, bonusValue: n(f.bonusValue),
       startDate: f.startDate, validityDate: f.validityDate || undefined,
     })
@@ -63,7 +63,8 @@ function NewSchemeDialog({ kind }: { kind: SchemeKind }) {
         <DialogHeader><DialogTitle>New {kind === 'ANJUMAN' ? 'anjuman' : 'scheme'}</DialogTitle></DialogHeader>
         {!branchReady && <SelectBranchForTxn note="A scheme belongs to one branch. Select a branch." />}
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5 sm:col-span-2"><Label htmlFor="sc-name">Name</Label><Input id="sc-name" value={f.name} onChange={(e) => set('name', e.target.value)} /></div>
+          {kind === 'ANJUMAN' && <div className="space-y-1.5 sm:col-span-2"><Label htmlFor="sc-title">Title (optional)</Label><Input id="sc-title" maxLength={80} value={f.title} onChange={(e) => set('title', e.target.value)} /></div>}
+          <div className="space-y-1.5 sm:col-span-2"><Label htmlFor="sc-name">{kind === 'ANJUMAN' ? 'Scheme name' : 'Name'}</Label><Input id="sc-name" value={f.name} onChange={(e) => set('name', e.target.value)} /></div>
           <div className="space-y-1.5"><Label>Type</Label>
             <Select value={f.type} onValueChange={(v) => set('type', v)}><SelectTrigger aria-label="Scheme type"><SelectValue /></SelectTrigger>
               <SelectContent>{SCHEME_TYPES.map((t) => <SelectItem key={t} value={t}>{t === 'GOLD' ? 'Gold (grams)' : 'Cash (₹)'}</SelectItem>)}</SelectContent></Select>
@@ -92,7 +93,7 @@ function NewSchemeDialog({ kind }: { kind: SchemeKind }) {
 }
 
 /** Edit form: the PATCH contract's name/description, with validity kept as the date input's string (sent as YYYY-MM-DD or null). */
-const editSchemeForm = schemePatchBody.pick({ name: true, description: true }).extend({ validityDate: z.string().optional() })
+const editSchemeForm = schemePatchBody.pick({ name: true, description: true }).extend({ validityDate: z.string().optional(), title: z.string().trim().max(80).optional() })
 type EditSchemeIn = z.input<typeof editSchemeForm>
 type EditSchemeOut = z.output<typeof editSchemeForm>
 
@@ -100,10 +101,10 @@ function EditSchemeDialog({ scheme, onClose }: { scheme: SchemeDto; onClose: () 
   const patch = usePatchScheme()
   const { register, handleSubmit, formState: { errors } } = useForm<EditSchemeIn, unknown, EditSchemeOut>({
     resolver: zodResolver(editSchemeForm),
-    defaultValues: { name: scheme.name, description: scheme.description ?? '', validityDate: scheme.validityDate ?? '' },
+    defaultValues: { name: scheme.name, title: scheme.title ?? '', description: scheme.description ?? '', validityDate: scheme.validityDate ?? '' },
   })
   const onSubmit = handleSubmit(async (v) => {
-    await patch.mutateAsync({ id: scheme.id, body: { name: v.name, description: v.description ?? '', validityDate: v.validityDate || null } })
+    await patch.mutateAsync({ id: scheme.id, body: { name: v.name, title: v.title || null, description: v.description ?? '', validityDate: v.validityDate || null } })
     onClose()
   })
   return (
@@ -112,6 +113,7 @@ function EditSchemeDialog({ scheme, onClose }: { scheme: SchemeDto; onClose: () 
         <DialogHeader><DialogTitle>Edit {scheme.kind === 'ANJUMAN' ? 'anjuman' : 'scheme'}</DialogTitle></DialogHeader>
         <form onSubmit={(e) => void onSubmit(e).catch(() => {})} className="space-y-4">
           <p className="text-xs text-muted-foreground">EMI, tenure and bonus are fixed once a scheme is created.</p>
+          <div className="space-y-1.5"><Label htmlFor="sc-edit-title">Title (blank = none)</Label><Input id="sc-edit-title" {...register('title')} /></div>
           <div className="space-y-1.5"><Label htmlFor="sc-edit-name">Name</Label><Input id="sc-edit-name" {...register('name')} />
             {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}</div>
           <div className="space-y-1.5"><Label htmlFor="sc-edit-valid">Validity (blank = none)</Label><Input id="sc-edit-valid" type="date" {...register('validityDate')} /></div>
@@ -146,10 +148,13 @@ export function SchemeList({ kind = 'SAVING' }: { kind?: SchemeKind }) {
   // Drill-down: a scheme's members (Anjuman rows keep the kind preset too).
   const membersHref = (s: SchemeDto) => `/app/schemes/members?${kind === 'ANJUMAN' ? 'kind=ANJUMAN&' : ''}schemeId=${s.id}`
 
+  const items = data?.items ?? []
   const columns: ColumnDef<SchemeDto, unknown>[] = [
     { header: 'Name', cell: ({ row }) => (canMembers
       ? <Link to={membersHref(row.original)} className="font-medium hover:underline" title="View members">{row.original.name}</Link>
       : <span className="font-medium">{row.original.name}</span>) },
+    // shown only once the API returns a title (scheme_cheque_title migration)
+    ...(items.some((s) => s.title) ? [{ id: 'title', header: 'Title', cell: ({ row }) => row.original.title || '—' } satisfies ColumnDef<SchemeDto, unknown>] : []),
     { header: 'Type', cell: ({ row }) => row.original.type },
     { header: 'EMI', cell: ({ row }) => inr(row.original.emiAmount) },
     { header: 'Tenure', cell: ({ row }) => (row.original.tenureMonths ? `${row.original.tenureMonths} mo` : 'No EMI') },
@@ -166,7 +171,6 @@ export function SchemeList({ kind = 'SAVING' }: { kind?: SchemeKind }) {
     ...(canEdit ? [{ id: 'edit', header: '', cell: ({ row }) => <Button variant="ghost" size="sm" aria-label={`Edit ${row.original.name}`} onClick={() => setEditing(row.original)}>Edit</Button> } satisfies ColumnDef<SchemeDto, unknown>] : []),
   ]
 
-  const items = data?.items ?? []
   const anjuman = kind === 'ANJUMAN'
   const tile = (label: string, value: string, sub?: string, Icon: LucideIcon = Layers) => (
     <Card className="gap-2 hover:-translate-y-1">

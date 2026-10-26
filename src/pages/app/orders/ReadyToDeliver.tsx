@@ -19,12 +19,10 @@ const inr = (s: string | number) => new Intl.NumberFormat('en-IN', { style: 'cur
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
 
 type View = 'READY' | 'DELIVERED' | 'ALL'
-// same choices as DataTable's entries picker (backend max 100)
-const PAGE_SIZES = [10, 20, 50, 100]
 
 /**
  * Ready to deliver (order billing): READY orders to bill, DELIVERED orders already billed, or both.
- * The list endpoint takes one status, so "All" runs the READY and DELIVERED queries side by side on the same page number.
+ * "All" is one list query with statuses=READY,DELIVERED.
  */
 export function ReadyToDeliver() {
   const { can } = useAuth()
@@ -33,17 +31,12 @@ export function ReadyToDeliver() {
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
-  const base = { q: q.trim() || undefined, page, pageSize }
-  const ready = useOrders({ ...base, status: 'READY' }, view !== 'DELIVERED')
-  const delivered = useOrders({ ...base, status: 'DELIVERED' }, view !== 'READY')
-
-  const parts = view === 'READY' ? [ready.data] : view === 'DELIVERED' ? [delivered.data] : [ready.data, delivered.data]
-  const loaded = parts.every(Boolean)
-  const rows = parts.flatMap((d) => d?.items ?? []).sort((a, b) => b.id - a.id)
-  const total = parts.reduce((a, d) => a + (d?.total ?? 0), 0)
-  const isLoading = (view !== 'DELIVERED' && ready.isLoading) || (view !== 'READY' && delivered.isLoading)
-  // "All" pages both lists together, so the page count is the longer of the two
-  const pageCount = Math.max(1, ...parts.map((d) => (d ? Math.ceil(d.total / d.pageSize) : 1)))
+  const { data, isLoading } = useOrders({ q: q.trim() || undefined, page, pageSize, statuses: view === 'ALL' ? 'READY,DELIVERED' : view })
+  // "Waiting to bill" tile under "All": a count-only READY query (one row)
+  const readyCount = useOrders({ q: q.trim() || undefined, page: 1, pageSize: 1, status: 'READY' }, view === 'ALL')
+  const loaded = !!data
+  const rows = data?.items ?? []
+  const total = data?.total ?? 0
 
   const columns: ColumnDef<OrderDto, unknown>[] = [
     { header: 'Order', cell: ({ row }) => <Link to={`/app/orders/${row.original.id}`} className="font-medium text-primary hover:underline">#{row.original.orderNo}</Link> },
@@ -68,7 +61,7 @@ export function ReadyToDeliver() {
     },
   ]
 
-  const readyTotal = ready.data?.total
+  const readyTotal = view === 'READY' ? data?.total : view === 'ALL' ? readyCount.data?.total : undefined
   const shownBalance = rows.filter((o) => o.status === 'READY').reduce((a, o) => a + Number(o.estTotal) - Number(o.advance), 0)
   const shownFine = rows.reduce((a, o) => a + sumOf(o.items, (it) => it.returnedFine), 0)
 
@@ -109,22 +102,7 @@ export function ReadyToDeliver() {
       </Card>
 
       <Card className="p-4">
-        <DataTable columns={columns} data={rows} isLoading={isLoading} emptyText={view === 'DELIVERED' ? 'No delivered orders' : 'No orders ready to deliver'} />
-        {loaded && (pageCount > 1 || total > PAGE_SIZES[0]) && (
-          <div className="mt-3 flex flex-wrap items-center justify-end gap-2 text-sm">
-            <label className="mr-auto flex items-center gap-2 text-muted-foreground">
-              Entries
-              <select className="h-8 rounded-lg border bg-card px-2 text-foreground" value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1) }}>
-                {PAGE_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </label>
-            <span className="text-muted-foreground">Page {page} of {pageCount} · {total} orders</span>
-            {pageCount > 1 && <>
-              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
-              <Button variant="outline" size="sm" disabled={page >= pageCount} onClick={() => setPage(page + 1)}>Next</Button>
-            </>}
-          </div>
-        )}
+        <DataTable columns={columns} data={rows} isLoading={isLoading} emptyText={view === 'DELIVERED' ? 'No delivered orders' : 'No orders ready to deliver'} pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: (s) => { setPageSize(s); setPage(1) } } : undefined} />
       </Card>
     </div>
   )

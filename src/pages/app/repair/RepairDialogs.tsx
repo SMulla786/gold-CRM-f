@@ -1,7 +1,9 @@
-import { Printer } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import { Camera, ImagePlus, Printer } from 'lucide-react'
+import { useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
+import { AuthedImage } from '@/components/AuthedImage'
+import { CaptureDialog, PartyImagePicker } from '@/components/PartyImagePicker'
 import { PartyPicker } from '@/components/PartyPicker'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -10,10 +12,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useBankAccounts, useKarats } from '@/lib/appQueries'
-import { useCreateRepair, useRepair, useRepairDeliver, useRepairStatus } from '@/lib/repairQueries'
+import { useAuth } from '@/lib/auth'
+import { repairPhotoPath, useCreateRepair, useRepair, useRepairDeliver, useRepairStatus, useUploadRepairPhoto } from '@/lib/repairQueries'
 import { businessDayISO, METALS, type PartyRefDto, type RepairTicketDto } from '@/shared'
 
-import { date, estCharge, inr, n, REPAIR_CATEGORIES, STATUS_LABEL } from './repairUtils'
+import { addedMetalLabel, addedValue, date, estCharge, inr, n, REPAIR_CATEGORIES, REPAIR_SUB_CATEGORIES, STATUS_LABEL } from './repairUtils'
 
 const today = businessDayISO
 // Same look as <Input>, multi-line (no Textarea primitive in components/ui).
@@ -21,15 +24,18 @@ const TEXTAREA = 'flex min-h-16 w-full rounded-md border border-input bg-transpa
 
 export function NewTicketDialog({ onClose }: { onClose: () => void }) {
   const create = useCreateRepair()
+  const uploadPhoto = useUploadRepairPhoto()
+  const [photo, setPhoto] = useState<File | null>(null)
   const { data: banks } = useBankAccounts()
   const { data: karats } = useKarats()
   const [party, setParty] = useState<PartyRefDto | null>(null)
   const [karigar, setKarigar] = useState<PartyRefDto | null>(null)
-  const [f, setF] = useState({ metal: 'GOLD', category: '', description: '', pcs: '1', gross: '', net: '', karatCode: '', hallmark: '', expectedDate: today(), priority: 'NORMAL', labourCharge: '0', otherCharge: '0', advanceCash: '0', advanceOnline: '0', advanceBankId: '' })
+  const [f, setF] = useState({ metal: 'GOLD', category: '', description: '', pcs: '1', gross: '', net: '', karatCode: '', hallmark: '', purity: '', subCategory: '', expectedDate: today(), priority: 'NORMAL', labourCharge: '0', otherCharge: '0', advanceCash: '0', advanceOnline: '0', advanceBankId: '' })
   const set = (k: keyof typeof f, v: string) => setF((s) => ({ ...s, [k]: v }))
   const karatOptions = (karats ?? []).filter((k) => f.metal === 'OTHER' || k.metal === f.metal)
   const netOk = f.net === '' || (n(f.net) > 0 && n(f.net) <= n(f.gross))
-  const ok = !!party && f.category.trim() && f.description.trim().length >= 2 && n(f.gross) > 0 && netOk && f.expectedDate && (n(f.advanceOnline) === 0 || f.advanceBankId)
+  const purityOk = f.purity === '' || (Number(f.purity) >= 0 && Number(f.purity) <= 100)
+  const ok = !!party && f.category.trim() && f.description.trim().length >= 2 && n(f.gross) > 0 && netOk && purityOk && f.expectedDate && (n(f.advanceOnline) === 0 || f.advanceBankId)
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
@@ -46,6 +52,13 @@ export function NewTicketDialog({ onClose }: { onClose: () => void }) {
               <datalist id="rt-cat-list">{REPAIR_CATEGORIES.map((c) => <option key={c} value={c} />)}</datalist>
             </div>
           </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5"><Label htmlFor="rt-subcat">Sub-category</Label><Input id="rt-subcat" list="rt-subcat-list" autoComplete="off" maxLength={40} value={f.subCategory} onChange={(e) => set('subCategory', e.target.value)} placeholder="optional" />
+              <datalist id="rt-subcat-list">{REPAIR_SUB_CATEGORIES.map((c) => <option key={c} value={c} />)}</datalist>
+            </div>
+            <div className="space-y-1.5"><Label htmlFor="rt-purity">Purity %</Label><Input id="rt-purity" type="number" min={0} max={100} step="0.01" value={f.purity} aria-invalid={!purityOk || undefined} onChange={(e) => set('purity', e.target.value)} placeholder="optional, e.g. 91.6" /></div>
+          </div>
+          {!purityOk && <p className="text-xs text-destructive">Purity must be between 0 and 100.</p>}
           <div className="space-y-1.5"><Label htmlFor="rt-desc">Description</Label><Input id="rt-desc" value={f.description} onChange={(e) => set('description', e.target.value)} /></div>
           <div className="space-y-1.5"><Label htmlFor="rt-karigar">Karigar (optional)</Label><PartyPicker id="rt-karigar" value={karigar} onChange={setKarigar} type="KARIGAR" ariaLabel="Karigar" placeholder="Search karigar" /></div>
           <div className="grid grid-cols-3 gap-4">
@@ -76,10 +89,13 @@ export function NewTicketDialog({ onClose }: { onClose: () => void }) {
               </div>
             )}
           </div>
+          <PartyImagePicker label="Ornament photo" kind="photo" value={photo} onChange={setPhoto} camera />
         </div>
         <DialogFooter>
-          <Button disabled={!ok || create.isPending} onClick={async () => {
-            await create.mutateAsync({ partyId: party!.id, metal: f.metal, category: f.category.trim(), description: f.description.trim(), pcs: Number(f.pcs) || 1, gross: n(f.gross), net: n(f.net) > 0 ? n(f.net) : undefined, karatCode: f.karatCode || undefined, hallmark: f.hallmark || undefined, expectedDate: f.expectedDate, priority: f.priority, karigarId: karigar?.id, labourCharge: n(f.labourCharge), otherCharge: n(f.otherCharge), advanceCash: n(f.advanceCash), advanceOnline: n(f.advanceOnline), advanceBankId: n(f.advanceOnline) > 0 ? Number(f.advanceBankId) : undefined })
+          <Button disabled={!ok || create.isPending || uploadPhoto.isPending} onClick={async () => {
+            const t = await create.mutateAsync({ partyId: party!.id, metal: f.metal, category: f.category.trim(), description: f.description.trim(), purity: f.purity === '' ? undefined : Number(f.purity), subCategory: f.subCategory.trim() || undefined, pcs: Number(f.pcs) || 1, gross: n(f.gross), net: n(f.net) > 0 ? n(f.net) : undefined, karatCode: f.karatCode || undefined, hallmark: f.hallmark || undefined, expectedDate: f.expectedDate, priority: f.priority, karigarId: karigar?.id, labourCharge: n(f.labourCharge), otherCharge: n(f.otherCharge), advanceCash: n(f.advanceCash), advanceOnline: n(f.advanceOnline), advanceBankId: n(f.advanceOnline) > 0 ? Number(f.advanceBankId) : undefined })
+            // the ticket exists now: a failed photo upload (toast shown) must not leave the form open for a duplicate create
+            if (photo) await uploadPhoto.mutateAsync({ id: t.id, file: photo }).catch(() => {})
             onClose()
           }}>Create ticket</Button>
         </DialogFooter>
@@ -128,7 +144,8 @@ export function QADialog({ ticket, onClose }: { ticket: RepairTicketDto; onClose
 export function DeliverDialog({ ticket, onClose }: { ticket: RepairTicketDto; onClose: () => void }) {
   const deliver = useRepairDeliver()
   const { data: banks } = useBankAccounts()
-  const [f, setF] = useState({ addedMetal: '', addedFine: '0', addedRate: '0', cash: '0', online: '0', bankAccountId: '', remarks: '' })
+  const { data: karats } = useKarats()
+  const [f, setF] = useState({ addedMetal: '', addedKaratCode: '', addedFine: '0', addedRate: '0', cash: '0', online: '0', bankAccountId: '', remarks: '' })
   const set = (k: keyof typeof f, v: string) => setF((s) => ({ ...s, [k]: v }))
   const ok = (n(f.online) === 0 || f.bankAccountId) && (n(f.addedFine) === 0 || f.addedMetal)
   return (
@@ -138,9 +155,16 @@ export function DeliverDialog({ ticket, onClose }: { ticket: RepairTicketDto; on
         <p className="text-sm text-muted-foreground">Charges so far: labour {inr(ticket.labourCharge)} + other {inr(ticket.otherCharge)}; balance est. {inr(ticket.balance)}.</p>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5"><Label>Solder metal</Label>
-            <Select value={f.addedMetal || 'none'} onValueChange={(v) => set('addedMetal', v === 'none' ? '' : v)}><SelectTrigger aria-label="Solder metal"><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="none">None</SelectItem>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select>
+            <Select value={f.addedMetal || 'none'} onValueChange={(v) => setF((s) => ({ ...s, addedMetal: v === 'none' ? '' : v, addedKaratCode: '' }))}><SelectTrigger aria-label="Solder metal"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="none">None</SelectItem>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}<SelectItem value="OTHER">Other</SelectItem></SelectContent></Select>
           </div>
+          {(f.addedMetal === 'GOLD' || f.addedMetal === 'SILVER') && (
+            <div className="space-y-1.5"><Label>Solder karat</Label>
+              <Select value={f.addedKaratCode || 'none'} onValueChange={(v) => set('addedKaratCode', v === 'none' ? '' : v)}><SelectTrigger aria-label="Solder karat"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="none">—</SelectItem>{(karats ?? []).filter((k) => k.metal === f.addedMetal).map((k) => <SelectItem key={k.id} value={k.code}>{k.title}</SelectItem>)}</SelectContent></Select>
+            </div>
+          )}
+          {f.addedMetal === 'OTHER' && <p className="col-span-2 text-xs text-muted-foreground">Other metal is charged at the rate below but is not taken out of shop stock.</p>}
           <div className="space-y-1.5"><Label htmlFor="dl-fine">Added fine (g)</Label><Input id="dl-fine" type="number" step="0.001" value={f.addedFine} onChange={(e) => set('addedFine', e.target.value)} /></div>
           <div className="space-y-1.5"><Label htmlFor="dl-rate">Added rate /g</Label><Input id="dl-rate" type="number" value={f.addedRate} onChange={(e) => set('addedRate', e.target.value)} /></div>
           <div className="space-y-1.5"><Label htmlFor="dl-cash">Cash ₹</Label><Input id="dl-cash" type="number" value={f.cash} onChange={(e) => set('cash', e.target.value)} /></div>
@@ -154,7 +178,7 @@ export function DeliverDialog({ ticket, onClose }: { ticket: RepairTicketDto; on
           <div className="col-span-2 space-y-1.5"><Label htmlFor="dl-rem">Remarks</Label><Input id="dl-rem" maxLength={300} value={f.remarks} onChange={(e) => set('remarks', e.target.value)} placeholder="Optional; replaces the QA remarks" /></div>
         </div>
         <DialogFooter>
-          <Button disabled={!ok || deliver.isPending} onClick={async () => { await deliver.mutateAsync({ id: ticket.id, body: { addedMetal: f.addedMetal || undefined, addedFine: n(f.addedFine), addedRate: n(f.addedRate), cash: n(f.cash), online: n(f.online), bankAccountId: n(f.online) > 0 ? Number(f.bankAccountId) : undefined, remarks: f.remarks.trim() || undefined } }); onClose() }}>Deliver</Button>
+          <Button disabled={!ok || deliver.isPending} onClick={async () => { await deliver.mutateAsync({ id: ticket.id, body: { addedMetal: f.addedMetal || undefined, addedKaratCode: f.addedKaratCode || undefined, addedFine: n(f.addedFine), addedRate: n(f.addedRate), cash: n(f.cash), online: n(f.online), bankAccountId: n(f.online) > 0 ? Number(f.bankAccountId) : undefined, remarks: f.remarks.trim() || undefined } }); onClose() }}>Deliver</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -221,8 +245,8 @@ export function TicketDetailsDialog({ id, onClose }: { id: number; onClose: () =
             <section className="space-y-2">
               <h3 className="text-sm font-semibold">Ornament</h3>
               <dl className="grid grid-cols-2 gap-3">
-                <Field label="Category">{t.category}</Field>
-                <Field label="Metal">{t.metal}{t.karatCode ? ` · ${t.karatCode}` : ''}</Field>
+                <Field label="Category">{t.category}{t.subCategory ? ` · ${t.subCategory}` : ''}</Field>
+                <Field label="Metal">{t.metal}{t.karatCode ? ` · ${t.karatCode}` : ''}{t.purity ? ` · ${t.purity}%` : ''}</Field>
                 <Field label="Pieces">{t.pcs}</Field>
                 <Field label="Hallmark">{t.hallmark ?? '—'}</Field>
                 <Field label="Gross weight">{t.gross} g</Field>
@@ -231,7 +255,7 @@ export function TicketDetailsDialog({ id, onClose }: { id: number; onClose: () =
                 <Field label="Karigar">{t.karigar?.name ?? '—'}</Field>
                 <Field label="Job" wide>{t.description}</Field>
                 <Field label="Remarks" wide>{t.remarks ?? '—'}</Field>
-                {t.photoUrl && <Field label="Photo" wide><a href={t.photoUrl} target="_blank" rel="noreferrer" className="text-brand-strong hover:underline">Open photo</a></Field>}
+                <Field label="Photo" wide><RepairPhoto ticket={t} /></Field>
               </dl>
             </section>
             <section className="space-y-2">
@@ -247,6 +271,17 @@ export function TicketDetailsDialog({ id, onClose }: { id: number; onClose: () =
                 <Field label="Delivered on">{t.deliveredAt ? date(t.deliveredAt) : '—'}</Field>
               </dl>
             </section>
+            {t.status === 'DELIVERED' && (
+              <section className="space-y-2">
+                <h3 className="text-sm font-semibold">Settlement</h3>
+                <dl className="grid grid-cols-2 gap-3 tabular-nums">
+                  <Field label="Metal added">{n(t.addedFine ?? '0') > 0 ? `${addedMetalLabel(t)} · ${t.addedFine} g @ ${inr(t.addedRate ?? '0')}/g` : '—'}</Field>
+                  <Field label="Metal value">{inr(addedValue(t))}</Field>
+                  <Field label="Paid cash">{inr(t.deliveryCash ?? '0')}</Field>
+                  <Field label="Paid online">{inr(t.deliveryOnline ?? '0')}{t.deliveryBank ? ` · ${t.deliveryBank.name}` : ''}</Field>
+                </dl>
+              </section>
+            )}
           </div>
         )}
         <DialogFooter>
@@ -255,4 +290,37 @@ export function TicketDetailsDialog({ id, onClose }: { id: number; onClose: () =
       </DialogContent>
     </Dialog>
   )
+}
+
+/** Ticket photo: thumbnail + upload / capture for repair.entry editors (uploads immediately). Re-upload changes photoUrl, which remounts the image. */
+export function RepairPhoto({ ticket }: { ticket: RepairTicketDto }) {
+  const { can } = useAuth()
+  const upload = useUploadRepairPhoto()
+  const [capturing, setCapturing] = useState(false)
+  const input = useRef<HTMLInputElement>(null)
+  const save = async (file: File | undefined) => {
+    if (!file) return
+    await upload.mutateAsync({ id: ticket.id, file }).catch(() => {})
+    if (input.current) input.current.value = ''
+  }
+  return (
+    <div className="flex items-center gap-3">
+      <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-xl border bg-muted">
+        {ticket.photoUrl ? <AuthedImage key={ticket.photoUrl} path={repairPhotoPath(ticket.id)} alt={`Ticket #${ticket.ticketNo} photo`} className="size-full object-cover" /> : <ImagePlus className="size-5 text-muted-foreground" aria-hidden />}
+      </div>
+      {can('repair.entry', 'edit') && (
+        <div className="flex flex-wrap gap-2">
+          <input ref={input} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" aria-label="Ticket photo file" onChange={(e) => void save(e.target.files?.[0])} />
+          <Button type="button" variant="outline" size="sm" disabled={upload.isPending} onClick={() => input.current?.click()}><ImagePlus className="size-4" aria-hidden />{ticket.photoUrl ? 'Replace photo' : 'Upload photo'}</Button>
+          <Button type="button" variant="outline" size="sm" disabled={upload.isPending} onClick={() => setCapturing(true)}><Camera className="size-4" aria-hidden />Capture</Button>
+        </div>
+      )}
+      {capturing && <CaptureDialog onCapture={(f) => void save(f)} onClose={() => setCapturing(false)} />}
+    </div>
+  )
+}
+
+/** Small read-only thumbnail for board cards and ledger rows (nothing when the ticket has no photo). */
+export function RepairThumb({ ticket }: { ticket: RepairTicketDto }) {
+  return ticket.photoUrl ? <AuthedImage key={ticket.photoUrl} path={repairPhotoPath(ticket.id)} alt={`Ticket #${ticket.ticketNo} photo`} className="size-10 shrink-0 rounded-md border object-cover" /> : null
 }

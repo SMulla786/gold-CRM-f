@@ -22,11 +22,11 @@ export function KachaPool() {
   const [metal, setMetal] = useState('GOLD')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
-  // The list endpoint has no type filter, so the Melt / Refine view narrows the fetched page.
+  // Melt / Refine view and metal ('' = All) are server-side filters.
   const [view, setView] = useState<'' | 'MELT' | 'REFINE'>('')
   const { data: bal } = useKachaBalance(metal)
-  const { data: list, isLoading } = useKachaList({ metal, page, pageSize })
-  const rows = (list?.items ?? []).filter((p) => !view || p.type === view)
+  const { data: list, isLoading } = useKachaList({ metal: metal || undefined, type: view || undefined, page, pageSize })
+  const rows = list?.items ?? []
   const revert = useRevertKacha()
   const [processing, setProcessing] = useState(false)
   const [reverting, setReverting] = useState<number | null>(null)
@@ -40,6 +40,11 @@ export function KachaPool() {
   const outOnPage = sumOf((p) => p.outFine)
   const ravalOnPage = sumOf((p) => p.ravalFine)
   const scope = view ? `${view === 'MELT' ? 'Melt' : 'Refine'} entries on this page` : 'Active entries on this page'
+  // All metals: one figure per metal, never summed across gold and silver.
+  const balOf = (m: string) => bal?.byMetal?.find((b) => b.metal === m)
+  const poolCard = (form: 'kachaFine' | 'bullionFine') => metal
+    ? `${bal?.[form] ?? '—'} g`
+    : `${balOf('GOLD')?.[form] ?? '—'} / ${balOf('SILVER')?.[form] ?? '—'} g`
 
   const tile = (label: string, value: string, sub: string | undefined, Icon: LucideIcon) => (
     <Card className="gap-2 hover:-translate-y-1">
@@ -66,21 +71,20 @@ export function KachaPool() {
 
       <Card>
         <CardContent className="flex flex-wrap items-end gap-3 pt-6">
-          <Select value={metal} onValueChange={(v) => { setMetal(v); setPage(1) }}>
+          <Select value={metal || 'all'} onValueChange={(v) => { setMetal(v === 'all' ? '' : v); setPage(1) }}>
             <SelectTrigger className="w-32" aria-label="Metal"><SelectValue /></SelectTrigger>
-            <SelectContent>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+            <SelectContent><SelectItem value="all">All metals</SelectItem>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
           </Select>
-          <Select value={view || 'all'} onValueChange={(v) => setView(v === 'MELT' || v === 'REFINE' ? v : '')}>
+          <Select value={view || 'all'} onValueChange={(v) => { setView(v === 'MELT' || v === 'REFINE' ? v : ''); setPage(1) }}>
             <SelectTrigger className="w-40" aria-label="Process type"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="all">All processes</SelectItem><SelectItem value="MELT">Melt</SelectItem><SelectItem value="REFINE">Refine</SelectItem></SelectContent>
           </Select>
-          {view && <p className="w-full text-xs text-muted-foreground">The type view narrows the entries on this page; paging still counts every entry.</p>}
         </CardContent>
       </Card>
 
       <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {tile(`Kacha (unprocessed) ${metal}`, `${bal?.kachaFine ?? '—'} g`, 'Fine grams awaiting processing', Recycle)}
-        {tile(`Bullion (refined) ${metal}`, `${bal?.bullionFine ?? '—'} g`, 'Fine grams after processing', Coins)}
+        {tile(`Kacha (unprocessed) ${metal || 'GOLD / SILVER'}`, poolCard('kachaFine'), 'Fine grams awaiting processing', Recycle)}
+        {tile(`Bullion (refined) ${metal || 'GOLD / SILVER'}`, poolCard('bullionFine'), 'Fine grams after processing', Coins)}
         {tile('Processing entries', list ? String(list.total) : '—', list ? `${activeRows.length} active on this page` : undefined, Flame)}
         {tile('Loss on this page', list ? `${lossOnPage.toFixed(3)} g` : '—', 'Excludes reverted entries', TrendingDown)}
       </div>
@@ -101,7 +105,7 @@ export function KachaPool() {
               {isLoading ? <TableRow><TableCell colSpan={9} className="h-16 text-center text-muted-foreground">Loading…</TableCell></TableRow>
                 : rows.length ? rows.map((p) => (
                   <TableRow key={p.id}>
-                    <TableCell>{date(p.txnDate)}</TableCell><TableCell>{p.type}</TableCell>
+                    <TableCell>{date(p.txnDate)}</TableCell><TableCell>{p.type}{!metal && <span className="block text-xs text-muted-foreground">{p.metal}</span>}</TableCell>
                     <TableCell className="text-muted-foreground">{p.exchange ? `#${p.exchange.exchangeNo}` : 'Pool'}</TableCell>
                     <TableCell className="tabular-nums">{p.inFine}</TableCell><TableCell className="tabular-nums">{p.outFine}</TableCell><TableCell className="tabular-nums">{p.ravalFine}</TableCell><TableCell className="tabular-nums">{p.difference}</TableCell>
                     <TableCell>{p.reverted ? <Badge variant="secondary">Reverted</Badge> : <Badge>Done</Badge>}</TableCell>
@@ -137,7 +141,7 @@ export function KachaPool() {
         )}
       </section>
 
-      {processing && <ProcessKachaDialog metal={metal} onClose={() => setProcessing(false)} />}
+      {processing && <ProcessKachaDialog metal={metal || 'GOLD'} onClose={() => setProcessing(false)} />}
       <MpinDialog open={reverting != null} title="Revert this process" onConfirm={(mpin) => revert.mutateAsync({ id: reverting!, mpin })} onClose={() => setReverting(null)} />
     </div>
   )

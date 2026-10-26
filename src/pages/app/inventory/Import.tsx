@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { getAccessToken } from '@/lib/api'
+import { useT } from '@/lib/i18n'
 import { useItemGroups, useStockImport } from '@/lib/inventoryQueries'
 import { STOCK_CLASSES, STOCK_CSV_COLUMNS, type StockImportResultDto } from '@/shared'
 
@@ -20,8 +21,6 @@ async function downloadSample() {
   a.click()
   URL.revokeObjectURL(url)
 }
-
-const CLASS_LABEL: Record<string, string> = { GOLD: 'Gold', SILVER: 'Silver', STONE: 'Stone', ARTIFICIAL: 'Artificial', FRANCHISE: 'Franchise' }
 
 const tile = (label: string, value: string, sub: string | undefined, Icon: LucideIcon) => (
   <Card className="gap-2 hover:-translate-y-1">
@@ -37,6 +36,7 @@ const tile = (label: string, value: string, sub: string | undefined, Icon: Lucid
 )
 
 export function Import() {
+  const t = useT()
   const [stockClass, setStockClass] = useState('GOLD')
   const [method, setMethod] = useState('LOOSE')
   const [groupId, setGroupId] = useState('')
@@ -54,15 +54,15 @@ export function Import() {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-xl">Bulk upload</h2>
-        <p className="text-sm text-muted-foreground">Load stock lines from a spreadsheet: check the file first, then save it.</p>
+        <h2 className="text-xl">{t('inv.import.title')}</h2>
+        <p className="text-sm text-muted-foreground">{t('inv.import.intro')}</p>
       </div>
 
       <Card>
         <CardContent className="space-y-5 pt-6">
           <div className="flex flex-wrap items-end gap-4">
             <div className="space-y-1.5">
-              <Label>Stock class</Label>
+              <Label>{t('bill.stock_class')}</Label>
               <Select value={stockClass} onValueChange={(v) => { setStockClass(v); setGroupId('') }}>
                 <SelectTrigger className="w-36" aria-label="Stock class">
                   <SelectValue />
@@ -70,29 +70,29 @@ export function Import() {
                 <SelectContent>
                   {STOCK_CLASSES.map((c) => (
                     <SelectItem key={c} value={c}>
-                      {CLASS_LABEL[c]}
+                      {t(`class.${c}`)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Method</Label>
+              <Label>{t('subscription.col_method')}</Label>
               <Select value={method} onValueChange={setMethod}>
                 <SelectTrigger className="w-32" aria-label="Method">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="LOOSE">Loose</SelectItem>
-                  <SelectItem value="TAG">Tag</SelectItem>
+                  <SelectItem value="LOOSE">{t('inv.newstock.loose')}</SelectItem>
+                  <SelectItem value="TAG">{t('inv.newstock.tag')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Group</Label>
+              <Label>{t('stock.col_group')}</Label>
               <Select value={groupId} onValueChange={setGroupId}>
                 <SelectTrigger className="w-48" aria-label="Group">
-                  <SelectValue placeholder="Select group" />
+                  <SelectValue placeholder={t('inv.import.select_group')} />
                 </SelectTrigger>
                 <SelectContent>
                   {groups?.items.map((g) => (
@@ -104,7 +104,7 @@ export function Import() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="csv">CSV file</Label>
+              <Label htmlFor="csv">{t('inv.import.csv_file')}</Label>
               <input
                 id="csv"
                 type="file"
@@ -116,18 +116,18 @@ export function Import() {
           </div>
 
           <p className="rounded-xl bg-muted px-3 py-2 text-xs text-muted-foreground">
-            Columns (header row, case-insensitive): {STOCK_CSV_COLUMNS.join(', ')} ·{' '}
+            {t('inv.import.columns', { cols: STOCK_CSV_COLUMNS.join(', ') })}{' '}
             <button type="button" className="font-medium text-primary underline" onClick={() => void downloadSample()}>
-              download sample CSV
+              {t('inv.import.download_sample')}
             </button>
           </p>
 
           <div className="flex flex-wrap justify-end gap-3 border-t pt-4">
             <Button variant="outline" disabled={!file || !groupId || imp.isPending} onClick={() => run(true)}>
-              Validate (dry-run)
+              {t('inv.import.validate')}
             </Button>
             <Button disabled={!file || !groupId || imp.isPending || !result || result.errors.length > 0 || result.dryRun === false} onClick={() => run(false)}>
-              Import {result?.valid ? `${result.valid} rows` : ''}
+              {t('inv.import.import')} {result?.valid ? t('inv.import.rows', { n: result.valid }) : ''}
             </Button>
           </div>
         </CardContent>
@@ -135,25 +135,25 @@ export function Import() {
 
       {result && (
         <section className="space-y-3">
-          <h2 className="text-xl">Last run</h2>
+          <h2 className="text-xl">{t('inv.import.last_run')}</h2>
           <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {tile('Rows in file', String(result.total), 'Data rows read', FileSpreadsheet)}
-            {tile('Valid rows', String(result.valid), 'Ready to save', CircleCheck)}
-            {tile('Row issues', String(result.errors.length), result.errors.length > 0 ? 'Fix and re-check' : 'None found', TriangleAlert)}
-            {tile('Saved', result.imported ? String(result.imported) : '—', result.imported ? `Entry #${result.entryNo}` : 'Nothing saved yet', PackageCheck)}
+            {tile(t('inv.import.rows_in_file'), String(result.total), t('inv.import.rows_read'), FileSpreadsheet)}
+            {tile(t('inv.import.valid_rows'), String(result.valid), t('inv.import.ready_to_save'), CircleCheck)}
+            {tile(t('inv.import.row_issues'), String(result.errors.length), result.errors.length > 0 ? t('inv.import.fix_recheck') : t('inv.import.none_found'), TriangleAlert)}
+            {tile(t('inv.import.saved'), result.imported ? String(result.imported) : '—', result.imported ? t('inv.import.entry_no', { no: result.entryNo ?? '' }) : t('inv.import.nothing_saved'), PackageCheck)}
           </div>
           <div className="text-sm text-muted-foreground">
-            {result.dryRun ? 'Dry-run:' : 'Imported:'} {result.total} rows · {result.valid} valid · {result.errors.length} errors
-            {result.imported ? ` · ${result.imported} saved (entry #${result.entryNo})` : ''}
+            {result.dryRun ? t('inv.import.dry_run') : t('inv.import.imported')} {t('inv.import.run_summary', { total: result.total, valid: result.valid, errors: result.errors.length })}
+            {result.imported ? ` · ${t('inv.import.run_saved', { n: result.imported, no: result.entryNo ?? '' })}` : ''}
           </div>
           {result.errors.length > 0 && (
             <Card className="overflow-x-auto p-2">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-16">Row</TableHead>
-                    <TableHead>Field</TableHead>
-                    <TableHead>Error</TableHead>
+                    <TableHead className="w-16">{t('inv.import.col_row')}</TableHead>
+                    <TableHead>{t('inv.import.col_field')}</TableHead>
+                    <TableHead>{t('inv.import.col_error')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

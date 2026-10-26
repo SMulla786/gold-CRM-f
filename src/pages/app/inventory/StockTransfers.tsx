@@ -12,12 +12,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useCreateStockTransfer, useStock, useStockTransfer, useStockTransfers } from '@/lib/inventoryQueries'
 import { useAuth } from '@/lib/auth'
-import { plural } from '@/lib/plural'
+import { useT } from '@/lib/i18n'
 import type { BranchRef, StockTransferDto } from '@/shared'
 
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
 
 function NewTransferDialog({ branches, onClose }: { branches: BranchRef[]; onClose: () => void }) {
+  const t = useT()
   const create = useCreateStockTransfer()
   const [fromBranchId, setFrom] = useState('')
   const [toBranchId, setTo] = useState('')
@@ -31,14 +32,14 @@ function NewTransferDialog({ branches, onClose }: { branches: BranchRef[]; onClo
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>New stock transfer</DialogTitle>
+          <DialogTitle>{t('inv.transfer.new_title')}</DialogTitle>
         </DialogHeader>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label>From branch</Label>
+            <Label>{t('inv.transfer.from_branch')}</Label>
             <Select value={fromBranchId} onValueChange={(v) => { setFrom(v); setPicked(new Set()) }}>
               <SelectTrigger aria-label="From branch">
-                <SelectValue placeholder="Select" />
+                <SelectValue placeholder={t('bill.select')} />
               </SelectTrigger>
               <SelectContent>
                 {branches.map((b) => (
@@ -48,10 +49,10 @@ function NewTransferDialog({ branches, onClose }: { branches: BranchRef[]; onClo
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>To branch</Label>
+            <Label>{t('inv.transfer.to_branch')}</Label>
             <Select value={toBranchId} onValueChange={setTo}>
               <SelectTrigger aria-label="To branch">
-                <SelectValue placeholder="Select" />
+                <SelectValue placeholder={t('bill.select')} />
               </SelectTrigger>
               <SelectContent>
                 {branches.filter((b) => String(b.id) !== fromBranchId).map((b) => (
@@ -68,10 +69,10 @@ function NewTransferDialog({ branches, onClose }: { branches: BranchRef[]; onClo
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10" />
-                  <TableHead>Tag / Item</TableHead>
-                  <TableHead>Karat</TableHead>
-                  <TableHead>Net</TableHead>
-                  <TableHead>Fine</TableHead>
+                  <TableHead>{t('stock.col_tag_item')}</TableHead>
+                  <TableHead>{t('stock.col_karat')}</TableHead>
+                  <TableHead>{t('stock.col_net')}</TableHead>
+                  <TableHead>{t('stock.col_fine')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -86,7 +87,7 @@ function NewTransferDialog({ branches, onClose }: { branches: BranchRef[]; onClo
                     </TableRow>
                   ))
                 ) : (
-                  <TableRow><TableCell colSpan={5} className="h-16 text-center text-muted-foreground">No available items in this branch</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={5} className="h-16 text-center text-muted-foreground">{t('inv.transfer.no_items')}</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
@@ -94,7 +95,7 @@ function NewTransferDialog({ branches, onClose }: { branches: BranchRef[]; onClo
         )}
 
         <div className="space-y-1.5">
-          <Label htmlFor="t-remarks">Remarks</Label>
+          <Label htmlFor="t-remarks">{t('oldmetal.col_remarks')}</Label>
           <input id="t-remarks" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm" value={remarks} onChange={(e) => setRemarks(e.target.value)} />
         </div>
 
@@ -103,7 +104,7 @@ function NewTransferDialog({ branches, onClose }: { branches: BranchRef[]; onClo
             disabled={!fromBranchId || !toBranchId || picked.size === 0 || create.isPending}
             onClick={async () => { await create.mutateAsync({ fromBranchId: Number(fromBranchId), toBranchId: Number(toBranchId), stockItemIds: [...picked], remarks: remarks || undefined }); onClose() }}
           >
-            Transfer {picked.size ? plural(picked.size, 'item') : 'items'}
+            {picked.size ? t(picked.size === 1 ? 'inv.transfer.submit_one' : 'inv.transfer.submit_other', { n: picked.size }) : t('inv.transfer.submit_none')}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -112,25 +113,26 @@ function NewTransferDialog({ branches, onClose }: { branches: BranchRef[]; onClo
 }
 
 function DetailDialog({ id, onClose }: { id: number; onClose: () => void }) {
+  const t = useT()
   const { data, isLoading } = useStockTransfer(id)
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Transfer #{data?.transferNo ?? id}</DialogTitle>
+          <DialogTitle>{t('inv.transfer.detail_title', { no: data?.transferNo ?? id })}</DialogTitle>
         </DialogHeader>
         {isLoading || !data ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
         ) : (
           <div className="space-y-3 text-sm">
-            <div>{data.fromBranch.name} → {data.toBranch.name} · {date(data.txnDate)} · {plural(data.itemCount, 'item')}</div>
+            <div>{data.fromBranch.name} → {data.toBranch.name} · {date(data.txnDate)} · {t(data.itemCount === 1 ? 'inv.count.item_one' : 'inv.count.item_other', { n: data.itemCount })}</div>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Tag / Item</TableHead>
-                  <TableHead>Karat</TableHead>
-                  <TableHead>Net</TableHead>
-                  <TableHead>Fine</TableHead>
+                  <TableHead>{t('stock.col_tag_item')}</TableHead>
+                  <TableHead>{t('stock.col_karat')}</TableHead>
+                  <TableHead>{t('stock.col_net')}</TableHead>
+                  <TableHead>{t('stock.col_fine')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -144,7 +146,7 @@ function DetailDialog({ id, onClose }: { id: number; onClose: () => void }) {
                 ))}
               </TableBody>
             </Table>
-            {data.remarks && <p className="text-muted-foreground">Remarks: {data.remarks}</p>}
+            {data.remarks && <p className="text-muted-foreground">{t('inv.transfer.remarks_line', { text: data.remarks })}</p>}
           </div>
         )}
       </DialogContent>
@@ -153,6 +155,7 @@ function DetailDialog({ id, onClose }: { id: number; onClose: () => void }) {
 }
 
 export function StockTransfers() {
+  const t = useT()
   const { me } = useAuth()
   const branches = me?.accessibleBranches ?? []
   const [page, setPage] = useState(1)
@@ -163,11 +166,11 @@ export function StockTransfers() {
 
   const columns: ColumnDef<StockTransferDto, unknown>[] = [
     { accessorKey: 'transferNo', header: '#', cell: ({ row }) => <button className="font-medium hover:underline" onClick={() => setDetailId(row.original.id)}>{row.original.transferNo}</button> },
-    { accessorKey: 'txnDate', header: 'Date', cell: ({ row }) => date(row.original.txnDate) },
-    { header: 'From → To', cell: ({ row }) => `${row.original.fromBranch.name} → ${row.original.toBranch.name}` },
-    { accessorKey: 'itemCount', header: 'Items' },
-    { accessorKey: 'fine', header: 'Fine' },
-    { accessorKey: 'createdBy', header: 'By', cell: ({ row }) => row.original.createdBy ?? '—' },
+    { accessorKey: 'txnDate', header: t('daybook.col_date'), cell: ({ row }) => date(row.original.txnDate) },
+    { header: t('inv.transfer.col_route'), cell: ({ row }) => `${row.original.fromBranch.name} → ${row.original.toBranch.name}` },
+    { accessorKey: 'itemCount', header: t('bill.col_items') },
+    { accessorKey: 'fine', header: t('stock.col_fine') },
+    { accessorKey: 'createdBy', header: t('dash.col_by'), cell: ({ row }) => row.original.createdBy ?? '—' },
   ]
 
   // Summary numbers derived from the page already fetched (no extra requests).
@@ -194,17 +197,17 @@ export function StockTransfers() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl">Stock transfers</h2>
-          <p className="text-sm text-muted-foreground">Move whole items between your branches</p>
+          <h2 className="text-xl">{t('inv.transfer.title')}</h2>
+          <p className="text-sm text-muted-foreground">{t('inv.transfer.intro')}</p>
         </div>
-        <Button onClick={() => setCreating(true)}>New transfer</Button>
+        <Button onClick={() => setCreating(true)}>{t('inv.transfer.new')}</Button>
       </div>
 
       <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {tile('Transfers', data ? String(data.total) : '—', 'Across branches you can see', ArrowLeftRight)}
-        {tile('Items moved', data ? String(itemsMoved) : '—', data ? `On this page (${rows.length} shown)` : undefined, Package)}
-        {tile('Fine moved', data ? `${fineMoved.toFixed(3)} g` : '—', data ? `Gross ${grossMoved.toFixed(3)} g on this page` : undefined, Gem)}
-        {tile('Routes', data ? String(routes) : '—', 'Distinct branch pairs on this page', Route)}
+        {tile(t('girvi.tab_transfers'), data ? String(data.total) : '—', t('inv.transfer.tile_count_sub'), ArrowLeftRight)}
+        {tile(t('inv.transfer.items_moved'), data ? String(itemsMoved) : '—', data ? t('inv.transfer.items_moved_sub', { n: rows.length }) : undefined, Package)}
+        {tile(t('inv.transfer.fine_moved'), data ? `${fineMoved.toFixed(3)} g` : '—', data ? t('inv.transfer.fine_moved_sub', { g: grossMoved.toFixed(3) }) : undefined, Gem)}
+        {tile(t('inv.transfer.routes'), data ? String(routes) : '—', t('inv.transfer.routes_sub'), Route)}
       </div>
 
       <Card className="p-4">
@@ -212,7 +215,7 @@ export function StockTransfers() {
           columns={columns}
           data={data?.items ?? []}
           isLoading={isLoading}
-          emptyText="No transfers"
+          emptyText={t('inv.transfer.empty')}
           pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: setPageSize } : undefined}
         />
       </Card>

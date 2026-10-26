@@ -15,7 +15,7 @@ import { fetchAllPaged } from '@/lib/queries'
 import { useRepairs } from '@/lib/repairQueries'
 import { businessDayISO, REPAIR_STATUSES, type RepairTicketDto } from '@/shared'
 
-import { AssignKarigarDialog, DeliverDialog, TicketDetailsDialog } from './RepairDialogs'
+import { AssignKarigarDialog, DeliverDialog, RepairThumb, TicketDetailsDialog } from './RepairDialogs'
 import { RepairTabs } from './RepairTabs'
 import { ASSIGNABLE, date, estCharge, inr, STATUS_LABEL } from './repairUtils'
 
@@ -29,18 +29,22 @@ export function RepairLedger() {
   const [sp] = useSearchParams()
   const [q, setQ] = useState(sp.get('q') ?? '')
   const [status, setStatus] = useState(() => { const s = sp.get('status') ?? ''; return (REPAIR_STATUSES as readonly string[]).includes(s) ? s : '' })
+  const [metal, setMetal] = useState('')
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [exporting, setExporting] = useState(false)
   const [detailsId, setDetailsId] = useState<number | null>(null)
   const [deliver, setDeliver] = useState<RepairTicketDto | null>(null)
   const [assign, setAssign] = useState<RepairTicketDto | null>(null)
-  const { data, isLoading } = useRepairs({ q: q.trim() || undefined, status: status || undefined, page, pageSize })
+  const filters = { q: q.trim() || undefined, status: status || undefined, metal: metal || undefined, from: from || undefined, to: to || undefined }
+  const { data, isLoading } = useRepairs({ ...filters, page, pageSize })
 
   const exportCsv = async () => {
     setExporting(true)
     try {
-      const all = await fetchAllPaged<RepairTicketDto>('/app/repairs', { q: q.trim() || undefined, status: status || undefined })
+      const all = await fetchAllPaged<RepairTicketDto>('/app/repairs', filters)
       const header = ['Ticket', 'Date', 'Customer', 'Mobile', 'Category', 'Metal', 'Karat', 'Pcs', 'Gross (g)', 'Net (g)', 'Final (g)', 'Job description', 'Karigar', 'Expected', 'Priority', 'Labour', 'Other', 'Est. charge', 'Advance', 'Balance', 'Status', 'Delivered on', 'Remarks']
       const body = all.map((t) => [t.ticketNo, date(t.createdAt), t.party.name, t.party.mobile, t.category, t.metal, t.karatCode, t.pcs, t.gross, t.net, t.finalWeight, t.description, t.karigar?.name, date(t.expectedDate), t.priority, t.labourCharge, t.otherCharge, estCharge(t), t.advance, t.balance, STATUS_LABEL[t.status], t.deliveredAt ? date(t.deliveredAt) : '', t.remarks])
       downloadCsv(`repair-ledger-${status ? status.toLowerCase() : 'all'}-${businessDayISO()}.csv`, [header, ...body])
@@ -53,7 +57,7 @@ export function RepairLedger() {
     { header: 'Ticket', cell: ({ row }) => <button type="button" className="font-semibold text-brand-strong hover:underline" onClick={() => setDetailsId(row.original.id)}>#{row.original.ticketNo}</button> },
     { header: 'Date', cell: ({ row }) => <span className="whitespace-nowrap">{date(row.original.createdAt)}</span> },
     { header: 'Customer', cell: ({ row }) => <div><div className="font-medium">{row.original.party.name}</div><div className="text-xs text-muted-foreground">{row.original.party.mobile}</div></div> },
-    { header: 'Item', cell: ({ row }) => <div><div>{row.original.category}</div><div className="text-xs text-muted-foreground">{row.original.metal}{row.original.karatCode ? ` ${row.original.karatCode}` : ''} · {weightOf(row.original)}</div></div> },
+    { header: 'Item', cell: ({ row }) => <div className="flex items-center gap-2"><RepairThumb ticket={row.original} /><div><div>{row.original.category}{row.original.subCategory ? ` · ${row.original.subCategory}` : ''}</div><div className="text-xs text-muted-foreground">{row.original.metal}{row.original.karatCode ? ` ${row.original.karatCode}` : ''}{row.original.purity ? ` ${row.original.purity}%` : ''} · {weightOf(row.original)}</div></div></div> },
     { header: 'Job', cell: ({ row }) => <div className="max-w-56 whitespace-normal break-words">{row.original.description}</div> },
     { header: 'Karigar', cell: ({ row }) => row.original.karigar?.name ?? '—' },
     { header: 'Est. charge', cell: ({ row }) => <span className="tabular-nums">{inr(estCharge(row.original))}</span> },
@@ -97,6 +101,17 @@ export function RepairLedger() {
               {REPAIR_STATUSES.map((s) => <SelectItem key={s} value={s}>{STATUS_LABEL[s]}</SelectItem>)}
             </SelectContent>
           </Select>
+          <Select value={metal || 'all'} onValueChange={(v) => { setMetal(v === 'all' ? '' : v); setPage(1) }}>
+            <SelectTrigger className="w-full sm:w-36" aria-label="Repair metal"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All metals</SelectItem>
+              <SelectItem value="GOLD">Gold</SelectItem>
+              <SelectItem value="SILVER">Silver</SelectItem>
+              <SelectItem value="OTHER">Other</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input type="date" className="w-full sm:w-40" aria-label="Received from" value={from} max={to || undefined} onChange={(e) => { setFrom(e.target.value); setPage(1) }} />
+          <Input type="date" className="w-full sm:w-40" aria-label="Received to" value={to} min={from || undefined} onChange={(e) => { setTo(e.target.value); setPage(1) }} />
           <Button className="sm:ml-auto" variant="outline" disabled={exporting} onClick={exportCsv}><Download aria-hidden />{exporting ? 'Exporting…' : 'Export CSV'}</Button>
         </CardContent>
       </Card>
@@ -105,7 +120,7 @@ export function RepairLedger() {
         columns={columns}
         data={data?.items ?? []}
         isLoading={isLoading}
-        emptyText={q || status ? 'No tickets match these filters.' : 'No repair tickets yet.'}
+        emptyText={q || status || metal || from || to ? 'No tickets match these filters.' : 'No repair tickets yet.'}
         pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: setPageSize } : undefined}
       />
 

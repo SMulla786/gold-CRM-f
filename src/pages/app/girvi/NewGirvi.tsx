@@ -110,7 +110,7 @@ export function NewGirvi() {
       <div className={`overflow-x-auto ${TABLE_EDGES}`}>
         <Table>
           <TableHeader>
-            <TableRow><TableHead>{t('girvi.col_category')}</TableHead><TableHead className="min-w-40">{t('girvi.col_item')}</TableHead><TableHead>{t('stock.col_gross')}</TableHead><TableHead>{t('stock.col_net')}</TableHead><TableHead>{t('girvi.col_purity_pct')}</TableHead><TableHead>{t('stock.col_fine')}</TableHead><TableHead>{t('girvi.col_rate_g')}</TableHead><TableHead>{t('girvi.valuation')}</TableHead><TableHead title="Optional: overrides the loan interest % for this item">Item int. %</TableHead><TableHead /></TableRow>
+            <TableRow><TableHead>{t('girvi.col_category')}</TableHead><TableHead className="min-w-40">{t('girvi.col_item')}</TableHead><TableHead>{t('stock.col_gross')}</TableHead><TableHead>{t('stock.col_net')}</TableHead><TableHead>{t('girvi.col_purity_pct')}</TableHead><TableHead>{t('stock.col_fine')}</TableHead><TableHead>{t('girvi.col_rate_g')}</TableHead><TableHead>{t('girvi.valuation')}</TableHead><TableHead title="Optional: overrides the loan interest % for this item">{t('girvi.item_int_pct')}</TableHead><TableHead /></TableRow>
           </TableHeader>
           <TableBody>
             {rows.map((r, i) => (
@@ -166,18 +166,18 @@ export function NewGirvi() {
             <div className="space-y-1.5">
               <Label htmlFor="ng-tenure">{t('girvi.tenure_months')}</Label>
               <Input id="ng-tenure" type="number" value={terms.tenureMonths} onChange={(e) => setTerm('tenureMonths', e.target.value)} />
-              <p className="text-xs text-muted-foreground tabular-nums" aria-live="polite">{tenureDays != null ? `Tenure: ${tenureDays} days` : 'Tenure: whole months, 1 to 120'}</p>
+              <p className="text-xs text-muted-foreground tabular-nums" aria-live="polite">{tenureDays != null ? t('girvi.tenure_days', { n: tenureDays }) : t('girvi.tenure_hint')}</p>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="ng-return">Return date</Label>
+              <Label htmlFor="ng-return">{t('girvi.return_date')}</Label>
               <Input id="ng-return" readOnly tabIndex={-1} className="bg-muted/40" value={returnDate ? returnDate.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : '—'} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="ng-first">First-month interest (₹)</Label>
+              <Label htmlFor="ng-first">{t('girvi.first_month_interest')}</Label>
               <Input id="ng-first" type="number" step="0.01" min={0} placeholder="0" value={terms.firstMonthInterest} onChange={(e) => setTerm('firstMonthInterest', e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="ng-penalty">Penalty % per month (after due)</Label>
+              <Label htmlFor="ng-penalty">{t('girvi.penalty_pct')}</Label>
               <Input id="ng-penalty" type="number" step="0.01" min={0} max={100} value={terms.penaltyRatePercent} onChange={(e) => setTerm('penaltyRatePercent', e.target.value)} />
             </div>
           </div>
@@ -186,7 +186,7 @@ export function NewGirvi() {
         <Card className="space-y-3 self-start p-6 text-sm tabular-nums">
           <table className="w-full border-collapse" aria-label="Item summary">
             <thead>
-              <tr className="border-b text-left text-xs text-muted-foreground"><th className="py-1.5 pr-2 font-medium">SN</th><th className="py-1.5 pr-2 font-medium">Name</th><th className="py-1.5 text-right font-medium">Value</th></tr>
+              <tr className="border-b text-left text-xs text-muted-foreground"><th className="py-1.5 pr-2 font-medium">{t('girvi.col_sn')}</th><th className="py-1.5 pr-2 font-medium">{t('girvi.col_name')}</th><th className="py-1.5 text-right font-medium">{t('gst.col_value')}</th></tr>
             </thead>
             <tbody>
               {rows.map((r, i) => (

@@ -24,6 +24,7 @@ export function Payments() {
 
   const columns: ColumnDef<PaymentDto, unknown>[] = [
     { accessorKey: 'businessName', header: t('payments.col_business') },
+    { id: 'plan', header: 'Plan', cell: ({ row }) => row.original.planName ?? '—' },
     { accessorKey: 'amount', header: t('subscription.col_amount'), cell: ({ row }) => inr(row.original.amount) },
     { accessorKey: 'method', header: t('subscription.col_method') },
     { accessorKey: 'utr', header: t('payments.col_utr'), cell: ({ row }) => row.original.utr ?? '—' },

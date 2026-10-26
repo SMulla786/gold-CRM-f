@@ -1,5 +1,5 @@
 import type { ColumnDef } from '@tanstack/react-table'
-import { Coins, Download, IndianRupee, ListOrdered, Printer, Wallet, type LucideIcon } from 'lucide-react'
+import { Coins, Download, History, IndianRupee, ListOrdered, Pencil, Printer, Wallet, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -16,6 +16,8 @@ import { fetchAllPaged } from '@/lib/queries'
 import { useBuySells, useDeleteBuySell } from '@/lib/tradeQueries'
 import { businessDayISO, METALS, TRADE_SIDES, type BuySellDto } from '@/shared'
 
+import { DateRangeFilter, HistoryDialog } from './TradeExtras'
+
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
 const time = (s: string) => new Date(s).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
@@ -23,12 +25,16 @@ const time = (s: string) => new Date(s).toLocaleTimeString('en-IN', { hour: '2-d
 export function BuySellList() {
   const { can } = useAuth()
   const canDelete = can('buy_sell.entry', 'delete')
+  const canEdit = can('buy_sell.entry', 'edit')
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const [history, setHistory] = useState<BuySellDto | null>(null)
   const [side, setSide] = useState('')
   const [metal, setMetal] = useState('')
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
-  const filters = { side: side || undefined, metal: metal || undefined, q: q || undefined }
+  const filters = { side: side || undefined, metal: metal || undefined, q: q || undefined, from: from || undefined, to: to || undefined }
   const { data, isLoading } = useBuySells({ ...filters, page, pageSize })
   const [exporting, setExporting] = useState(false)
   const exportCsv = async () => {
@@ -63,6 +69,8 @@ export function BuySellList() {
     { id: 'actions', header: '', cell: ({ row }) => (
       <div className="flex justify-end gap-1">
         <Button asChild variant="ghost" size="sm"><Link to={`/app/buy_sell/${row.original.id}/print`}><Printer className="size-4" aria-hidden />Print</Link></Button>
+        {canEdit && <Button asChild variant="ghost" size="sm"><Link to={`/app/buy_sell/new?edit=${row.original.id}`}><Pencil className="size-4" aria-hidden />Edit</Link></Button>}
+        <Button variant="ghost" size="sm" onClick={() => setHistory(row.original)}><History className="size-4" aria-hidden />History</Button>
         {canDelete && <Button variant="ghost" size="sm" onClick={() => setDeleting(row.original)}>Delete</Button>}
       </div>
     ) },
@@ -108,6 +116,7 @@ export function BuySellList() {
             <SelectTrigger className="w-32" aria-label="Metal"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="all">All metals</SelectItem>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
           </Select>
+          <DateRangeFilter from={from} to={to} onChange={(a, b) => { setFrom(a); setTo(b); setPage(1) }} />
           <Button variant="outline" className="ml-auto" disabled={exporting} onClick={() => void exportCsv()}><Download className="size-4" aria-hidden />{exporting ? 'Exporting…' : 'Export CSV'}</Button>
         </CardContent>
       </Card>
@@ -116,6 +125,7 @@ export function BuySellList() {
         <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} emptyText="No trades" pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: setPageSize } : undefined} />
       </Card>
       <MpinDialog open={!!deleting} title={`Delete trade #${deleting?.buySellNo ?? ''}`} onConfirm={(mpin) => del.mutateAsync({ id: deleting!.id, mpin })} onClose={() => setDeleting(null)} />
+      <HistoryDialog kind="buy-sell" id={history?.id} title={`History of trade #${history?.buySellNo ?? ''}`} onClose={() => setHistory(null)} />
     </div>
   )
 }

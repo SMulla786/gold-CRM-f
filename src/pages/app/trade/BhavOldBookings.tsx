@@ -12,19 +12,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useBhavBookings } from '@/lib/tradeQueries'
 import { METALS, TRADE_SIDES, type BhavBookingDto } from '@/shared'
 
+import { BhavRowMenu, VerifiedBadge } from './BhavBookings'
+import { DateRangeFilter } from './TradeExtras'
+
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
 const time = (s: string) => new Date(s).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
 
-/** Closed bhav bookings (fully delivered or cancelled). The list endpoint takes one status, so the view toggles between the two. */
+/** Closed bhav bookings (fully delivered or cancelled). 'All' lists both statuses together (closed=true). */
 export function BhavOldBookings() {
-  const [status, setStatus] = useState<'DELIVERED' | 'CANCELLED'>('DELIVERED')
+  const [status, setStatus] = useState<'ALL' | 'DELIVERED' | 'CANCELLED'>('ALL')
   const [side, setSide] = useState('')
   const [metal, setMetal] = useState('')
   const [q, setQ] = useState('')
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
-  const { data, isLoading } = useBhavBookings({ status, side: side || undefined, metal: metal || undefined, q: q || undefined, page, pageSize })
+  const statusParams = status === 'ALL' ? { closed: 'true' } : { status }
+  const { data, isLoading } = useBhavBookings({ ...statusParams, side: side || undefined, metal: metal || undefined, q: q || undefined, from: from || undefined, to: to || undefined, page, pageSize })
 
   const columns: ColumnDef<BhavBookingDto, unknown>[] = [
     { header: 'No', cell: ({ row }) => <span className="font-medium">#{row.original.bookingNo}</span> },
@@ -37,8 +43,13 @@ export function BhavOldBookings() {
     { header: 'Amount', cell: ({ row }) => <span className="tabular-nums">{inr(row.original.amount)}</span> },
     { header: 'Advance', cell: ({ row }) => <span className="tabular-nums">{inr(row.original.advance)}</span> },
     { header: 'Narration', cell: ({ row }) => <span className="text-muted-foreground">{row.original.narration ?? '—'}</span> },
-    { header: 'Status', cell: ({ row }) => <Badge variant="outline">{row.original.status}</Badge> },
-    { id: 'actions', header: '', cell: ({ row }) => <Button asChild variant="ghost" size="sm"><Link to={`/app/buy_sell/bhav/${row.original.id}/print`}><Printer className="size-4" aria-hidden />Print</Link></Button> },
+    { header: 'Status', cell: ({ row }) => <div className="flex flex-wrap gap-1"><Badge variant="outline">{row.original.status}</Badge><VerifiedBadge b={row.original} /></div> },
+    { id: 'actions', header: '', cell: ({ row }) => (
+      <div className="flex justify-end gap-1">
+        <Button asChild variant="ghost" size="sm"><Link to={`/app/buy_sell/bhav/${row.original.id}/print`}><Printer className="size-4" aria-hidden />Print</Link></Button>
+        <BhavRowMenu b={row.original} />
+      </div>
+    ) },
   ]
 
   return (
@@ -51,9 +62,9 @@ export function BhavOldBookings() {
       <Card>
         <CardContent className="flex flex-wrap items-end gap-3 pt-6">
           <Input className="max-w-xs" placeholder="Search no / party / mobile…" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
-          <Select value={status} onValueChange={(v) => { setStatus(v === 'CANCELLED' ? 'CANCELLED' : 'DELIVERED'); setPage(1) }}>
-            <SelectTrigger className="w-36" aria-label="Status"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="DELIVERED">Delivered</SelectItem><SelectItem value="CANCELLED">Cancelled</SelectItem></SelectContent>
+          <Select value={status} onValueChange={(v) => { setStatus(v === 'CANCELLED' || v === 'DELIVERED' ? v : 'ALL'); setPage(1) }}>
+            <SelectTrigger className="w-48" aria-label="Status"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="ALL">Delivered + cancelled</SelectItem><SelectItem value="DELIVERED">Delivered</SelectItem><SelectItem value="CANCELLED">Cancelled</SelectItem></SelectContent>
           </Select>
           <Select value={side || 'all'} onValueChange={(v) => { setSide(v === 'all' ? '' : v); setPage(1) }}>
             <SelectTrigger className="w-32" aria-label="Side"><SelectValue /></SelectTrigger>
@@ -63,6 +74,7 @@ export function BhavOldBookings() {
             <SelectTrigger className="w-32" aria-label="Metal"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="all">All metals</SelectItem>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
           </Select>
+          <DateRangeFilter from={from} to={to} onChange={(a, b) => { setFrom(a); setTo(b); setPage(1) }} />
         </CardContent>
       </Card>
 

@@ -56,3 +56,16 @@ export const useCreateKarigarIssue = () =>
   useApiMutation((body: Record<string, unknown>) => api.post<KarigarIssueDto>('/app/karigar-issues', body), { invalidate: ORDER_KEYS, success: 'Issued to karigar' })
 export const useReceiveKarigarIssue = () =>
   useApiMutation(({ id, body }: { id: number; body: Record<string, unknown> }) => api.post<KarigarIssueDto>(`/app/karigar-issues/${id}/receive`, body), { invalidate: ORDER_KEYS, success: 'Received from karigar' })
+
+/** TASK-97 order design file (POST multipart field "file", JPEG/PNG/WebP/PDF, 2 MB); GET streams it (fetch via api.blob). */
+export const orderDesignPath = (id: number) => `/app/orders/${id}/design`
+export const DESIGN_MAX_BYTES = 2 * 1024 * 1024
+export const useUploadOrderDesign = () =>
+  useApiMutation(({ id, file }: { id: number; file: File }) => {
+    if (file.size > DESIGN_MAX_BYTES) return Promise.reject(new ApiException(400, 'VALIDATION', 'Design file must be 2 MB or smaller'))
+    const fd = new FormData()
+    fd.append('file', file)
+    return api.post<{ url: string }>(orderDesignPath(id), fd)
+  }, { invalidate: [['order'], ['orders']], success: 'Design saved' })
+export const useRemoveOrderDesign = () =>
+  useApiMutation((id: number) => api.del(orderDesignPath(id)), { invalidate: [['order'], ['orders']], success: 'Design removed' })

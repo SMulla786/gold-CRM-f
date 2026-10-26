@@ -10,7 +10,7 @@ import { useAuth } from '@/lib/auth'
 import { useRepairs, useRepairStatus } from '@/lib/repairQueries'
 import { businessDayISO, type RepairTicketDto } from '@/shared'
 
-import { AssignKarigarDialog, DeliverDialog, NewTicketDialog, QADialog, TicketDetailsDialog } from './RepairDialogs'
+import { AssignKarigarDialog, DeliverDialog, NewTicketDialog, QADialog, RepairThumb, TicketDetailsDialog } from './RepairDialogs'
 import { RepairTabs } from './RepairTabs'
 import { ASSIGNABLE, date, inr, n } from './repairUtils'
 
@@ -107,7 +107,10 @@ export function RepairBoard() {
                       {t.priority !== 'NORMAL' && <Badge variant="destructive">{t.priority}</Badge>}
                     </div>
                     <div className="text-xs text-muted-foreground">{t.party.name} · {t.metal} · {t.gross}g · due {date(t.expectedDate)}</div>
-                    <div className="text-xs text-muted-foreground">{t.description}</div>
+                    <div className="flex items-start gap-2">
+                      <RepairThumb ticket={t} />
+                      <div className="text-xs text-muted-foreground">{t.subCategory ? `${t.subCategory} · ` : ''}{t.description}</div>
+                    </div>
                     {t.karigar && <div className="text-xs text-muted-foreground">Karigar: <span className="font-medium text-foreground">{t.karigar.name}</span></div>}
                     {t.remarks && <div className="rounded-lg bg-muted/60 px-2 py-1 text-xs text-muted-foreground">{t.remarks}</div>}
                     <div className="flex flex-wrap gap-1 pt-1">
