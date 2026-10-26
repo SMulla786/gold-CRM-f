@@ -395,6 +395,7 @@
   "girvi.tab_new": "नया ऋण",
   "girvi.tab_loans": "ऋण",
   "girvi.tab_transfers": "ट्रांसफ़र",
+  "girvi.tab_import": "इम्पोर्ट",
   "girvi.col_issued": "जारी",
   "girvi.col_return_by": "वापसी तक",
   "girvi.col_items": "वस्तुएँ",
@@ -683,5 +684,10 @@
   "bill.col_created_by": "बनाने वाला",
   "bill.all_types": "सभी प्रकार",
   "bill.min_total": "न्यूनतम ₹",
-  "bill.max_total": "अधिकतम ₹"
+  "bill.max_total": "अधिकतम ₹",
+
+  "bill.pay_fine": "फाइन {g} g",
+  "bill.pay_remark": "टिप्पणी",
+  "jbill.gst_amount": "GST राशि",
+  "jbill.discount_amount": "छूट राशि"
 }

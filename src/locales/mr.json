@@ -395,6 +395,7 @@
   "girvi.tab_new": "नवीन कर्ज",
   "girvi.tab_loans": "कर्जे",
   "girvi.tab_transfers": "ट्रान्सफर",
+  "girvi.tab_import": "इम्पोर्ट",
   "girvi.col_issued": "दिले",
   "girvi.col_return_by": "परतीची तारीख",
   "girvi.col_items": "वस्तू",
@@ -683,5 +684,10 @@
   "bill.col_created_by": "तयार करणारा",
   "bill.all_types": "सर्व प्रकार",
   "bill.min_total": "किमान ₹",
-  "bill.max_total": "कमाल ₹"
+  "bill.max_total": "कमाल ₹",
+
+  "bill.pay_fine": "फाइन {g} g",
+  "bill.pay_remark": "शेरा",
+  "jbill.gst_amount": "GST रक्कम",
+  "jbill.discount_amount": "सवलत रक्कम"
 }

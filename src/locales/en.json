@@ -395,6 +395,7 @@
   "girvi.tab_new": "New Loan",
   "girvi.tab_loans": "Loans",
   "girvi.tab_transfers": "Transfers",
+  "girvi.tab_import": "Import",
   "girvi.col_issued": "Issued",
   "girvi.col_return_by": "Return by",
   "girvi.col_items": "Items",
@@ -683,5 +684,10 @@
   "bill.col_created_by": "Created by",
   "bill.all_types": "All types",
   "bill.min_total": "Min ₹",
-  "bill.max_total": "Max ₹"
+  "bill.max_total": "Max ₹",
+
+  "bill.pay_fine": "Fine {g} g",
+  "bill.pay_remark": "Remark",
+  "jbill.gst_amount": "GST amount",
+  "jbill.discount_amount": "Discount amount"
 }
