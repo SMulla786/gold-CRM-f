@@ -1,5 +1,6 @@
 import { useState } from 'react'
 
+import { AuthedImage } from '@/components/AuthedImage'
 import { MpinDialog } from '@/components/MpinDialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -7,10 +8,10 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useSaveSetting, useSettings } from '@/lib/appQueries'
+import { useSaveSetting, useSettings, useUploadInvoiceMedia } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { previewNo, type Numbering } from '@/lib/invoiceNumber'
-import type { SettingsDto } from '@/shared'
+import { INVOICE_PRINT_COLUMNS, type SettingsDto } from '@/shared'
 
 type MpinAction = { title: string; run: (mpin: string) => Promise<unknown> }
 
@@ -24,6 +25,7 @@ export function InvoiceSettings() {
           <NumberingCard settings={settings} settingKey="invoice.sale" title="Sale invoice numbering" ask={setMpinAction} />
           <NumberingCard settings={settings} settingKey="invoice.purchase" title="Purchase invoice numbering" ask={setMpinAction} />
           <ContentCard settings={settings} ask={setMpinAction} />
+          <MediaCard settings={settings} ask={setMpinAction} />
           <AmountBasedRateCard settings={settings} ask={setMpinAction} />
         </>
       ) : (
@@ -141,7 +143,56 @@ function ContentCard({ settings, ask }: { settings: SettingsDto; ask: (a: MpinAc
         <Label htmlFor="inv-disc">Just Bill disclaimer</Label>
         <textarea id="inv-disc" rows={2} className="w-full rounded-md border bg-transparent px-3 py-2 text-sm" value={v.justBillDisclaimer} onChange={(e) => setV({ ...v, justBillDisclaimer: e.target.value })} />
       </div>
+      <div className="space-y-1.5">
+        <Label>Printed item columns <span className="font-normal text-muted-foreground">(none ticked = show all)</span></Label>
+        <div className="flex flex-wrap gap-x-4 gap-y-2">
+          {INVOICE_PRINT_COLUMNS.map((c) => (
+            <label key={c} className="flex items-center gap-2 text-sm capitalize">
+              <Checkbox
+                checked={v.columns.includes(c)}
+                onCheckedChange={(on) => setV({ ...v, columns: on ? [...v.columns, c] : v.columns.filter((x) => x !== c) })}
+                aria-label={c}
+              />
+              {c}
+            </label>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-1.5 sm:max-w-xs">
+        <Label htmlFor="inv-wm-op">Watermark opacity — {v.watermarkOpacity}%</Label>
+        <input id="inv-wm-op" type="range" min={0} max={100} className="w-full" value={v.watermarkOpacity} onChange={(e) => setV({ ...v, watermarkOpacity: Number(e.target.value) })} />
+      </div>
     </SaveSettingCard>
+  )
+}
+
+function MediaCard({ settings, ask }: { settings: SettingsDto; ask: (a: MpinAction) => void }) {
+  const { can } = useAuth()
+  const upload = useUploadInvoiceMedia()
+  const media = settings['invoice.media']
+  const [ver, setVer] = useState(0)
+  const row = (kind: 'logo' | 'signature' | 'watermark', label: string, urlKey: 'logoUrl' | 'signatureUrl' | 'watermarkUrl') => (
+    <div className="flex flex-wrap items-center gap-3">
+      <span className="w-24 text-sm font-medium">{label}</span>
+      {(media[urlKey] || ver > 0) && <AuthedImage path={`/app/files/invoice/${kind}`} ver={ver} alt={label} className="h-12 max-w-[160px] rounded border object-contain" />}
+      {can('settings.misc', 'edit') && (
+        <Input
+          type="file" accept="image/jpeg,image/png,image/webp" className="max-w-xs" aria-label={`Upload ${label}`}
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) ask({ title: `Upload ${label}`, run: async (mpin) => { await upload.mutateAsync({ kind, file: f, mpin }); setVer((n) => n + 1) } }) }}
+        />
+      )}
+    </div>
+  )
+  return (
+    <Card>
+      <CardHeader><CardTitle>Invoice media</CardTitle></CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-xs text-muted-foreground">JPEG / PNG / WebP, up to 2 MB. Shown on the printed invoice.</p>
+        {row('logo', 'Logo', 'logoUrl')}
+        {row('signature', 'Signature', 'signatureUrl')}
+        {row('watermark', 'Watermark', 'watermarkUrl')}
+      </CardContent>
+    </Card>
   )
 }
 
