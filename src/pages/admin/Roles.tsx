@@ -9,17 +9,20 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/lib/auth'
-import { useCreateRole, usePermissionCatalog, useRoles, useSaveRolePermissions } from '@/lib/queries'
+import { useCreateRole, useDeleteRole, usePermissionCatalog, useRenameRole, useRoles, useSaveRolePermissions } from '@/lib/queries'
 import type { RoleDto } from '@/shared'
 
-function CreateRoleDialog({ onClose }: { onClose: () => void }) {
+/** New role, or rename when `role` is given. */
+function RoleNameDialog({ role, onClose }: { role?: RoleDto; onClose: () => void }) {
   const create = useCreateRole()
-  const [name, setName] = useState('')
+  const rename = useRenameRole()
+  const [name, setName] = useState(role?.name ?? '')
+  const pending = create.isPending || rename.isPending
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>New role</DialogTitle>
+          <DialogTitle>{role ? `Rename ${role.name}` : 'New role'}</DialogTitle>
         </DialogHeader>
         <div className="space-y-1.5">
           <Label htmlFor="role-name">Role name</Label>
@@ -27,13 +30,14 @@ function CreateRoleDialog({ onClose }: { onClose: () => void }) {
         </div>
         <DialogFooter>
           <Button
-            disabled={name.trim().length < 2 || create.isPending}
+            disabled={name.trim().length < 2 || pending}
             onClick={async () => {
-              await create.mutateAsync(name.trim())
+              if (role) await rename.mutateAsync({ id: role.id, name: name.trim() })
+              else await create.mutateAsync(name.trim())
               onClose()
             }}
           >
-            Create
+            {role ? 'Save' : 'Create'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -82,14 +86,47 @@ export function Roles() {
   const { me } = useAuth()
   const canManage = !!me && (me.isOwner || me.branch?.parentId === null)
   const { data, isLoading } = useRoles()
+  const del = useDeleteRole()
   const [creating, setCreating] = useState(false)
+  const [renaming, setRenaming] = useState<RoleDto | null>(null)
   const [editing, setEditing] = useState<RoleDto | null>(null)
+  const [q, setQ] = useState('')
+  const needle = q.trim().toLowerCase()
+  const rows = (data ?? []).filter((r) => !needle || r.name.toLowerCase().includes(needle))
 
   const columns: ColumnDef<RoleDto, unknown>[] = [
     { accessorKey: 'name', header: 'Role' },
     { accessorKey: 'isSystem', header: 'Type', cell: ({ row }) => <Badge variant={row.original.isSystem ? 'secondary' : 'default'}>{row.original.isSystem ? 'System' : 'Business'}</Badge> },
     { accessorKey: 'userCount', header: 'Users' },
-    { id: 'actions', header: '', cell: ({ row }) => <Button variant="outline" size="sm" onClick={() => setEditing(row.original)}>Permissions</Button> },
+    {
+      id: 'actions',
+      header: '',
+      cell: ({ row }) => {
+        const r = row.original
+        return (
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setEditing(r)}>Permissions</Button>
+            {canManage && !r.isSystem && (
+              <>
+                <Button variant="ghost" size="sm" onClick={() => setRenaming(r)}>Rename</Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive"
+                  disabled={r.userCount > 0 || del.isPending}
+                  title={r.userCount > 0 ? 'Move its users to another role first' : undefined}
+                  onClick={() => {
+                    if (window.confirm(`Delete role ${r.name}?`)) del.mutate(r.id)
+                  }}
+                >
+                  Delete
+                </Button>
+              </>
+            )}
+          </div>
+        )
+      },
+    },
   ]
 
   return (
@@ -101,8 +138,10 @@ export function Roles() {
         </div>
         {canManage && <Button onClick={() => setCreating(true)}>New role</Button>}
       </div>
-      <DataTable columns={columns} data={data ?? []} isLoading={isLoading} />
-      {creating && <CreateRoleDialog onClose={() => setCreating(false)} />}
+      <Input className="max-w-xs" aria-label="Search roles" placeholder="Search role name…" value={q} onChange={(e) => setQ(e.target.value)} />
+      <DataTable columns={columns} data={rows} isLoading={isLoading} />
+      {creating && <RoleNameDialog onClose={() => setCreating(false)} />}
+      {renaming && <RoleNameDialog role={renaming} onClose={() => setRenaming(null)} />}
       {editing && <RolePermissionsDialog role={editing} canManage={canManage} onClose={() => setEditing(null)} />}
     </div>
   )

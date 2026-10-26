@@ -7,6 +7,7 @@ import { DataTable } from '@/components/DataTable'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useT } from '@/lib/i18n'
 import { usePayments, useReviewPayment } from '@/lib/queries'
 import type { PaymentDto } from '@/shared'
 
@@ -15,18 +16,19 @@ const date = (s: string | null) => (s ? new Date(s).toLocaleDateString('en-IN') 
 const statusVariant = (s: PaymentDto['status']) => (s === 'CONFIRMED' ? 'default' : s === 'PENDING' ? 'secondary' : 'destructive')
 
 export function Payments() {
+  const t = useT()
   const [page, setPage] = useState(1)
   const { data, isLoading } = usePayments(page)
   const review = useReviewPayment()
   const [proof, setProof] = useState<number | null>(null)
 
   const columns: ColumnDef<PaymentDto, unknown>[] = [
-    { accessorKey: 'businessName', header: 'Business' },
-    { accessorKey: 'amount', header: 'Amount', cell: ({ row }) => inr(row.original.amount) },
-    { accessorKey: 'method', header: 'Method' },
-    { accessorKey: 'utr', header: 'UTR / Ref', cell: ({ row }) => row.original.utr ?? '—' },
-    { accessorKey: 'status', header: 'Status', cell: ({ row }) => <Badge variant={statusVariant(row.original.status)}>{row.original.status}</Badge> },
-    { accessorKey: 'paidAt', header: 'Paid', cell: ({ row }) => date(row.original.paidAt) },
+    { accessorKey: 'businessName', header: t('payments.col_business') },
+    { accessorKey: 'amount', header: t('subscription.col_amount'), cell: ({ row }) => inr(row.original.amount) },
+    { accessorKey: 'method', header: t('subscription.col_method') },
+    { accessorKey: 'utr', header: t('payments.col_utr'), cell: ({ row }) => row.original.utr ?? '—' },
+    { accessorKey: 'status', header: t('stock.col_status'), cell: ({ row }) => <Badge variant={statusVariant(row.original.status)}>{row.original.status}</Badge> },
+    { accessorKey: 'paidAt', header: t('bill.paid'), cell: ({ row }) => date(row.original.paidAt) },
     {
       id: 'actions',
       header: '',
@@ -34,11 +36,11 @@ export function Payments() {
         const p = row.original
         return (
           <div className="flex justify-end gap-2">
-            {p.hasProof && <Button variant="ghost" size="sm" onClick={() => setProof(proof === p.id ? null : p.id)}>{proof === p.id ? 'Hide proof' : 'Proof'}</Button>}
+            {p.hasProof && <Button variant="ghost" size="sm" onClick={() => setProof(proof === p.id ? null : p.id)}>{proof === p.id ? t('payments.hide_proof') : t('subscription.col_proof')}</Button>}
             {p.status === 'PENDING' && (
               <>
-                <Button size="sm" disabled={review.isPending} onClick={() => review.mutate({ id: p.id, status: 'CONFIRMED' })}>Confirm</Button>
-                <Button size="sm" variant="outline" disabled={review.isPending} onClick={() => { if (window.confirm(`Reject ${inr(p.amount)} from ${p.businessName}?`)) review.mutate({ id: p.id, status: 'REJECTED' }) }}>Reject</Button>
+                <Button size="sm" disabled={review.isPending} onClick={() => review.mutate({ id: p.id, status: 'CONFIRMED' })}>{t('common.confirm')}</Button>
+                <Button size="sm" variant="outline" disabled={review.isPending} onClick={() => { if (window.confirm(t('payments.reject_confirm', { amount: inr(p.amount), business: p.businessName }))) review.mutate({ id: p.id, status: 'REJECTED' }) }}>{t('payments.reject')}</Button>
               </>
             )}
           </div>
@@ -72,16 +74,16 @@ export function Payments() {
     <div className="space-y-8">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1>Payments</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Subscription collections received across the platform</p>
+          <h1>{t('bill.payments')}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t('payments.subtitle')}</p>
         </div>
       </header>
 
       <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {tile('Total records', data ? String(data.total) : '—', 'All time', Receipt)}
-        {tile('Confirmed on this page', data ? inr(String(confirmedSum)) : '—', data ? `${confirmedRows.length} of ${items.length} shown` : undefined, BadgeCheck)}
-        {tile('Pending on this page', data ? String(pendingRows.length) : '—', data ? `${inr(String(pendingSum))} awaiting` : undefined, Clock)}
-        {tile('Rejected on this page', data ? String(rejectedRows) : '—', data ? `of ${items.length} shown` : undefined, Ban)}
+        {tile(t('payments.total'), data ? String(data.total) : '—', t('payments.all_time'), Receipt)}
+        {tile(t('payments.confirmed'), data ? inr(String(confirmedSum)) : '—', data ? t('payments.confirmed_sub', { n: confirmedRows.length, total: items.length }) : undefined, BadgeCheck)}
+        {tile(t('payments.pending'), data ? String(pendingRows.length) : '—', data ? t('payments.pending_sub', { amount: inr(String(pendingSum)) }) : undefined, Clock)}
+        {tile(t('payments.rejected'), data ? String(rejectedRows) : '—', data ? t('payments.rejected_sub', { total: items.length }) : undefined, Ban)}
       </div>
 
       <Card className="p-4">

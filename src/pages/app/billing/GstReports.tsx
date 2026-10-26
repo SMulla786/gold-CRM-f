@@ -54,20 +54,20 @@ export function GstReports() {
   const summary = useGstSummary({ ...r, groupBy })
 
   const regCols: ColumnDef<GstRegisterRowDto, unknown>[] = [
-    { header: 'Bill', cell: ({ row }) => row.original.billNo },
-    { header: 'Date', cell: ({ row }) => date(row.original.billDate) },
-    { header: 'Party', cell: ({ row }) => <span>{row.original.party.name}{row.original.party.gstin ? <span className="block text-xs text-muted-foreground">{row.original.party.gstin}</span> : null}</span> },
+    { header: t('bill.col_bill'), cell: ({ row }) => row.original.billNo },
+    { header: t('udhari.date'), cell: ({ row }) => date(row.original.billDate) },
+    { header: t('udhari.party'), cell: ({ row }) => <span>{row.original.party.name}{row.original.party.gstin ? <span className="block text-xs text-muted-foreground">{row.original.party.gstin}</span> : null}</span> },
     { header: 'HSN', cell: ({ row }) => row.original.hsnCodes.join(', ') || '—' },
-    { header: 'Taxable', cell: ({ row }) => inr(row.original.taxable) },
+    { header: t('gst.taxable'), cell: ({ row }) => inr(row.original.taxable) },
     { header: 'CGST', cell: ({ row }) => inr(row.original.cgst) },
     { header: 'SGST', cell: ({ row }) => inr(row.original.sgst) },
     { header: 'IGST', cell: ({ row }) => inr(row.original.igst) },
-    { header: 'Total', cell: ({ row }) => inr(row.original.total) },
+    { header: t('bill.col_total'), cell: ({ row }) => inr(row.original.total) },
   ]
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-muted-foreground">Tax registers, HSN and period summaries, and monthly return data ready for filing.</p>
+      <p className="text-sm text-muted-foreground">{t('gst.subtitle')}</p>
       <Card className="flex flex-wrap items-end gap-4 p-4">
         <div className="space-y-1.5">
           <Label>{t('gst.report')}</Label>
@@ -84,19 +84,19 @@ export function GstReports() {
         </div>
         {mode === 'register' && (
           <div className="space-y-1.5">
-            <Label>Kind</Label>
+            <Label>{t('gst.kind')}</Label>
             <Select value={kind} onValueChange={(v) => { setKind(v); setPage(1) }}>
               <SelectTrigger className="w-36" aria-label="Kind"><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="SELL">Sales</SelectItem><SelectItem value="PURCHASE">Purchase</SelectItem></SelectContent>
+              <SelectContent><SelectItem value="SELL">{t('gst.sales')}</SelectItem><SelectItem value="PURCHASE">{t('bill.kind_purchase')}</SelectItem></SelectContent>
             </Select>
           </div>
         )}
         {mode === 'summary' && (
           <div className="space-y-1.5">
-            <Label>Group by</Label>
+            <Label>{t('gst.group_by')}</Label>
             <Select value={groupBy} onValueChange={setGroupBy}>
               <SelectTrigger className="w-32" aria-label="Group by"><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="MONTH">Month</SelectItem><SelectItem value="QUARTER">Quarter</SelectItem><SelectItem value="YEAR">Year</SelectItem></SelectContent>
+              <SelectContent><SelectItem value="MONTH">{t('gst.month')}</SelectItem><SelectItem value="QUARTER">{t('gst.quarter')}</SelectItem><SelectItem value="YEAR">{t('gst.year')}</SelectItem></SelectContent>
             </Select>
           </div>
         )}
@@ -106,7 +106,7 @@ export function GstReports() {
             <div className="space-y-1.5"><Label htmlFor="g-to">{t('common.to')}</Label><Input id="g-to" type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1) }} /></div>
           </>
         )}
-        {mode === 'register' && <Button className="ml-auto" variant="outline" disabled={exporting} onClick={exportRegister}>{exporting ? 'Exporting…' : t('common.export_csv')}</Button>}
+        {mode === 'register' && <Button className="ml-auto" variant="outline" disabled={exporting} onClick={exportRegister}>{exporting ? t('bill.exporting') : t('common.export_csv')}</Button>}
       </Card>
 
       {mode === 'register' && (
@@ -114,7 +114,7 @@ export function GstReports() {
           columns={regCols}
           data={register.data?.items ?? []}
           isLoading={register.isLoading}
-          emptyText="No GST bills"
+          emptyText={t('gst.no_bills')}
           pagination={register.data ? { page: register.data.page, pageSize: register.data.pageSize, total: register.data.total, onPage: setPage } : undefined}
         />
       )}
@@ -122,14 +122,14 @@ export function GstReports() {
       {mode === 'hsn' && (
         <TableCard>
           <Table>
-            <TableHeader><TableRow><TableHead>HSN</TableHead><TableHead>Class</TableHead><TableHead>Weight</TableHead><TableHead>Taxable</TableHead><TableHead>CGST</TableHead><TableHead>SGST</TableHead><TableHead>IGST</TableHead><TableHead>Total</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>HSN</TableHead><TableHead>{t('gst.col_class')}</TableHead><TableHead>{t('bill.col_weight')}</TableHead><TableHead>{t('gst.taxable')}</TableHead><TableHead>CGST</TableHead><TableHead>SGST</TableHead><TableHead>IGST</TableHead><TableHead>{t('bill.col_total')}</TableHead></TableRow></TableHeader>
             <TableBody>
               {hsn.isLoading ? skeletonRows(8) : hsn.data?.length ? hsn.data.map((h, i) => (
                 <TableRow key={i}>
                   <TableCell>{h.hsnCode}</TableCell><TableCell>{h.stockClass}</TableCell><TableCell>{h.weight}</TableCell>
                   <TableCell>{inr(h.taxable)}</TableCell><TableCell>{inr(h.cgst)}</TableCell><TableCell>{inr(h.sgst)}</TableCell><TableCell>{inr(h.igst)}</TableCell><TableCell>{inr(h.total)}</TableCell>
                 </TableRow>
-              )) : <TableRow><TableCell colSpan={8} className="h-16 text-center text-muted-foreground">No data for this range</TableCell></TableRow>}
+              )) : <TableRow><TableCell colSpan={8} className="h-16 text-center text-muted-foreground">{t('common.no_data')}</TableCell></TableRow>}
             </TableBody>
           </Table>
         </TableCard>
@@ -138,7 +138,7 @@ export function GstReports() {
       {mode === 'summary' && (
         <TableCard>
           <Table>
-            <TableHeader><TableRow><TableHead>Period</TableHead><TableHead>Sales taxable</TableHead><TableHead>Purchase taxable</TableHead><TableHead>Output GST</TableHead><TableHead>Input GST</TableHead><TableHead>Net payable</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>{t('gst.col_period')}</TableHead><TableHead>{t('gst.col_sales_taxable')}</TableHead><TableHead>{t('gst.col_purchase_taxable')}</TableHead><TableHead>{t('gst.col_output_gst')}</TableHead><TableHead>{t('gst.col_input_gst')}</TableHead><TableHead>{t('gst.col_net_payable')}</TableHead></TableRow></TableHeader>
             <TableBody>
               {summary.isLoading ? skeletonRows(6) : summary.data?.length ? summary.data.map((s, i) => (
                 <TableRow key={i}>
@@ -147,7 +147,7 @@ export function GstReports() {
                   <TableCell>{inr(s.outputGst)}</TableCell><TableCell>{inr(s.inputGst)}</TableCell>
                   <TableCell className="font-bold">{inr(s.netPayable)}</TableCell>
                 </TableRow>
-              )) : <TableRow><TableCell colSpan={6} className="h-16 text-center text-muted-foreground">No data for this range</TableCell></TableRow>}
+              )) : <TableRow><TableCell colSpan={6} className="h-16 text-center text-muted-foreground">{t('common.no_data')}</TableCell></TableRow>}
             </TableBody>
           </Table>
         </TableCard>

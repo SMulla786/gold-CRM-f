@@ -40,3 +40,5 @@ export const useCreateBhav = () =>
   useApiMutation((body: Record<string, unknown>) => api.post<BhavBookingDto>('/app/bhav-booking', body), { invalidate: TRADE_KEYS, success: 'Booking saved' })
 export const useCancelBhav = () =>
   useApiMutation(({ id, mpin }: { id: number; mpin: string }) => api.post(`/app/bhav-booking/${id}/cancel`, undefined, { mpin }), { invalidate: TRADE_KEYS, success: 'Booking cancelled' })
+export const useDeleteBhav = () =>
+  useApiMutation(({ id, mpin }: { id: number; mpin: string }) => api.del(`/app/bhav-booking/${id}`, { mpin }), { invalidate: TRADE_KEYS, success: 'Booking deleted' })

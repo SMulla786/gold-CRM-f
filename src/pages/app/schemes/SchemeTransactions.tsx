@@ -1,6 +1,7 @@
 import type { ColumnDef } from '@tanstack/react-table'
 import { IndianRupee, ReceiptText, RotateCcw, Scale, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 import { DataTable } from '@/components/DataTable'
 import { Badge } from '@/components/ui/badge'
@@ -10,29 +11,38 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { downloadCsv } from '@/lib/csv'
 import { fetchAllPaged } from '@/lib/queries'
-import { useSchemeTransactions, useSchemes } from '@/lib/schemesQueries'
-import { businessDayISO, SCHEME_PAY_MEDIUMS, type SchemeTxnRowDto } from '@/shared'
+import { useSchemeGroups, useSchemeTransactions, useSchemes } from '@/lib/schemesQueries'
+import { businessDayISO, SCHEME_KINDS, SCHEME_PAY_MEDIUMS, type SchemeTxnRowDto } from '@/shared'
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
+const KIND_LABEL: Record<string, string> = { SAVING: 'Saving', ANJUMAN: 'Anjuman' }
 
 export function SchemeTransactions() {
+  const [sp] = useSearchParams()
+  const [kind, setKind] = useState(sp.get('kind') ?? '')
   const [schemeId, setSchemeId] = useState('')
+  const [groupId, setGroupId] = useState('')
+  const [q, setQ] = useState('')
   const [medium, setMedium] = useState('')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [page, setPage] = useState(1)
   const [exporting, setExporting] = useState(false)
-  const { data: schemes } = useSchemes({ active: 'true', pageSize: 100 })
-  const params = { schemeId: schemeId ? Number(schemeId) : undefined, medium: medium || undefined, from: from || undefined, to: to || undefined }
+  const { data: schemes } = useSchemes({ active: 'true', kind: kind || undefined, pageSize: 100 })
+  const { data: groups } = useSchemeGroups(schemeId ? Number(schemeId) : undefined)
+  const params = {
+    kind: kind || undefined, schemeId: schemeId ? Number(schemeId) : undefined, groupId: groupId ? Number(groupId) : undefined, q: q.trim() || undefined,
+    medium: medium || undefined, from: from || undefined, to: to || undefined,
+  }
   const { data, isLoading } = useSchemeTransactions({ ...params, page })
 
   const exportCsv = async () => {
     setExporting(true)
     try {
       const all = await fetchAllPaged<SchemeTxnRowDto>('/app/schemes/transactions', params)
-      const rows = [['Date', 'Assign', 'Member', 'Scheme', 'EMI', 'Amount', 'Via', 'Fine', 'Reversed']]
-      for (const t of all) rows.push([date(t.txnDate), t.assignId, t.party.name, t.scheme.name, t.emiNo != null ? String(t.emiNo) : '', t.amount, t.medium, t.fine ?? '', t.isReversed ? 'yes' : ''])
+      const rows = [['Date', 'Assign', 'Member', 'Scheme', 'Group', 'EMI', 'EMI date', 'Amount', 'Via', 'Fine', 'Reversed']]
+      for (const t of all) rows.push([date(t.txnDate), t.assignId, t.party.name, t.scheme.name, t.group?.name ?? '', t.emiNo != null ? String(t.emiNo) : '', t.emiDate ? date(t.emiDate) : '', t.amount, t.medium, t.fine ?? '', t.isReversed ? 'yes' : ''])
       downloadCsv(`scheme-transactions-${businessDayISO()}.csv`, rows)
     } finally { setExporting(false) }
   }
@@ -42,7 +52,9 @@ export function SchemeTransactions() {
     { header: 'Assign', cell: ({ row }) => <span className="font-medium">{row.original.assignId}</span> },
     { header: 'Member', cell: ({ row }) => row.original.party.name },
     { header: 'Scheme', cell: ({ row }) => row.original.scheme.name },
+    { header: 'Group', cell: ({ row }) => row.original.group?.name ?? '—' },
     { header: 'EMI', cell: ({ row }) => row.original.emiNo ?? '—' },
+    { header: 'EMI date', cell: ({ row }) => (row.original.emiDate ? date(row.original.emiDate) : '—') },
     { header: 'Amount', cell: ({ row }) => inr(row.original.amount) },
     { header: 'Via', cell: ({ row }) => row.original.medium },
     { header: 'Fine', cell: ({ row }) => row.original.fine ?? '—' },
@@ -80,9 +92,18 @@ export function SchemeTransactions() {
 
       <Card>
         <CardContent className="flex flex-wrap items-end gap-3 pt-6">
-          <Select value={schemeId || 'all'} onValueChange={(v) => { setSchemeId(v === 'all' ? '' : v); setPage(1) }}>
+          <Input className="max-w-xs" placeholder="Customer / mobile / assign…" aria-label="Customer" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
+          <Select value={kind || 'all'} onValueChange={(v) => { setKind(v === 'all' ? '' : v); setSchemeId(''); setGroupId(''); setPage(1) }}>
+            <SelectTrigger className="w-36" aria-label="Kind"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All kinds</SelectItem>{SCHEME_KINDS.map((k) => <SelectItem key={k} value={k}>{KIND_LABEL[k]}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={schemeId || 'all'} onValueChange={(v) => { setSchemeId(v === 'all' ? '' : v); setGroupId(''); setPage(1) }}>
             <SelectTrigger className="w-48" aria-label="Scheme"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="all">All schemes</SelectItem>{schemes?.items.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={groupId || 'all'} onValueChange={(v) => { setGroupId(v === 'all' ? '' : v); setPage(1) }} disabled={!schemeId}>
+            <SelectTrigger className="w-40" aria-label="Group" title={schemeId ? undefined : 'Pick a scheme first'}><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All groups</SelectItem>{groups?.map((g) => <SelectItem key={g.id} value={String(g.id)}>{g.name}</SelectItem>)}</SelectContent>
           </Select>
           <Select value={medium || 'all'} onValueChange={(v) => { setMedium(v === 'all' ? '' : v); setPage(1) }}>
             <SelectTrigger className="w-32" aria-label="Medium"><SelectValue /></SelectTrigger>

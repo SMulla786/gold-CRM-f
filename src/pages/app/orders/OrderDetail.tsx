@@ -1,4 +1,4 @@
-import { BadgeIndianRupee, HandCoins, Package, Wallet, type LucideIcon } from 'lucide-react'
+import { BadgeIndianRupee, HandCoins, Package, Printer, Wallet, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
@@ -15,17 +15,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useBankAccounts } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
+import { usePartyBalance } from '@/lib/billingQueries'
 import { useAddOrderAdvance, useCancelOrder, useCreateKarigarIssue, useOrder } from '@/lib/ordersQueries'
-import type { OrderDto, PartyRefDto } from '@/shared'
+import type { OrderDto, OrderItemDto, PartyRefDto } from '@/shared'
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
 const n = (s: string) => Number(s) || 0
+const MAKING_UNIT: Record<string, string> = { PER_GRAM: '/g', PERCENT: '%', FIXED: '' }
 
-function IssueDialog({ itemIds, onClose }: { itemIds: number[]; onClose: () => void }) {
+function IssueDialog({ items, onClose }: { items: OrderItemDto[]; onClose: () => void }) {
+  const itemIds = items.map((it) => it.id)
   const issue = useCreateKarigarIssue()
   const { data: banks } = useBankAccounts()
   const [karigar, setKarigar] = useState<PartyRefDto | null>(null)
+  const { data: karigarBal } = usePartyBalance(karigar?.id)
+  const tot = (pick: (it: OrderItemDto) => string) => items.reduce((a, it) => a + n(pick(it)), 0).toFixed(3)
+  const fineBy = (metal: 'GOLD' | 'SILVER') => items.filter((it) => it.metal === metal).reduce((a, it) => a + n(it.fine), 0)
   const [dueDate, setDueDate] = useState('')
   const [f, setF] = useState({ goldFine: '0', silverFine: '0', cash: '0', online: '0', bankAccountId: '', remark: '' })
   const set = (key: keyof typeof f, v: string) => setF((s) => ({ ...s, [key]: v }))
@@ -36,6 +42,18 @@ function IssueDialog({ itemIds, onClose }: { itemIds: number[]; onClose: () => v
         <DialogHeader><DialogTitle>Issue {itemIds.length} item{itemIds.length === 1 ? '' : 's'} to karigar</DialogTitle></DialogHeader>
         <div className="grid gap-4">
           <div className="space-y-1.5"><Label>Karigar</Label><PartyPicker value={karigar} onChange={setKarigar} type="KARIGAR" ariaLabel="Karigar" placeholder="Search karigar" /></div>
+          {karigar && (
+            <p className="rounded-2xl bg-muted/50 px-3 py-2 text-xs text-muted-foreground tabular-nums">
+              Existing udhar: {karigarBal ? `₹${karigarBal.amount} · ${karigarBal.gold}g gold · ${karigarBal.silver}g silver (+ = karigar owes the shop)` : '—'}
+            </p>
+          )}
+          <div className="grid grid-cols-2 gap-2 rounded-2xl border bg-muted/40 p-3 text-xs tabular-nums sm:grid-cols-4">
+            <div><div className="text-muted-foreground">Total gross</div><div className="font-semibold">{tot((it) => it.gross)} g</div></div>
+            <div><div className="text-muted-foreground">Total less</div><div className="font-semibold">{tot((it) => it.less)} g</div></div>
+            <div><div className="text-muted-foreground">Total net</div><div className="font-semibold">{tot((it) => it.net)} g</div></div>
+            <div><div className="text-muted-foreground">Total fine</div><div className="font-semibold">{tot((it) => it.fine)} g</div></div>
+            {fineBy('GOLD') > 0 && fineBy('SILVER') > 0 && <div className="col-span-full text-muted-foreground">Gold fine {fineBy('GOLD').toFixed(3)} g · Silver fine {fineBy('SILVER').toFixed(3)} g</div>}
+          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5"><Label htmlFor="ki-due">Due date</Label><Input id="ki-due" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} /></div>
             <div className="space-y-1.5"><Label htmlFor="ki-gold">Gold fine (g)</Label><Input id="ki-gold" type="number" step="0.001" value={f.goldFine} onChange={(e) => set('goldFine', e.target.value)} /></div>
@@ -154,6 +172,7 @@ export function OrderDetail() {
           {(order.status === 'PENDING' || order.status === 'IN_PROCESS') && <Button size="sm" variant="outline" onClick={() => setAdvancing(true)}>Add advance</Button>}
           {canBill && order.status === 'READY' && <Button size="sm" onClick={() => navigate(`/app/billing?orderId=${order.id}`)}>Create bill</Button>}
           {order.billId && <Button size="sm" variant="outline" onClick={() => navigate(`/app/billing/view/${order.billId}`)}>View bill</Button>}
+          <Button size="sm" variant="outline" onClick={() => navigate(`/app/orders/${order.id}/print`)}><Printer className="size-4" aria-hidden />Print slip</Button>
           {(order.status === 'PENDING' || order.status === 'IN_PROCESS') && <Button size="sm" variant="ghost" onClick={() => setCancelling(true)}>Cancel</Button>}
         </div>
       </div>
@@ -170,21 +189,33 @@ export function OrderDetail() {
         <Card className="overflow-x-auto p-2">
           <Table>
             <TableHeader>
-              <TableRow><TableHead /><TableHead>Item</TableHead><TableHead>Metal</TableHead><TableHead>Pcs</TableHead><TableHead>Gross</TableHead><TableHead>Net</TableHead><TableHead>Fine</TableHead><TableHead>Est.</TableHead><TableHead>Status</TableHead><TableHead>Karigar</TableHead></TableRow>
+              <TableRow>
+                <TableHead /><TableHead>Item</TableHead><TableHead>Metal</TableHead><TableHead>Pcs</TableHead><TableHead>Gross</TableHead><TableHead>Net</TableHead><TableHead>Fine</TableHead>
+                <TableHead>Touch</TableHead><TableHead>Wst%</TableHead><TableHead>Making</TableHead><TableHead>Other ₹</TableHead>
+                <TableHead>Est.</TableHead><TableHead>Status</TableHead><TableHead>Karigar</TableHead>
+                <TableHead>Returned g / n / f</TableHead><TableHead>Ghat (g)</TableHead><TableHead>Labour ₹</TableHead>
+              </TableRow>
             </TableHeader>
             <TableBody>
               {order.items.map((it) => (
                 <TableRow key={it.id}>
                   <TableCell>{it.status === 'PENDING' && canIssue ? <Checkbox aria-label={`Select ${it.itemName.name}`} checked={sel.has(it.id)} onCheckedChange={() => toggle(it.id)} /> : null}</TableCell>
-                  <TableCell>{it.itemName.name}{it.size ? ` · ${it.size}` : ''}</TableCell>
+                  <TableCell>{it.itemName.name}{it.size ? ` · ${it.size}` : ''}{it.remark ? <span className="block text-xs text-muted-foreground">{it.remark}</span> : null}</TableCell>
                   <TableCell>{it.metal} {it.karatCode ?? ''}</TableCell>
                   <TableCell>{it.pcs}</TableCell>
                   <TableCell className="tabular-nums">{it.gross}</TableCell>
                   <TableCell className="tabular-nums">{it.net}</TableCell>
                   <TableCell className="tabular-nums">{it.fine}</TableCell>
+                  <TableCell className="tabular-nums">{it.touch}</TableCell>
+                  <TableCell className="tabular-nums">{it.wastage}</TableCell>
+                  <TableCell className="whitespace-nowrap tabular-nums">{it.making}{MAKING_UNIT[it.makingUnit] ?? ''}</TableCell>
+                  <TableCell className="tabular-nums">{it.other}</TableCell>
                   <TableCell className="tabular-nums">{inr(it.estTotal)}</TableCell>
                   <TableCell><Badge variant="secondary">{it.status}</Badge></TableCell>
                   <TableCell>{it.karigarIssue ? `#${it.karigarIssue.issueNo} ${it.karigarIssue.karigar.name}` : '—'}</TableCell>
+                  <TableCell className="whitespace-nowrap tabular-nums">{it.returnedGross != null ? `${it.returnedGross} / ${it.returnedNet ?? '—'} / ${it.returnedFine ?? '—'}` : '—'}</TableCell>
+                  <TableCell className="tabular-nums">{it.ghatAllowance ?? '—'}</TableCell>
+                  <TableCell className="tabular-nums">{it.karigarLabour != null ? inr(it.karigarLabour) : '—'}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -205,7 +236,7 @@ export function OrderDetail() {
         </section>
       )}
 
-      {issuing && <IssueDialog itemIds={selIds} onClose={() => { setIssuing(false); setSel(new Set()) }} />}
+      {issuing && <IssueDialog items={order.items.filter((it) => selIds.includes(it.id))} onClose={() => { setIssuing(false); setSel(new Set()) }} />}
       {advancing && <AdvanceDialog order={order} onClose={() => setAdvancing(false)} />}
       <MpinDialog open={cancelling} title={`Cancel order #${order.orderNo}`} onConfirm={(mpin) => cancel.mutateAsync({ id: order.id, mpin })} onClose={() => setCancelling(false)} />
     </div>

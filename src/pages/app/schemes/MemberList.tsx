@@ -1,7 +1,7 @@
 import type { ColumnDef } from '@tanstack/react-table'
 import { CalendarClock, PiggyBank, UserCheck, Users, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { DataTable } from '@/components/DataTable'
 import { Badge } from '@/components/ui/badge'
@@ -10,29 +10,49 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAuth } from '@/lib/auth'
-import { useEnrollments } from '@/lib/schemesQueries'
-import { ENROLLMENT_STATUSES, type EnrollmentDto } from '@/shared'
+import { useEnrollments, useSchemeGroups, useSchemes } from '@/lib/schemesQueries'
+import { ENROLLMENT_STATUSES, SCHEME_KINDS, type EnrollmentDto } from '@/shared'
 import { AddMoneyDialog } from './AddMoneyDialog'
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
+const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = { ACTIVE: 'default', WON: 'secondary', WITHDRAWN: 'outline', CLOSED: 'outline' }
+const KIND_LABEL: Record<string, string> = { SAVING: 'Saving', ANJUMAN: 'Anjuman' }
 
 export function MemberList() {
   const navigate = useNavigate()
   const { can } = useAuth()
   const canCollect = can('schemes.add_money', 'edit')
+  // ?kind= / ?schemeId= / ?groupId= presets (Scheme and Anjuman catalogue rows link here)
+  const [sp] = useSearchParams()
+  const [kind, setKind] = useState(sp.get('kind') ?? '')
+  const [schemeId, setSchemeId] = useState(sp.get('schemeId') ?? '')
+  const [groupId, setGroupId] = useState(sp.get('groupId') ?? '')
   const [status, setStatus] = useState('')
   const [due, setDue] = useState(false)
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
-  const { data, isLoading } = useEnrollments({ status: status || undefined, due: due ? 'true' : undefined, q: q || undefined, page })
+  const { data: schemes } = useSchemes({ kind: kind || undefined, pageSize: 100 })
+  const { data: groups } = useSchemeGroups(schemeId ? Number(schemeId) : undefined)
+  const { data, isLoading } = useEnrollments({
+    kind: kind || undefined, schemeId: schemeId ? Number(schemeId) : undefined, groupId: groupId ? Number(groupId) : undefined,
+    status: status || undefined, due: due ? 'true' : undefined, q: q.trim() || undefined, page,
+  })
   const [paying, setPaying] = useState<EnrollmentDto | null>(null)
 
   const columns: ColumnDef<EnrollmentDto, unknown>[] = [
     { header: 'Assign', cell: ({ row }) => <span className="font-medium">{row.original.assignId}</span> },
     { header: 'Member', cell: ({ row }) => row.original.displayName },
+    { header: 'Mobile', cell: ({ row }) => <span className="tabular-nums">{row.original.party?.mobile || '—'}</span> },
     { header: 'Scheme', cell: ({ row }) => row.original.scheme.name },
-    { header: 'Paid', cell: ({ row }) => `${row.original.emisPaid}/${row.original.scheme.tenureMonths}` },
+    { header: 'Group', cell: ({ row }) => row.original.group?.name ?? '—' },
+    { header: 'Enrolled', cell: ({ row }) => date(row.original.startDate) },
+    { header: 'Paid', cell: ({ row }) => (
+      <div>
+        <div>{`${row.original.emisPaid}/${row.original.scheme.tenureMonths}`}</div>
+        <div className="text-xs text-muted-foreground tabular-nums">{inr(row.original.maturity.paid)}</div>
+      </div>
+    ) },
     { header: 'Due', cell: ({ row }) => (row.original.emisDue > 0 ? <Badge variant="secondary">{row.original.emisDue}</Badge> : '—') },
     { header: 'Maturity', cell: ({ row }) => inr(row.original.maturity.maturityValue) },
     { header: 'Status', cell: ({ row }) => <Badge variant={STATUS_VARIANT[row.original.status]}>{row.original.status}</Badge> },
@@ -76,6 +96,18 @@ export function MemberList() {
       <Card>
         <CardContent className="flex flex-wrap items-end gap-3 pt-6">
           <Input className="max-w-xs" placeholder="Search assign / name / mobile…" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
+          <Select value={kind || 'all'} onValueChange={(v) => { setKind(v === 'all' ? '' : v); setSchemeId(''); setGroupId(''); setPage(1) }}>
+            <SelectTrigger className="w-36" aria-label="Kind"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All kinds</SelectItem>{SCHEME_KINDS.map((k) => <SelectItem key={k} value={k}>{KIND_LABEL[k]}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={schemeId || 'all'} onValueChange={(v) => { setSchemeId(v === 'all' ? '' : v); setGroupId(''); setPage(1) }}>
+            <SelectTrigger className="w-48" aria-label="Scheme"><SelectValue placeholder="Scheme" /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All schemes</SelectItem>{schemes?.items.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={groupId || 'all'} onValueChange={(v) => { setGroupId(v === 'all' ? '' : v); setPage(1) }} disabled={!schemeId}>
+            <SelectTrigger className="w-40" aria-label="Group" title={schemeId ? undefined : 'Pick a scheme first'}><SelectValue placeholder="Group" /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All groups</SelectItem>{groups?.map((g) => <SelectItem key={g.id} value={String(g.id)}>{g.name}</SelectItem>)}</SelectContent>
+          </Select>
           <Select value={status || 'all'} onValueChange={(v) => { setStatus(v === 'all' ? '' : v); setPage(1) }}>
             <SelectTrigger className="w-40" aria-label="Status"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="all">All statuses</SelectItem>{ENROLLMENT_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>

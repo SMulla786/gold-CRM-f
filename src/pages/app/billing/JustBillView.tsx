@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useBusinessProfile } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
+import { useT } from '@/lib/i18n'
 import { useJustBill } from '@/lib/justbillQueries'
 import { amountInWords } from '@/lib/amountInWords'
 import { useStates } from '@/lib/queries'
@@ -15,13 +16,14 @@ const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', c
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
 
 export function JustBillView() {
+  const t = useT()
   const { id } = useParams()
   const { me } = useAuth()
   const { data: bill, isLoading } = useJustBill(Number(id))
   const { data: business } = useBusinessProfile()
   const { data: states } = useStates()
 
-  if (isLoading || !bill) return <p className="text-sm text-muted-foreground">Loading…</p>
+  if (isLoading || !bill) return <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
 
   const shopName = business?.name ?? me?.business?.name ?? 'Shop'
   const stateName = states?.find((s) => s.id === business?.stateId)?.name
@@ -33,15 +35,15 @@ export function JustBillView() {
       <div className="flex flex-wrap items-end justify-between gap-4 print:hidden">
         <div className="space-y-1">
           <div className="flex items-center gap-3">
-            <Link to="/app/billing/just" className="text-sm font-medium text-brand-strong hover:underline">← Just Bills</Link>
-            {bill.status === 'DELETED' && <Badge variant="secondary">Deleted</Badge>}
+            <Link to="/app/billing/just" className="text-sm font-medium text-brand-strong hover:underline">{t('jbill.back')}</Link>
+            {bill.status === 'DELETED' && <Badge variant="secondary">{t('bill.deleted')}</Badge>}
           </div>
-          <p className="text-sm text-muted-foreground">Printable copy of this Just Bill. Share, print or save it as a PDF.</p>
+          <p className="text-sm text-muted-foreground">{t('jbill.view_subtitle')}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={() => shareOnWhatsApp(bill.mobile ?? '', summary)}>Share</Button>
-          <Button variant="outline" onClick={downloadPdf}><FileDown aria-hidden />Download PDF</Button>
-          <Button onClick={() => window.print()}><Printer aria-hidden />Print</Button>
+          <Button variant="outline" onClick={() => shareOnWhatsApp(bill.mobile ?? '', summary)}>{t('bill.share')}</Button>
+          <Button variant="outline" onClick={downloadPdf}><FileDown aria-hidden />{t('bill.download_pdf')}</Button>
+          <Button onClick={() => window.print()}><Printer aria-hidden />{t('bill.print')}</Button>
         </div>
       </div>
 

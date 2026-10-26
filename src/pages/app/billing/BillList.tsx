@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AddPaymentDialog } from '@/pages/app/billing/AddPaymentDialog'
 import { useBills, useDeleteBill } from '@/lib/billingQueries'
 import { useAuth } from '@/lib/auth'
+import { useT } from '@/lib/i18n'
 import { downloadCsv } from '@/lib/csv'
 import { fetchAllPaged } from '@/lib/queries'
 import { shareOnWhatsApp } from '@/lib/share'
@@ -25,26 +26,27 @@ const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', c
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
 
 function DeleteBillDialog({ bill, onClose }: { bill: BillListItemDto; onClose: () => void }) {
+  const t = useT()
   const del = useDeleteBill()
   const [returnStock, setReturnStock] = useState('true')
   const [mpin, setMpin] = useState('')
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
-        <DialogHeader><DialogTitle>Delete {bill.billNo}?</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t('bill.delete_q', { no: bill.billNo })}</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label>Stock handling</Label>
+            <Label>{t('bill.stock_handling')}</Label>
             <Select value={returnStock} onValueChange={setReturnStock}>
               <SelectTrigger aria-label="Stock handling"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="true">Item Return — put items back in stock</SelectItem>
-                <SelectItem value="false">Delete Only — leave stock as is</SelectItem>
+                <SelectItem value="true">{t('bill.item_return')}</SelectItem>
+                <SelectItem value="false">{t('bill.delete_only')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="del-mpin">MPIN</Label>
+            <Label htmlFor="del-mpin">{t('mpin.label')}</Label>
             <Input id="del-mpin" inputMode="numeric" maxLength={4} value={mpin} onChange={(e) => setMpin(e.target.value.replace(/\D/g, ''))} />
           </div>
         </div>
@@ -54,7 +56,7 @@ function DeleteBillDialog({ bill, onClose }: { bill: BillListItemDto; onClose: (
             disabled={mpin.length !== 4 || del.isPending}
             onClick={async () => { await del.mutateAsync({ id: bill.id, returnStock: returnStock === 'true', mpin }); onClose() }}
           >
-            Delete bill
+            {t('bill.delete_bill')}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -63,6 +65,7 @@ function DeleteBillDialog({ bill, onClose }: { bill: BillListItemDto; onClose: (
 }
 
 export function BillList() {
+  const t = useT()
   const { can } = useAuth()
   const navigate = useNavigate()
   const [kind, setKind] = useState<BillKind>('SELL')
@@ -90,46 +93,46 @@ export function BillList() {
   }
 
   const columns: ColumnDef<BillListItemDto, unknown>[] = [
-    { header: 'Bill', cell: ({ row }) => <Link to={`/app/billing/view/${row.original.id}`} className="font-semibold text-brand-strong hover:underline">{row.original.billNo}</Link> },
-    { header: 'Date', cell: ({ row }) => date(row.original.billDate) },
-    { header: 'Party', cell: ({ row }) => row.original.party.name },
-    { accessorKey: 'itemCount', header: 'Items' },
-    { header: 'Type', cell: ({ row }) => <Badge variant="secondary">{row.original.billType}</Badge> },
-    { header: 'Final', cell: ({ row }) => inr(row.original.final) },
-    { header: 'Paid', cell: ({ row }) => inr(row.original.paid) },
-    { header: 'Balance', cell: ({ row }) => <span className={Number(row.original.balance) < 0 ? 'text-green-600 dark:text-green-500' : Number(row.original.balance) > 0 ? 'text-destructive' : ''}>{inr(row.original.balance)}</span> },
+    { header: t('bill.col_bill'), cell: ({ row }) => <Link to={`/app/billing/view/${row.original.id}`} className="font-semibold text-brand-strong hover:underline">{row.original.billNo}</Link> },
+    { header: t('udhari.date'), cell: ({ row }) => date(row.original.billDate) },
+    { header: t('udhari.party'), cell: ({ row }) => row.original.party.name },
+    { accessorKey: 'itemCount', header: t('bill.col_items') },
+    { header: t('bill.type'), cell: ({ row }) => <Badge variant="secondary">{row.original.billType}</Badge> },
+    { header: t('bill.final'), cell: ({ row }) => inr(row.original.final) },
+    { header: t('bill.paid'), cell: ({ row }) => inr(row.original.paid) },
+    { header: t('bill.balance'), cell: ({ row }) => <span className={Number(row.original.balance) < 0 ? 'text-green-600 dark:text-green-500' : Number(row.original.balance) > 0 ? 'text-destructive' : ''}>{inr(row.original.balance)}</span> },
     {
       id: 'actions', header: '',
       cell: ({ row }) =>
         row.original.status === 'ACTIVE' ? (
           <div className="flex flex-wrap gap-2">
-            {canEdit && row.original.billDate.slice(0, 10) === todayISO() && <Button variant="outline" size="sm" onClick={() => navigate(`/app/billing/edit/${row.original.id}`)}>Edit</Button>}
-            {canEdit && Number(row.original.balance) !== 0 && <Button variant="outline" size="sm" onClick={() => setPaying(row.original)}>Add payment</Button>}
-            <Button variant="ghost" size="sm" onClick={() => shareOnWhatsApp(row.original.party.mobile, `${row.original.kind === 'SELL' ? 'Bill' : 'Purchase'} ${row.original.billNo} · Total ${inr(row.original.final)} · Balance ${inr(row.original.balance)}`)}>Share</Button>
-            {canDelete && <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleting(row.original)}>Delete</Button>}
+            {canEdit && row.original.billDate.slice(0, 10) === todayISO() && <Button variant="outline" size="sm" onClick={() => navigate(`/app/billing/edit/${row.original.id}`)}>{t('common.edit')}</Button>}
+            {canEdit && Number(row.original.balance) !== 0 && <Button variant="outline" size="sm" onClick={() => setPaying(row.original)}>{t('bill.add_payment')}</Button>}
+            <Button variant="ghost" size="sm" onClick={() => shareOnWhatsApp(row.original.party.mobile, `${row.original.kind === 'SELL' ? 'Bill' : 'Purchase'} ${row.original.billNo} · Total ${inr(row.original.final)} · Balance ${inr(row.original.balance)}`)}>{t('bill.share')}</Button>
+            {canDelete && <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleting(row.original)}>{t('common.delete')}</Button>}
           </div>
-        ) : <Badge variant="secondary">Deleted</Badge>,
+        ) : <Badge variant="secondary">{t('bill.deleted')}</Badge>,
     },
   ]
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">Search, filter and export your sell and purchase bills.</p>
-        <Button variant="outline" disabled={exporting} onClick={exportCsv}><Download aria-hidden />{exporting ? 'Exporting…' : 'Export CSV'}</Button>
+        <p className="text-sm text-muted-foreground">{t('bill.list_subtitle')}</p>
+        <Button variant="outline" disabled={exporting} onClick={exportCsv}><Download aria-hidden />{exporting ? t('bill.exporting') : t('common.export_csv')}</Button>
       </div>
       <Card className="flex flex-wrap items-center gap-3 p-4">
         <Select value={kind} onValueChange={(v) => { setKind(v as BillKind); setPage(1) }}>
           <SelectTrigger className="w-full sm:w-36" aria-label="Bill kind"><SelectValue /></SelectTrigger>
-          <SelectContent>{BILL_KINDS.map((k) => <SelectItem key={k} value={k}>{k === 'SELL' ? 'Sell' : 'Purchase'}</SelectItem>)}</SelectContent>
+          <SelectContent>{BILL_KINDS.map((k) => <SelectItem key={k} value={k}>{k === 'SELL' ? t('bill.kind_sell') : t('bill.kind_purchase')}</SelectItem>)}</SelectContent>
         </Select>
         <Select value={status} onValueChange={(v) => { setStatus(v); setPage(1) }}>
           <SelectTrigger className="w-full sm:w-32" aria-label="Status"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="ACTIVE">Active</SelectItem><SelectItem value="DELETED">Deleted</SelectItem></SelectContent>
+          <SelectContent><SelectItem value="ACTIVE">{t('bill.status_active')}</SelectItem><SelectItem value="DELETED">{t('bill.deleted')}</SelectItem></SelectContent>
         </Select>
         <div className="relative w-full sm:max-w-sm sm:flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-          <Input className="pl-9" placeholder="Search bill / party / mobile…" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
+          <Input className="pl-9" placeholder={t('bill.search_ph')} value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
         </div>
       </Card>
 
@@ -137,7 +140,7 @@ export function BillList() {
         columns={columns}
         data={data?.items ?? []}
         isLoading={isLoading}
-        emptyText="No bills"
+        emptyText={t('bill.no_bills')}
         pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined}
       />
 

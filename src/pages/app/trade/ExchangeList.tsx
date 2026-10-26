@@ -1,5 +1,5 @@
 import type { ColumnDef } from '@tanstack/react-table'
-import { ArrowLeftRight, Coins, IndianRupee, Scale, type LucideIcon } from 'lucide-react'
+import { ArrowLeftRight, Coins, Flame, IndianRupee, Scale, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 
 import { DataTable } from '@/components/DataTable'
@@ -13,12 +13,17 @@ import { useAuth } from '@/lib/auth'
 import { useDeleteExchange, useExchanges } from '@/lib/tradeQueries'
 import { METALS, TRADE_SIDES, type ExchangeDto } from '@/shared'
 
+import { ProcessKachaDialog } from './ProcessKachaDialog'
+
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
+const time = (s: string) => new Date(s).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
 
 export function ExchangeList() {
-  const { can } = useAuth()
+  const { can, activeBranch } = useAuth()
   const canDelete = can('exchange.entry', 'delete')
+  const canProcess = can('exchange.entry', 'edit')
+  const [melting, setMelting] = useState<ExchangeDto | null>(null)
   const [side, setSide] = useState('')
   const [metal, setMetal] = useState('')
   const [q, setQ] = useState('')
@@ -27,16 +32,35 @@ export function ExchangeList() {
   const del = useDeleteExchange()
   const [deleting, setDeleting] = useState<ExchangeDto | null>(null)
 
+  // Only a BUY (old metal in) adds to the kacha pool, and processing posts at the active branch.
+  const meltAction = (e: ExchangeDto) => {
+    if (!canProcess || e.side !== 'BUY' || e.processed) return null
+    const here = activeBranch === String(e.branch.id)
+    return (
+      <Button variant="ghost" size="sm" disabled={!here} title={here ? undefined : `Switch to branch ${e.branch.name} to process`} onClick={() => setMelting(e)}>
+        <Flame className="size-4" aria-hidden />Send to melt
+      </Button>
+    )
+  }
+
   const columns: ColumnDef<ExchangeDto, unknown>[] = [
     { header: 'No', cell: ({ row }) => <span className="font-medium">#{row.original.exchangeNo}</span> },
-    { header: 'Date', cell: ({ row }) => date(row.original.txnDate) },
+    { header: 'Date', cell: ({ row }) => <div className="whitespace-nowrap">{date(row.original.txnDate)}<div className="text-xs text-muted-foreground">{time(row.original.createdAt)}</div></div> },
     { header: 'Side', cell: ({ row }) => <Badge variant="secondary">{row.original.side}</Badge> },
-    { header: 'Party', cell: ({ row }) => row.original.party.name },
+    { header: 'Party', cell: ({ row }) => <div>{row.original.party.name}<div className="text-xs text-muted-foreground tabular-nums">{row.original.party.mobile}</div></div> },
     { header: 'Metal', cell: ({ row }) => row.original.metal },
+    { header: 'Fine before adj.', cell: ({ row }) => <span className="tabular-nums">{row.original.totalFine} g</span> },
+    { header: '± Adj.', cell: ({ row }) => <span className="tabular-nums">{Number(row.original.diffFine) > 0 ? '+' : ''}{row.original.diffFine} g</span> },
     { header: 'Fine', cell: ({ row }) => `${row.original.afterFine} g` },
     { header: 'Amount', cell: ({ row }) => (Number(row.original.rate) > 0 ? inr(row.original.finalAmount) : '— metal') },
     { header: 'Balance', cell: ({ row }) => (Number(row.original.rate) > 0 ? inr(row.original.balance) : `${row.original.afterFine}g`) },
-    { id: 'actions', header: '', cell: ({ row }) => (canDelete ? <Button variant="ghost" size="sm" onClick={() => setDeleting(row.original)}>Delete</Button> : null) },
+    { header: 'Processed', cell: ({ row }) => (row.original.side !== 'BUY' ? '—' : row.original.processed ? <Badge>Processed</Badge> : <Badge variant="outline">In kacha</Badge>) },
+    { id: 'actions', header: '', cell: ({ row }) => (
+      <div className="flex justify-end gap-1">
+        {meltAction(row.original)}
+        {canDelete && <Button variant="ghost" size="sm" onClick={() => setDeleting(row.original)}>Delete</Button>}
+      </div>
+    ) },
   ]
 
   // Summary numbers derived from the page already fetched (no extra requests).
@@ -89,6 +113,7 @@ export function ExchangeList() {
         <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} emptyText="No exchanges" pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined} />
       </Card>
       <MpinDialog open={!!deleting} title={`Delete exchange #${deleting?.exchangeNo ?? ''}`} onConfirm={(mpin) => del.mutateAsync({ id: deleting!.id, mpin })} onClose={() => setDeleting(null)} />
+      {melting && <ProcessKachaDialog metal={melting.metal} source={{ id: melting.id, exchangeNo: melting.exchangeNo, fine: melting.afterFine }} onClose={() => setMelting(null)} />}
     </div>
   )
 }

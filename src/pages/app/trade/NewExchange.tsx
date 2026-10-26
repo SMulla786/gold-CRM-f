@@ -9,11 +9,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { useBankAccounts, useSettings } from '@/lib/appQueries'
+import { useBankAccounts, useCurrentRates, useSettings } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { metalRateUnitGrams } from '@/lib/billingQueries'
 import { useCreateExchange } from '@/lib/tradeQueries'
 import { businessDayISO, METALS, TRADE_SIDES, computeLine, metalToMoney, type PartyRefDto } from '@/shared'
+
+import { fineRate } from './tradeRates'
 
 let uid = 0
 const k = () => `e${uid++}`
@@ -31,6 +33,7 @@ export function NewExchange() {
   const branchReady = activeBranch !== '' && activeBranch !== 'all'
   const { data: settings } = useSettings()
   const { data: banks } = useBankAccounts()
+  const { data: rates } = useCurrentRates()
   const create = useCreateExchange()
 
   const [side, setSide] = useState('BUY')
@@ -45,6 +48,7 @@ export function NewExchange() {
   const totalFine = rows.reduce((a, r) => a + fineOf(r), 0)
   const afterFine = totalFine + n(f.diffFine)
   const moneyMode = n(f.rate) > 0
+  const todayRate = fineRate(rates, metal, side, settings) // hint only; the rate field stays manual
   const finalAmount = moneyMode ? Number(metalToMoney(afterFine, n(f.rate), metalRateUnitGrams(metal, settings))) + n(f.charges) - n(f.discount) : 0
   const paid = n(f.cash) + n(f.online)
   const balance = finalAmount - paid
@@ -116,7 +120,9 @@ export function NewExchange() {
           <CardHeader><CardTitle>Settlement</CardTitle></CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1.5"><Label htmlFor="ex-diff">± Fine adjust</Label><Input id="ex-diff" type="number" step="0.001" value={f.diffFine} onChange={(e) => set('diffFine', e.target.value)} /></div>
-            <div className="space-y-1.5"><Label htmlFor="ex-rate">Rate ({metal === 'GOLD' ? '/10g' : '/kg'})</Label><Input id="ex-rate" type="number" value={f.rate} onChange={(e) => set('rate', e.target.value)} /></div>
+            <div className="space-y-1.5"><Label htmlFor="ex-rate">Rate ({metal === 'GOLD' ? '/10g' : '/kg'})</Label><Input id="ex-rate" type="number" value={f.rate} onChange={(e) => set('rate', e.target.value)} />
+              {todayRate && <p className="text-xs text-muted-foreground tabular-nums">Today's fine {side === 'BUY' ? 'buy' : 'sell'} rate: {todayRate}</p>}
+            </div>
             {moneyMode && <>
               <div className="space-y-1.5"><Label htmlFor="ex-charges">Charges ₹</Label><Input id="ex-charges" type="number" value={f.charges} onChange={(e) => set('charges', e.target.value)} /></div>
               <div className="space-y-1.5"><Label htmlFor="ex-disc">Discount ₹</Label><Input id="ex-disc" type="number" value={f.discount} onChange={(e) => set('discount', e.target.value)} /></div>

@@ -1,7 +1,9 @@
 // Phase 8 — customer orders + karigar job work. Routes /app/orders*, /app/karigar-issues*.
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 
 import { api } from '@/lib/api'
+import { ApiException } from '@/lib/errors'
 import { qs, useApiMutation } from '@/lib/queries'
 import type { KarigarIssueDto, OrderDto, Paged } from '@/shared'
 
@@ -17,9 +19,39 @@ export const useAddOrderAdvance = () =>
   useApiMutation(({ id, body }: { id: number; body: Record<string, unknown> }) => api.post<OrderDto>(`/app/orders/${id}/advance`, body), { invalidate: ORDER_KEYS, success: 'Advance added' })
 export const useCancelOrder = () =>
   useApiMutation(({ id, mpin }: { id: number; mpin: string }) => api.post(`/app/orders/${id}/cancel`, undefined, { mpin }), { invalidate: ORDER_KEYS, success: 'Order cancelled' })
+/**
+ * Bulk cancel = the single cancel endpoint called once per order with the same MPIN (no bulk endpoint).
+ * A wrong MPIN rethrows so MpinDialog stays open; any other per-order failure is collected and reported.
+ */
+export const useBulkCancelOrders = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ orders, mpin }: { orders: Array<{ id: number; orderNo: number }>; mpin: string }) => {
+      const failed: string[] = []
+      let done = 0
+      for (const o of orders) {
+        try {
+          await api.post(`/app/orders/${o.id}/cancel`, undefined, { mpin })
+          done++
+        } catch (e) {
+          if (e instanceof ApiException && e.code === 'MPIN_REQUIRED') throw e
+          failed.push(`#${o.orderNo}: ${e instanceof ApiException ? e.message : 'failed'}`)
+        }
+      }
+      return { done, failed }
+    },
+    onSuccess: ({ done, failed }) => {
+      if (done) toast.success(`${done} order${done === 1 ? '' : 's'} cancelled`)
+      if (failed.length) toast.error(`Not cancelled: ${failed.join('; ')}`)
+    },
+    onSettled: () => ORDER_KEYS.forEach((key) => qc.invalidateQueries({ queryKey: key })),
+  })
+}
 
 export const useKarigarIssues = (params: Record<string, string | number | undefined>) =>
   useQuery({ queryKey: ['karigar-issues', params], queryFn: () => api.get<Paged<KarigarIssueDto>>(`/app/karigar-issues${qs(params)}`) })
+export const useKarigarIssue = (id?: number) =>
+  useQuery({ queryKey: ['karigar-issues', 'one', id], queryFn: () => api.get<KarigarIssueDto>(`/app/karigar-issues/${id}`), enabled: !!id })
 export const useCreateKarigarIssue = () =>
   useApiMutation((body: Record<string, unknown>) => api.post<KarigarIssueDto>('/app/karigar-issues', body), { invalidate: ORDER_KEYS, success: 'Issued to karigar' })
 export const useReceiveKarigarIssue = () =>

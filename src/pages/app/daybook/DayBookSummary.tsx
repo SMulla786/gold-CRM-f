@@ -14,6 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useCloseDay, useDayBook, useOpenDay } from '@/lib/accountsQueries'
 import { useAuth } from '@/lib/auth'
+import { useT } from '@/lib/i18n'
 
 const today = businessDayISO
 const unit = (asset: string) => (asset === 'MONEY' ? '₹' : asset === 'GOLD' || asset === 'SILVER' ? 'g' : 'pcs')
@@ -21,6 +22,7 @@ const ASSET_ICON: Record<string, LucideIcon> = { MONEY: Wallet, GOLD: Coins, SIL
 
 export function DayBookSummary() {
   const { can } = useAuth()
+  const t = useT()
   const canManageDay = can('daybook.all_in_one', 'edit')
   const [from, setFrom] = useState(today())
   const [to, setTo] = useState(today())
@@ -35,26 +37,26 @@ export function DayBookSummary() {
       {/* Filters stay outside the loading branch (daybook-close fills #db-from/#db-to before data arrives). */}
       <Card className="flex flex-wrap items-end gap-4 p-4">
         <div className="space-y-1.5">
-          <Label htmlFor="db-from">From</Label>
+          <Label htmlFor="db-from">{t('common.from')}</Label>
           <Input id="db-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="db-to">To</Label>
+          <Label htmlFor="db-to">{t('common.to')}</Label>
           <Input id="db-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
         </div>
         {singleDay && data?.status && (
           <div className="ml-auto flex items-center gap-3">
             <Badge variant={data.status === 'OPEN' ? 'default' : 'destructive'}>{data.status}</Badge>
             {canManageDay && (data.status === 'OPEN'
-              ? <Button onClick={() => setConfirm('close')}><Lock aria-hidden />Close day</Button>
-              : <Button variant="outline" onClick={() => setConfirm('open')}><LockOpen aria-hidden />Reopen day</Button>)}
+              ? <Button onClick={() => setConfirm('close')}><Lock aria-hidden />{t('daybook.close_day')}</Button>
+              : <Button variant="outline" onClick={() => setConfirm('open')}><LockOpen aria-hidden />{t('daybook.reopen_day')}</Button>)}
           </div>
         )}
       </Card>
 
       <MpinDialog
         open={!!confirm}
-        title={confirm === 'close' ? `Close ${from}` : `Reopen ${from}`}
+        title={confirm === 'close' ? t('daybook.close_title', { date: from }) : t('daybook.reopen_title', { date: from })}
         onConfirm={(mpin) => (confirm === 'close' ? closeDay : openDay).mutateAsync({ date: from, mpin })}
         onClose={() => setConfirm(null)}
       />
@@ -68,48 +70,48 @@ export function DayBookSummary() {
         <>
           {data.totals.length > 0 && (
             <div className="stagger grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
-              {data.totals.map((t) => (
-                <KpiTile key={t.asset} size="sm" label={t.asset} value={`${t.closing} ${unit(t.asset)}`} sub={`₹${t.value}`}
-                  icon={ASSET_ICON[t.asset] ?? Scale} tone={t.asset === 'MONEY' || t.asset === 'GOLD' ? 'gold' : 'slate'} />
+              {data.totals.map((r) => (
+                <KpiTile key={r.asset} size="sm" label={r.asset} value={`${r.closing} ${unit(r.asset)}`} sub={`₹${r.value}`}
+                  icon={ASSET_ICON[r.asset] ?? Scale} tone={r.asset === 'MONEY' || r.asset === 'GOLD' ? 'gold' : 'slate'} />
               ))}
             </div>
           )}
 
-          <SectionCard title="Totals">
+          <SectionCard title={t('daybook.totals')}>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Asset</TableHead>
-                    <TableHead>Opening</TableHead>
-                    <TableHead>In</TableHead>
-                    <TableHead>Out</TableHead>
-                    <TableHead>Closing</TableHead>
-                    <TableHead>Value ₹</TableHead>
+                    <TableHead>{t('daybook.col_asset')}</TableHead>
+                    <TableHead>{t('daybook.col_opening')}</TableHead>
+                    <TableHead>{t('daybook.col_in')}</TableHead>
+                    <TableHead>{t('daybook.col_out')}</TableHead>
+                    <TableHead>{t('daybook.col_closing')}</TableHead>
+                    <TableHead>{t('daybook.col_value')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.totals.map((t) => (
-                    <TableRow key={t.asset}>
-                      <TableCell className="font-medium">{t.asset}</TableCell>
-                      <TableCell>{t.opening} {unit(t.asset)}</TableCell>
-                      <TableCell className="text-green-600 dark:text-green-500">{t.in}</TableCell>
-                      <TableCell className="text-destructive">{t.out}</TableCell>
-                      <TableCell className="font-medium">{t.closing} {unit(t.asset)}</TableCell>
-                      <TableCell>{t.value}</TableCell>
+                  {data.totals.map((r) => (
+                    <TableRow key={r.asset}>
+                      <TableCell className="font-medium">{r.asset}</TableCell>
+                      <TableCell>{r.opening} {unit(r.asset)}</TableCell>
+                      <TableCell className="text-green-600 dark:text-green-500">{r.in}</TableCell>
+                      <TableCell className="text-destructive">{r.out}</TableCell>
+                      <TableCell className="font-medium">{r.closing} {unit(r.asset)}</TableCell>
+                      <TableCell>{r.value}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
           </SectionCard>
 
-          <SectionCard title="By source">
+          <SectionCard title={t('daybook.by_source')}>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Source</TableHead>
-                    <TableHead>Asset</TableHead>
-                    <TableHead>In</TableHead>
-                    <TableHead>Out</TableHead>
+                    <TableHead>{t('daybook.col_source')}</TableHead>
+                    <TableHead>{t('daybook.col_asset')}</TableHead>
+                    <TableHead>{t('daybook.col_in')}</TableHead>
+                    <TableHead>{t('daybook.col_out')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -123,7 +125,7 @@ export function DayBookSummary() {
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow><TableCell colSpan={4} className="h-16 text-center text-muted-foreground">No activity</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={4} className="h-16 text-center text-muted-foreground">{t('dash.no_activity')}</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>

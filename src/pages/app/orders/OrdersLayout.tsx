@@ -3,22 +3,24 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
-const TABS = [
+const TABS: { to: string; label: string; key: string; end?: boolean; alsoKey?: string }[] = [
   { to: '/app/orders/new', label: 'New Order', key: 'orders.create' },
   { to: '/app/orders', label: 'Orders', key: 'orders.list', end: true },
   { to: '/app/orders/karigar', label: 'Karigar', key: 'orders.karigar_list' },
+  // GET /app/orders is guarded by orders.list, so billing-only roles would get a 403 here.
+  { to: '/app/orders/ready', label: 'Ready to deliver', key: 'orders.billing', alsoKey: 'orders.list' },
 ]
 
 export function OrdersLayout() {
   const { can } = useAuth()
-  const tabs = TABS.filter((t) => can(t.key, 'view'))
+  const tabs = TABS.filter((t) => can(t.key, 'view') && (!t.alsoKey || can(t.alsoKey, 'view')))
   return (
     <div className="space-y-6">
-      <header>
+      <header className="print:hidden">
         <h1>Orders</h1>
         <p className="mt-1 text-sm text-muted-foreground">Take custom jobs, track them through making and hand over finished pieces.</p>
       </header>
-      <nav className="flex flex-wrap gap-1 border-b">
+      <nav className="flex flex-wrap gap-1 border-b print:hidden">
         {tabs.map((t) => (
           <NavLink key={t.to} to={t.to} end={t.end} className={({ isActive }) => cn('border-b-2 px-3 py-2 text-sm font-medium', isActive ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground')}>
             {t.label}

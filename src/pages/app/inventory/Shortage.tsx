@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { useShortage, useUpdateItemGroup, useUpdateItemName } from '@/lib/inventoryQueries'
+import { useJewelleryTypes, useShortage, useUpdateItemGroup, useUpdateItemName } from '@/lib/inventoryQueries'
 import { useAuth } from '@/lib/auth'
 import { plural } from '@/lib/plural'
 import { STOCK_CLASSES, type ShortageRowDto } from '@/shared'
@@ -58,7 +58,10 @@ export function Shortage() {
   const canEdit = can('inventory.item_masters', 'edit')
   const [stockClass, setStockClass] = useState('')
   const [status, setStatus] = useState('')
-  const { data, isLoading } = useShortage({ stockClass: stockClass || undefined, status: status || undefined })
+  const [jewelleryTypeId, setJewelleryTypeId] = useState('')
+  const [q, setQ] = useState('')
+  const { data: types } = useJewelleryTypes(stockClass || undefined)
+  const { data, isLoading } = useShortage({ stockClass: stockClass || undefined, status: status || undefined, jewelleryTypeId: jewelleryTypeId || undefined, q: q || undefined })
   const [editing, setEditing] = useState<ShortageRowDto | null>(null)
 
   // Summary counts derived from the rows already fetched (no extra requests).
@@ -91,7 +94,8 @@ export function Shortage() {
 
       <Card>
         <CardContent className="flex flex-wrap items-end gap-3 pt-6">
-          <Select value={stockClass || 'all'} onValueChange={(v) => setStockClass(v === 'all' ? '' : v)}>
+          <Input className="max-w-xs" placeholder="Search groups…" aria-label="Search groups" value={q} onChange={(e) => setQ(e.target.value)} />
+          <Select value={stockClass || 'all'} onValueChange={(v) => { setStockClass(v === 'all' ? '' : v); setJewelleryTypeId('') }}>
             <SelectTrigger className="w-40" aria-label="Stock class">
               <SelectValue />
             </SelectTrigger>
@@ -115,6 +119,19 @@ export function Shortage() {
               <SelectItem value="OK">OK</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={jewelleryTypeId || 'all'} onValueChange={(v) => setJewelleryTypeId(v === 'all' ? '' : v)}>
+            <SelectTrigger className="w-44" aria-label="Jewellery type">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All jewellery types</SelectItem>
+              {types?.map((t) => (
+                <SelectItem key={t.id} value={String(t.id)}>
+                  {t.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </CardContent>
       </Card>
 
@@ -125,6 +142,7 @@ export function Shortage() {
               <TableHead>Level</TableHead>
               <TableHead>Name</TableHead>
               <TableHead>Class</TableHead>
+              <TableHead>Type</TableHead>
               <TableHead>Current</TableHead>
               <TableHead>Min / Max</TableHead>
               <TableHead>Status</TableHead>
@@ -133,22 +151,26 @@ export function Shortage() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={7} className="h-24 text-center text-muted-foreground">Loading…</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="h-24 text-center text-muted-foreground">Loading…</TableCell></TableRow>
             ) : data?.length ? (
               data.map((r) => (
                 <TableRow key={`${r.level}-${r.id}`}>
                   <TableCell className="text-muted-foreground">{r.level}</TableCell>
                   <TableCell className="font-medium">{r.name}</TableCell>
                   <TableCell>{CLASS_LABEL[r.stockClass]}</TableCell>
+                  <TableCell className="text-muted-foreground">{r.jewelleryType ?? '—'}</TableCell>
                   <TableCell className="tabular-nums">{r.currentWeight} g · {plural(r.currentPcs, 'pc')}</TableCell>
-                  <TableCell className="tabular-nums text-muted-foreground">{r.minWeight ?? '—'} / {r.maxWeight ?? '—'}</TableCell>
+                  <TableCell className="tabular-nums text-muted-foreground">
+                    {r.minWeight ?? '—'} / {r.maxWeight ?? '—'}
+                    {(r.minPcs != null || r.maxPcs != null) && <div className="text-xs">{r.minPcs ?? '—'} / {r.maxPcs ?? '—'} pcs</div>}
+                  </TableCell>
                   <TableCell><Badge variant={badge(r.status)}>{r.status}</Badge></TableCell>
                   <TableCell>{canEdit && <Button variant="ghost" size="sm" onClick={() => setEditing(r)}>Edit limits</Button>}</TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                   <div className="flex flex-col items-center justify-center gap-2 py-4">
                     <span className="icon-chip"><PackageCheck className="size-5" aria-hidden /></span>
                     <span>Nothing below minimum</span>

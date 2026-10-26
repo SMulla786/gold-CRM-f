@@ -24,7 +24,7 @@ function MonthlyChart({ data }: { data: Array<{ month: string; sales: string; pu
   return (
     <SectionCard
       title={t('dash.last_12')}
-      actions={<span className="text-xs font-medium text-muted-foreground"><span className="text-brand">■</span> Sales <span className="ml-2 text-slate-400">■</span> Purchases</span>}
+      actions={<span className="text-xs font-medium text-muted-foreground"><span className="text-brand">■</span> {t('dash.sales')} <span className="ml-2 text-slate-400">■</span> {t('dash.purchases')}</span>}
       bodyClassName="p-6"
     >
       <div className="flex h-56 items-end gap-2">
@@ -92,14 +92,15 @@ function ActivityFeed() {
 }
 
 function OccasionsCard() {
+  const t = useT()
   const { data } = useOccasions(7)
   if (!data || data.length === 0) return null
   return (
-    <SectionCard title="Upcoming occasions" bodyClassName="divide-y text-sm">
+    <SectionCard title={t('dash.occasions')} bodyClassName="divide-y text-sm">
       {data.map((o) => (
         <div key={`${o.party.id}-${o.kind}`} className="flex flex-wrap justify-between gap-x-3 gap-y-1 px-6 py-3">
-          <span><span className="font-medium">{o.party.name}</span> · {o.kind === 'BIRTHDAY' ? 'Birthday' : 'Anniversary'}{o.party.mobile ? ` · ${o.party.mobile}` : ''}</span>
-          <span className="whitespace-nowrap text-muted-foreground">{o.daysAway === 0 ? 'Today' : `in ${plural(o.daysAway, 'day')}`} · {new Date(o.date).toLocaleDateString('en-IN')}</span>
+          <span><span className="font-medium">{o.party.name}</span> · {o.kind === 'BIRTHDAY' ? t('party.birthday') : t('party.anniversary')}{o.party.mobile ? ` · ${o.party.mobile}` : ''}</span>
+          <span className="whitespace-nowrap text-muted-foreground">{o.daysAway === 0 ? t('dash.today') : t(o.daysAway === 1 ? 'dash.in_days_one' : 'dash.in_days_other', { n: o.daysAway })} · {new Date(o.date).toLocaleDateString('en-IN')}</span>
         </div>
       ))}
     </SectionCard>
@@ -131,12 +132,15 @@ function StockHero({ stock }: { stock: Array<{ stockClass: string; net: string; 
   )
 }
 
-const Header = () => (
-  <header>
-    <h1>Dashboard</h1>
-    <p className="mt-1 text-sm text-muted-foreground">Your shop at a glance — sales, receivables, stock and recent activity.</p>
-  </header>
-)
+function Header() {
+  const t = useT()
+  return (
+    <header>
+      <h1>{t('dash.title')}</h1>
+      <p className="mt-1 text-sm text-muted-foreground">{t('dash.subtitle')}</p>
+    </header>
+  )
+}
 
 export function OwnerDashboard() {
   const t = useT()
@@ -157,15 +161,15 @@ export function OwnerDashboard() {
     <div className="space-y-8 tabular-nums">
       <Header />
       <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiTile icon={ReceiptIndianRupee} label={t('dash.sales_today')} value={inr(data.sales.todayTotal)} sub={`${plural(data.sales.todayCount, 'bill')} · received ${inr(data.sales.todayReceived)}`} />
-        <KpiTile icon={TrendingUp} label={t('dash.sales_month')} value={inr(data.sales.monthTotal)} sub={`Year ${inr(data.sales.yearTotal)}`} />
+        <KpiTile icon={ReceiptIndianRupee} label={t('dash.sales_today')} value={inr(data.sales.todayTotal)} sub={t(data.sales.todayCount === 1 ? 'dash.sales_today_sub_one' : 'dash.sales_today_sub_other', { n: data.sales.todayCount, amt: inr(data.sales.todayReceived) })} />
+        <KpiTile icon={TrendingUp} label={t('dash.sales_month')} value={inr(data.sales.monthTotal)} sub={t('dash.year', { amt: inr(data.sales.yearTotal) })} />
         <KpiTile icon={Hourglass} label={t('dash.pending')} value={inr(data.sales.pendingBalance)} />
         <KpiTile icon={ShoppingCart} tone="slate" label={t('dash.purchases_month')} value={inr(data.purchases.monthTotal)} />
       </div>
       <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiTile size="sm" icon={HandCoins} label={t('dash.udhari_receivable')} value={inr(data.udhari.amount)} sub={`Collected this month ${inr(data.udhari.collectedThisMonth)}${Number(data.udhari.gold) ? ` · ${data.udhari.gold}g Au` : ''}`} />
-        <KpiTile size="sm" icon={Wallet} tone="slate" label={t('dash.cash_in_hand')} value={inr(data.cash.inHand)} sub={`Bank ${inr(data.cash.bank)}`} />
-        <KpiTile size="sm" icon={Users} tone="slate" label={t('dash.customers')} value={String(data.parties.customers)} sub={`${data.parties.customersNewThisMonth} new this month`} />
+        <KpiTile size="sm" icon={HandCoins} label={t('dash.udhari_receivable')} value={inr(data.udhari.amount)} sub={`${t('dash.collected_month', { amt: inr(data.udhari.collectedThisMonth) })}${Number(data.udhari.gold) ? ` · ${data.udhari.gold}g Au` : ''}`} />
+        <KpiTile size="sm" icon={Wallet} tone="slate" label={t('dash.cash_in_hand')} value={inr(data.cash.inHand)} sub={t('dash.bank', { amt: inr(data.cash.bank) })} />
+        <KpiTile size="sm" icon={Users} tone="slate" label={t('dash.customers')} value={String(data.parties.customers)} sub={t('dash.new_this_month', { n: data.parties.customersNewThisMonth })} />
         <KpiTile size="sm" icon={Factory} tone="slate" label={t('dash.suppliers')} value={String(data.parties.suppliers)} />
       </div>
 

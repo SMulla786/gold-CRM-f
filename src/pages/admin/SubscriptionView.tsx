@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { useT } from '@/lib/i18n'
 import { useAdminSubscription, useSubmitSubscriptionPayment } from '@/lib/queries'
 import { MODULES, type SubscriptionPaymentRowDto } from '@/shared'
 
@@ -16,6 +17,7 @@ const statusVariant = (s: SubscriptionPaymentRowDto['status']) => (s === 'CONFIR
 
 /** TASK-95: owner submits a payment (UTR + optional screenshot); it stays PENDING until the platform confirms. */
 function SubmitPayment() {
+  const t = useT()
   const submit = useSubmitSubscriptionPayment()
   const [amount, setAmount] = useState('')
   const [method, setMethod] = useState<'UPI' | 'BANK' | 'CASH'>('UPI')
@@ -33,36 +35,36 @@ function SubmitPayment() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Submit a payment</CardTitle>
-        <p className="text-sm text-muted-foreground">Paid by UPI or bank transfer? Send the reference and a screenshot — it is confirmed by the platform team.</p>
+        <CardTitle>{t('subscription.submit_title')}</CardTitle>
+        <p className="text-sm text-muted-foreground">{t('subscription.submit_hint')}</p>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-3" noValidate>
           <div className="space-y-1.5">
-            <Label htmlFor="pay-amount">Amount (₹) *</Label>
+            <Label htmlFor="pay-amount">{t('subscription.amount_label')}</Label>
             <Input id="pay-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="pay-method">Method *</Label>
+            <Label htmlFor="pay-method">{t('subscription.method_label')}</Label>
             <Select value={method} onValueChange={(v) => setMethod(v as typeof method)}>
               <SelectTrigger id="pay-method"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="UPI">UPI</SelectItem>
-                <SelectItem value="BANK">Bank transfer</SelectItem>
-                <SelectItem value="CASH">Cash</SelectItem>
+                <SelectItem value="BANK">{t('subscription.method_bank')}</SelectItem>
+                <SelectItem value="CASH">{t('subscription.method_cash')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="pay-utr">Transaction ID / UTR {method !== 'CASH' && '*'}</Label>
+            <Label htmlFor="pay-utr">{t('subscription.utr_label')} {method !== 'CASH' && '*'}</Label>
             <Input id="pay-utr" maxLength={40} value={utr} onChange={(e) => setUtr(e.target.value)} />
           </div>
           <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor="pay-proof">Payment screenshot (JPEG / PNG / WebP, max 2 MB)</Label>
+            <Label htmlFor="pay-proof">{t('subscription.proof_label')}</Label>
             <Input id="pay-proof" type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           </div>
           <div className="flex items-end">
-            <Button type="submit" className="w-full" disabled={!valid || submit.isPending}>{submit.isPending ? 'Submitting…' : 'Submit payment proof'}</Button>
+            <Button type="submit" className="w-full" disabled={!valid || submit.isPending}>{submit.isPending ? t('subscription.submitting') : t('subscription.submit_btn')}</Button>
           </div>
         </form>
       </CardContent>
@@ -71,24 +73,25 @@ function SubmitPayment() {
 }
 
 function PaymentHistory({ rows }: { rows: SubscriptionPaymentRowDto[] }) {
+  const t = useT()
   const [open, setOpen] = useState<number | null>(null)
   return (
     <Card>
-      <CardHeader><CardTitle>Transaction history</CardTitle></CardHeader>
+      <CardHeader><CardTitle>{t('subscription.history')}</CardTitle></CardHeader>
       <CardContent>
         {rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No payments submitted yet.</p>
+          <p className="text-sm text-muted-foreground">{t('subscription.history_empty')}</p>
         ) : (
           <div className="overflow-x-auto rounded-xl border">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead>Method</TableHead>
+                  <TableHead>{t('udhari.date')}</TableHead>
+                  <TableHead className="text-right">{t('subscription.col_amount')}</TableHead>
+                  <TableHead>{t('subscription.col_method')}</TableHead>
                   <TableHead>UTR</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Proof</TableHead>
+                  <TableHead>{t('stock.col_status')}</TableHead>
+                  <TableHead>{t('subscription.col_proof')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -101,7 +104,7 @@ function PaymentHistory({ rows }: { rows: SubscriptionPaymentRowDto[] }) {
                     <TableCell><Badge variant={statusVariant(p.status)}>{p.status}</Badge></TableCell>
                     <TableCell>
                       {p.hasProof ? (
-                        <Button variant="ghost" size="sm" onClick={() => setOpen(open === p.id ? null : p.id)}>{open === p.id ? 'Hide' : 'View'}</Button>
+                        <Button variant="ghost" size="sm" onClick={() => setOpen(open === p.id ? null : p.id)}>{open === p.id ? t('subscription.hide') : t('subscription.view')}</Button>
                       ) : '—'}
                     </TableCell>
                   </TableRow>
@@ -137,17 +140,18 @@ function Usage({ label, used, max }: { label: string; used: number; max: number 
 }
 
 export function SubscriptionView() {
+  const t = useT()
   const { data, isLoading } = useAdminSubscription()
-  if (isLoading || !data) return <p className="text-sm text-muted-foreground">Loading…</p>
+  if (isLoading || !data) return <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
 
   return (
     <div className="max-w-4xl space-y-8">
       <div className="flex items-center gap-3">
         <div>
-          <h1>Subscription</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Your plan, limits and usage.</p>
+          <h1>{t('subscription.title')}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t('subscription.subtitle')}</p>
         </div>
-        {data.readOnly && <Badge variant="destructive">Read-only</Badge>}
+        {data.readOnly && <Badge variant="destructive">{t('subscription.read_only')}</Badge>}
       </div>
       <Card>
         <CardHeader>
@@ -157,10 +161,10 @@ export function SubscriptionView() {
           <div className="text-sm text-muted-foreground">
             {date(data.startsAt)} → {date(data.endsAt)}
           </div>
-          <Usage label="Branches" used={data.usedBranches} max={data.maxBranches} />
-          <Usage label="Users" used={data.usedUsers} max={data.maxUsers} />
+          <Usage label={t('subscription.branches')} used={data.usedBranches} max={data.maxBranches} />
+          <Usage label={t('subscription.users')} used={data.usedUsers} max={data.maxUsers} />
           <div>
-            <div className="mb-2 text-sm font-medium">Enabled modules</div>
+            <div className="mb-2 text-sm font-medium">{t('subscription.modules')}</div>
             <div className="flex flex-wrap gap-2">
               {data.modules.map((m) => (
                 <Badge key={m} variant="secondary">

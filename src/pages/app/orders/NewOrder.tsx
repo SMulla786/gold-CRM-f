@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useBankAccounts, useCurrentRates, useKarats, useSettings } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
-import { lineRateUnitGrams, metalRateUnitGrams } from '@/lib/billingQueries'
+import { lineRateUnitGrams, metalRateUnitGrams, usePartyBalance } from '@/lib/billingQueries'
 import { useItemNames } from '@/lib/inventoryQueries'
 import { useCreateOrder } from '@/lib/ordersQueries'
 import { businessDayISO, CHARGE_UNITS, METALS, computeLine, metalToMoney, type PartyRefDto } from '@/shared'
@@ -68,9 +68,15 @@ export function NewOrder() {
       basis: (settings?.['calc.basis'].sale ?? 'NET') as 'NET',
     })
   const payAmount = (p: PayRow) => (p.mode === 'METAL' ? Number(metalToMoney(((n(p.gross) - n(p.less)) * n(p.tunch)) / 100, n(p.rate), metalRateUnitGrams(p.metal, settings))) : n(p.amount))
+  const payFine = (p: PayRow) => ((n(p.gross) - n(p.less)) * n(p.tunch)) / 100
   const estTotal = rows.reduce((a, r) => a + Number(lineOf(r).total), 0)
   const advance = pays.reduce((a, p) => a + payAmount(p), 0)
   const balanceAfterAdvance = estTotal - advance
+  // read-only totals panel (display only; the server recomputes on create)
+  const totalPcs = rows.reduce((a, r) => a + (Number(r.pcs) || 0), 0)
+  const totalMaking = rows.reduce((a, r) => a + Number(lineOf(r).labourAmount), 0)
+  const fineOf = (metal: string) => rows.filter((r) => r.metal === metal).reduce((a, r) => a + Number(lineOf(r).fine), 0)
+  const { data: partyBal } = usePartyBalance(party?.id)
 
   const valid = branchReady && !!party && rows.length > 0 && rows.every((r) => r.itemNameId && n(r.gross) > 0)
 
@@ -101,6 +107,11 @@ export function NewOrder() {
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="no-party">Customer</Label>
             <PartyPicker value={party} onChange={setParty} placeholder="Search name / mobile" id="no-party" ariaLabel="Customer" />
+            {party && (
+              <p className="w-fit rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground tabular-nums">
+                Existing udhar: {partyBal ? `${inr(partyBal.amount)}${Number(partyBal.amount) < 0 ? ' (advance)' : ''} · ${partyBal.gold}g gold · ${partyBal.silver}g silver` : '—'}
+              </p>
+            )}
           </div>
           <div className="space-y-1.5"><Label htmlFor="no-date">Order date</Label><Input id="no-date" type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} /></div>
           <div className="space-y-1.5"><Label htmlFor="no-deliv">Delivery date</Label><Input id="no-deliv" type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} /></div>
@@ -198,9 +209,15 @@ export function NewOrder() {
                       <SelectTrigger className="w-24" aria-label="Metal"><SelectValue /></SelectTrigger>
                       <SelectContent>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
                     </Select>
+                    <Select value={p.metalForm} onValueChange={(v) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, metalForm: v } : x))}>
+                      <SelectTrigger className="w-28" aria-label="Metal form"><SelectValue /></SelectTrigger>
+                      <SelectContent><SelectItem value="BULLION">Bullion</SelectItem><SelectItem value="KACHA">Kacha</SelectItem></SelectContent>
+                    </Select>
                     <Input className="w-20" type="number" placeholder="Gross" aria-label="Gross" value={p.gross} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, gross: e.target.value } : x))} />
+                    <Input className="w-16" type="number" step="0.001" placeholder="Less" aria-label="Metal less" value={p.less} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, less: e.target.value } : x))} />
                     <Input className="w-16" type="number" placeholder="Tunch" aria-label="Tunch" value={p.tunch} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, tunch: e.target.value } : x))} />
                     <Input className="w-24" type="number" placeholder="Rate" aria-label="Rate" value={p.rate} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, rate: e.target.value } : x))} />
+                    <span className="text-xs text-muted-foreground">{payFine(p).toFixed(3)} g fine</span>
                     <span className="text-sm">= {inr(payAmount(p))}</span>
                   </>
                 ) : (
@@ -223,6 +240,9 @@ export function NewOrder() {
         <Card>
           <CardContent className="space-y-3 pt-6 text-sm tabular-nums">
             <div className="flex flex-wrap items-baseline justify-between gap-2"><span className="text-muted-foreground">Estimated total</span><span className="text-2xl font-extrabold tracking-tight sm:text-3xl">{inr(estTotal)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Total items</span><span>{rows.length} line{rows.length === 1 ? '' : 's'} · {totalPcs} pcs</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Total making</span><span>{inr(totalMaking)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Total fine</span><span>{fineOf('GOLD').toFixed(3)} g gold · {fineOf('SILVER').toFixed(3)} g silver</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Advance</span><span>{inr(advance)}</span></div>
             <div className="flex justify-between border-t pt-3"><span className="text-muted-foreground">Balance after advance</span><span className="font-semibold">{inr(balanceAfterAdvance)}</span></div>
             <p className="text-xs text-muted-foreground">Estimate uses today's rate; the server recomputes on create ({rateType === 'FIXED' ? 'rate fixed now' : 'final rate on delivery'}).</p>

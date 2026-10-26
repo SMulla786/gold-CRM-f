@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useT } from '@/lib/i18n'
 import { useBranches, useCounters, useCreateCounter, useRenameCounter } from '@/lib/queries'
 import type { BranchNodeDto, CounterDto } from '@/shared'
 
@@ -18,13 +19,14 @@ const flatten = (n: BranchNodeDto, out: BranchNodeDto[] = []): BranchNodeDto[] =
 }
 
 function RenameDialog({ counter, onClose }: { counter: CounterDto; onClose: () => void }) {
+  const t = useT()
   const rename = useRenameCounter()
   const [name, setName] = useState(counter.name)
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Rename “{counter.name}”</DialogTitle>
+          <DialogTitle>{t('counters.rename_title', { name: counter.name })}</DialogTitle>
         </DialogHeader>
         <form
           className="space-y-4"
@@ -35,11 +37,11 @@ function RenameDialog({ counter, onClose }: { counter: CounterDto; onClose: () =
           }}
         >
           <div className="space-y-1.5">
-            <Label htmlFor="c-rename">Counter name</Label>
+            <Label htmlFor="c-rename">{t('counters.name_label')}</Label>
             <Input id="c-rename" autoFocus maxLength={60} value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <DialogFooter>
-            <Button type="submit" disabled={!name.trim() || rename.isPending}>Save</Button>
+            <Button type="submit" disabled={!name.trim() || rename.isPending}>{t('common.save')}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -49,6 +51,7 @@ function RenameDialog({ counter, onClose }: { counter: CounterDto; onClose: () =
 
 /** Billing counters per branch (TASK-94a): list, add, rename. The API has no delete/deactivate. */
 export function Counters() {
+  const t = useT()
   const { data: root } = useBranches()
   const branches = root ? flatten(root) : []
   const [filter, setFilter] = useState('')
@@ -63,10 +66,10 @@ export function Counters() {
   const branchSelect = (value: string, onChange: (v: string) => void, label: string, withAll: boolean) => (
     <Select value={value || (withAll ? 'all' : '')} onValueChange={(v) => onChange(v === 'all' ? '' : v)}>
       <SelectTrigger className="w-52" aria-label={label}>
-        <SelectValue placeholder="Select branch" />
+        <SelectValue placeholder={t('counters.select_branch')} />
       </SelectTrigger>
       <SelectContent>
-        {withAll && <SelectItem value="all">All branches</SelectItem>}
+        {withAll && <SelectItem value="all">{t('counters.all_branches')}</SelectItem>}
         {branches.map((b) => (
           <SelectItem key={b.id} value={String(b.id)}>
             {'— '.repeat(b.depth)}
@@ -91,18 +94,18 @@ export function Counters() {
   return (
     <div className="space-y-8">
       <div>
-        <h1>Counters</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Billing counters inside each branch — add new ones or rename them.</p>
+        <h1>{t('counters.title')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('counters.subtitle')}</p>
       </div>
 
       <div className="stagger grid gap-4 sm:grid-cols-2">
-        {tile('Counters', counters ? String(rows.length) : '—', Store)}
-        {tile('Branches with counters', counters ? String(branchCount) : '—', Building2)}
+        {tile(t('counters.title'), counters ? String(rows.length) : '—', Store)}
+        {tile(t('counters.tile_branches'), counters ? String(branchCount) : '—', Building2)}
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Add counter</CardTitle>
+          <CardTitle>{t('counters.add')}</CardTitle>
         </CardHeader>
         <CardContent>
           <form
@@ -114,15 +117,15 @@ export function Counters() {
             }}
           >
             <div className="space-y-1.5">
-              <Label>Branch</Label>
+              <Label>{t('dash.branch')}</Label>
               {branchSelect(branchId, setBranchId, 'Counter branch', false)}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="c-name">Counter name</Label>
-              <Input id="c-name" className="w-56" maxLength={60} placeholder="e.g. Counter 2" value={name} onChange={(e) => setName(e.target.value)} />
+              <Label htmlFor="c-name">{t('counters.name_label')}</Label>
+              <Input id="c-name" className="w-56" maxLength={60} placeholder={t('counters.name_placeholder')} value={name} onChange={(e) => setName(e.target.value)} />
             </div>
             <Button type="submit" disabled={!branchId || !name.trim() || create.isPending}>
-              {create.isPending ? 'Adding…' : 'Add counter'}
+              {create.isPending ? t('counters.adding') : t('counters.add')}
             </Button>
           </form>
         </CardContent>
@@ -130,27 +133,27 @@ export function Counters() {
 
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
-          <CardTitle>All counters</CardTitle>
+          <CardTitle>{t('counters.all')}</CardTitle>
           {branchSelect(filter, setFilter, 'Filter by branch', true)}
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
           ) : rows.length ? (
             <ul className="divide-y">
               {rows.map((c) => (
                 <li key={c.id} className="flex items-center gap-3 py-2">
                   <span className="font-medium">{c.name}</span>
                   <span className="text-sm text-muted-foreground">{c.branchName}</span>
-                  {!c.isActive && <Badge variant="destructive">inactive</Badge>}
+                  {!c.isActive && <Badge variant="destructive">{t('counters.inactive')}</Badge>}
                   <Button className="ml-auto" variant="ghost" size="sm" aria-label={`Rename ${c.name}`} onClick={() => setEditing(c)}>
-                    <Pencil className="size-4" aria-hidden /> Rename
+                    <Pencil className="size-4" aria-hidden /> {t('counters.rename')}
                   </Button>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-muted-foreground">No counters yet.</p>
+            <p className="text-sm text-muted-foreground">{t('counters.empty')}</p>
           )}
         </CardContent>
       </Card>

@@ -25,7 +25,7 @@ export const useJewelleryTypes = (stockClass?: string) =>
 export const useCreateJewelleryType = () =>
   useApiMutation((body: Record<string, unknown>) => api.post('/app/jewellery-types', body), { invalidate: [['jewellery-types']], success: 'Type added' })
 
-export const useItemGroups = (params: { page?: number; q?: string; stockClass?: string; jewelleryTypeId?: number }) =>
+export const useItemGroups = (params: { page?: number; pageSize?: number; q?: string; stockClass?: string; jewelleryTypeId?: number }) =>
   useQuery({ queryKey: ['item-groups', params], queryFn: () => api.get<Paged<ItemGroupDto>>(`/app/item-groups${qs(params)}`) })
 export const useCreateItemGroup = () =>
   useApiMutation((body: Record<string, unknown>) => api.post('/app/item-groups', body), { invalidate: [['item-groups']], success: 'Groups created' })
@@ -87,6 +87,8 @@ export const useUploadStockPhoto = () =>
     fd.append('file', file)
     return api.post<{ url: string; path: string }>(`/app/stock/${id}/photo`, fd)
   }, { invalidate: [['stock']], success: 'Photo uploaded' })
+export const useRemoveStockPhoto = () =>
+  useApiMutation((id: number) => api.del(`/app/stock/${id}/photo`), { invalidate: [['stock']], success: 'Photo removed' })
 
 // ───── Stock transfer ─────
 export const useStockTransfers = (params: Record<string, string | number | undefined>) =>

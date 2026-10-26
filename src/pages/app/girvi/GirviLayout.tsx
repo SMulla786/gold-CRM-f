@@ -2,20 +2,23 @@ import { Outlet } from 'react-router-dom'
 
 import { PageTabs } from '@/components/PageTabs'
 import { useAuth } from '@/lib/auth'
+import { useT } from '@/lib/i18n'
 
+// labelKey is translated at render time (no hooks at module level)
 const TABS = [
-  { to: '/app/girvi/new', label: 'New Loan', key: 'girvi.entry' },
-  { to: '/app/girvi', label: 'Loans', key: 'girvi.ledger', end: true },
+  { to: '/app/girvi/new', labelKey: 'girvi.tab_new', key: 'girvi.entry' },
+  { to: '/app/girvi', labelKey: 'girvi.tab_loans', key: 'girvi.ledger', end: true },
 ]
 
 export function GirviLayout() {
+  const t = useT()
   const { can } = useAuth()
-  const tabs = TABS.filter((t) => can(t.key, 'view'))
+  const tabs = TABS.filter((tab) => can(tab.key, 'view')).map((tab) => ({ ...tab, label: t(tab.labelKey) }))
   return (
     <div className="space-y-6">
       <header className="print:hidden">
-        <h1>Girvi</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Gold-loan pledges — issue new loans, track interest and close them out.</p>
+        <h1>{t('girvi.title')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('girvi.subtitle')}</p>
       </header>
       <PageTabs tabs={tabs} />
       <Outlet />

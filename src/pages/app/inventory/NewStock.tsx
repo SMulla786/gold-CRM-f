@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -33,6 +34,8 @@ interface Row {
   purchaseCost: string
   remarks: string
 }
+/** Today in the browser's zone as YYYY-MM-DD (date input format). */
+const todayLocal = () => new Date().toLocaleDateString('en-CA')
 const blank = (): Row => ({ itemNameId: '', tagNo: '', huid: '', karatCode: '', pcs: '1', gross: '', less: '0', tunch: '', wastage: '0', stoneCharge: '0', other: '0', labour: '0', labourUnit: 'PER_GRAM', rate: '', purchaseCost: '', remarks: '' })
 
 export function NewStock() {
@@ -41,7 +44,9 @@ export function NewStock() {
   const [method, setMethod] = useState('LOOSE')
   const [rows, setRows] = useState<Row[]>([blank()])
   const [repeat, setRepeat] = useState('1') // Item Repeat (Many): duplicate the last row N times
-  const { data: names } = useItemNames({ stockClass, page: 1 })
+  const { data: names } = useItemNames({ stockClass, page: 1, pageSize: 100 })
+  const [txnDate, setTxnDate] = useState(todayLocal)
+  const [clearAfterSave, setClearAfterSave] = useState(true)
   const { data: karats } = useKarats()
   const create = useCreateStockEntry()
 
@@ -61,6 +66,8 @@ export function NewStock() {
   const payload = () => ({
     stockClass,
     method,
+    // Only sent when back-dated/changed; otherwise the server stamps today's business date (unchanged behaviour).
+    txnDate: txnDate && txnDate !== todayLocal() ? txnDate : undefined,
     rows: rows.map((r) => ({
       itemNameId: Number(r.itemNameId),
       tagNo: method === 'TAG' && r.tagNo ? r.tagNo : undefined,
@@ -83,7 +90,7 @@ export function NewStock() {
 
   const submit = async () => {
     await create.mutateAsync(payload())
-    setRows([blank()])
+    if (clearAfterSave) setRows([blank()])
   }
   // Save & Print (TAG only): save, then jump to Tags with the new items preselected for label printing.
   const saveAndPrint = async () => {
@@ -158,6 +165,14 @@ export function NewStock() {
               </SelectContent>
             </Select>
           </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ns-date">Entry date</Label>
+            <Input id="ns-date" type="date" className="w-40" max={todayLocal()} value={txnDate} onChange={(e) => setTxnDate(e.target.value)} />
+          </div>
+          <div className="flex items-center gap-2 pb-2">
+            <Checkbox id="ns-clear" checked={clearAfterSave} onCheckedChange={(v) => setClearAfterSave(v === true)} />
+            <Label htmlFor="ns-clear" className="font-normal">Clear rows after save</Label>
+          </div>
         </CardContent>
       </Card>
 
@@ -198,7 +213,7 @@ export function NewStock() {
                           <SelectValue placeholder="Item" />
                         </SelectTrigger>
                         <SelectContent>
-                          {names?.items.map((n) => (
+                          {names?.items.filter((n) => n.isActive || String(n.id) === r.itemNameId).map((n) => (
                             <SelectItem key={n.id} value={String(n.id)}>
                               {n.name}
                             </SelectItem>

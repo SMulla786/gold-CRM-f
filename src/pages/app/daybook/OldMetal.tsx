@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useLedger } from '@/lib/accountsQueries'
 import { api } from '@/lib/api'
+import { useT } from '@/lib/i18n'
 import { businessDayISO, LEDGER_SOURCES, type LedgerRowDto, type OldMetalSummaryRowDto } from '@/shared'
 
 const g = (s: string | null) => (s == null ? '—' : `${Number(s).toFixed(3)} g`)
@@ -19,6 +20,7 @@ const ALL = 'ALL'
 
 /** Old Metal Ledger — old/raw (kacha) gold & silver across every module: per-module summary + row history. */
 export function OldMetal() {
+  const t = useT()
   const [from, setFrom] = useState(monthStart)
   const [to, setTo] = useState(businessDayISO)
   const [metal, setMetal] = useState<'GOLD' | 'SILVER'>('GOLD')
@@ -41,23 +43,23 @@ export function OldMetal() {
   })
 
   const columns: ColumnDef<LedgerRowDto, unknown>[] = [
-    { accessorKey: 'txnDate', header: 'Date / time', cell: ({ row }) => when(row.original.createdAt) },
-    { accessorKey: 'source', header: 'Source module', cell: ({ row }) => `${row.original.source} #${row.original.sourceId}` },
-    { id: 'party', header: 'Customer / contact', cell: ({ row }) => row.original.party?.name ?? '—' },
-    { accessorKey: 'net', header: 'Weight', cell: ({ row }) => <span className="tabular-nums">{g(row.original.net)}</span> },
-    { accessorKey: 'fine', header: 'Fine', cell: ({ row }) => <span className="tabular-nums">{g(row.original.fine)}</span> },
-    { accessorKey: 'karatCode', header: 'Karat / purity', cell: ({ row }) => row.original.karatCode ?? '—' },
+    { accessorKey: 'txnDate', header: t('oldmetal.col_datetime'), cell: ({ row }) => when(row.original.createdAt) },
+    { accessorKey: 'source', header: t('oldmetal.col_source'), cell: ({ row }) => `${row.original.source} #${row.original.sourceId}` },
+    { id: 'party', header: t('oldmetal.col_party'), cell: ({ row }) => row.original.party?.name ?? '—' },
+    { accessorKey: 'net', header: t('oldmetal.col_weight'), cell: ({ row }) => <span className="tabular-nums">{g(row.original.net)}</span> },
+    { accessorKey: 'fine', header: t('stock.col_fine'), cell: ({ row }) => <span className="tabular-nums">{g(row.original.fine)}</span> },
+    { accessorKey: 'karatCode', header: t('oldmetal.col_karat'), cell: ({ row }) => row.original.karatCode ?? '—' },
     {
       accessorKey: 'direction',
-      header: 'Status',
+      header: t('stock.col_status'),
       cell: ({ row }) => (
         <span className={row.original.direction === 'IN' ? 'text-green-600 dark:text-green-500' : 'text-destructive'}>
-          {row.original.direction === 'IN' ? 'Credit (IN)' : 'Debit (OUT)'}
+          {row.original.direction === 'IN' ? t('oldmetal.credit_in') : t('oldmetal.debit_out')}
         </span>
       ),
     },
-    { accessorKey: 'narration', header: 'Remarks', cell: ({ row }) => row.original.narration ?? '—' },
-    { accessorKey: 'entryBy', header: 'Author', cell: ({ row }) => row.original.entryBy ?? '—' },
+    { accessorKey: 'narration', header: t('oldmetal.col_remarks'), cell: ({ row }) => row.original.narration ?? '—' },
+    { accessorKey: 'entryBy', header: t('oldmetal.col_author'), cell: ({ row }) => row.original.entryBy ?? '—' },
   ]
 
   const rows = summary.data ?? []
@@ -68,41 +70,41 @@ export function OldMetal() {
       <Card>
         <CardContent className="grid gap-4 pt-6 sm:grid-cols-2 lg:grid-cols-5">
           <div className="space-y-1.5">
-            <Label htmlFor="om-from">From</Label>
+            <Label htmlFor="om-from">{t('common.from')}</Label>
             <Input id="om-from" type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1) }} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="om-to">To</Label>
+            <Label htmlFor="om-to">{t('common.to')}</Label>
             <Input id="om-to" type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1) }} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="om-metal">Metal</Label>
+            <Label htmlFor="om-metal">{t('udhari.metal')}</Label>
             <Select value={metal} onValueChange={(v) => { setMetal(v as typeof metal); setPage(1) }}>
               <SelectTrigger id="om-metal"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="GOLD">Gold</SelectItem>
-                <SelectItem value="SILVER">Silver</SelectItem>
+                <SelectItem value="GOLD">{t('class.GOLD')}</SelectItem>
+                <SelectItem value="SILVER">{t('class.SILVER')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="om-source">Source module</Label>
+            <Label htmlFor="om-source">{t('oldmetal.col_source')}</Label>
             <Select value={source} onValueChange={(v) => { setSource(v); setPage(1) }}>
               <SelectTrigger id="om-source"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value={ALL}>All modules</SelectItem>
+                <SelectItem value={ALL}>{t('dash.all_modules')}</SelectItem>
                 {LEDGER_SOURCES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="om-dir">Status</Label>
+            <Label htmlFor="om-dir">{t('stock.col_status')}</Label>
             <Select value={direction} onValueChange={(v) => { setDirection(v); setPage(1) }}>
               <SelectTrigger id="om-dir"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value={ALL}>All status</SelectItem>
-                <SelectItem value="IN">Credit (IN)</SelectItem>
-                <SelectItem value="OUT">Debit (OUT)</SelectItem>
+                <SelectItem value={ALL}>{t('oldmetal.all_status')}</SelectItem>
+                <SelectItem value="IN">{t('oldmetal.credit_in')}</SelectItem>
+                <SelectItem value="OUT">{t('oldmetal.debit_out')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -110,19 +112,19 @@ export function OldMetal() {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle>Module-wise old metal summary</CardTitle></CardHeader>
+        <CardHeader><CardTitle>{t('oldmetal.summary_title')}</CardTitle></CardHeader>
         <CardContent>
           <div className="overflow-x-auto rounded-xl border">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Source module</TableHead>
-                  <TableHead className="text-right">Gold received (IN)</TableHead>
-                  <TableHead className="text-right">Gold issued (OUT)</TableHead>
-                  <TableHead className="text-right">Gold net</TableHead>
-                  <TableHead className="text-right">Silver received (IN)</TableHead>
-                  <TableHead className="text-right">Silver issued (OUT)</TableHead>
-                  <TableHead className="text-right">Silver net</TableHead>
+                  <TableHead>{t('oldmetal.col_source')}</TableHead>
+                  <TableHead className="text-right">{t('oldmetal.gold_in')}</TableHead>
+                  <TableHead className="text-right">{t('oldmetal.gold_out')}</TableHead>
+                  <TableHead className="text-right">{t('oldmetal.gold_net')}</TableHead>
+                  <TableHead className="text-right">{t('oldmetal.silver_in')}</TableHead>
+                  <TableHead className="text-right">{t('oldmetal.silver_out')}</TableHead>
+                  <TableHead className="text-right">{t('oldmetal.silver_net')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -139,7 +141,7 @@ export function OldMetal() {
                 ))}
                 {rows.length > 0 && (
                   <TableRow className="bg-muted/40 font-semibold">
-                    <TableCell>Total</TableCell>
+                    <TableCell>{t('oldmetal.total')}</TableCell>
                     <TableCell className="text-right tabular-nums">{g(total('goldIn'))}</TableCell>
                     <TableCell className="text-right tabular-nums">{g(total('goldOut'))}</TableCell>
                     <TableCell className="text-right tabular-nums">{g(total('goldNet'))}</TableCell>
@@ -149,7 +151,7 @@ export function OldMetal() {
                   </TableRow>
                 )}
                 {!summary.isLoading && rows.length === 0 && (
-                  <TableRow><TableCell colSpan={7} className="h-20 text-center text-muted-foreground">No old metal movement in this period.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="h-20 text-center text-muted-foreground">{t('oldmetal.empty')}</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
@@ -158,7 +160,7 @@ export function OldMetal() {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle>Old metal ledger history</CardTitle></CardHeader>
+        <CardHeader><CardTitle>{t('oldmetal.history_title')}</CardTitle></CardHeader>
         <CardContent>
           <DataTable
             columns={columns}

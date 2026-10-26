@@ -1,4 +1,6 @@
+import { CheckCircle2, RotateCcw } from 'lucide-react'
 import { useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 
 import { PartyPicker } from '@/components/PartyPicker'
 import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
@@ -7,7 +9,7 @@ import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useBankAccounts } from '@/lib/appQueries'
+import { useBankAccounts, useParty } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
 import { usePartyBalance } from '@/lib/billingQueries'
@@ -37,6 +39,16 @@ export function NewUdhar() {
   const branchReady = activeBranch !== '' && activeBranch !== 'all' // udhar posts to one branch
   const { data: banks } = useBankAccounts()
   const [party, setParty] = useState<PartyRefDto | null>(null)
+  // ?partyId= pre-fills the party (Udhar Ledger row "New entry"); only until the user picks one
+  const [params] = useSearchParams()
+  const presetId = Number(params.get('partyId')) || undefined
+  const { data: preset } = useParty(presetId)
+  const [presetUsed, setPresetUsed] = useState(false)
+  if (preset && !presetUsed) {
+    setPresetUsed(true)
+    setParty({ id: preset.id, type: preset.type, name: preset.name, mobile: preset.mobile, shopName: preset.shopName })
+  }
+  const [saved, setSaved] = useState<{ id: number; txnNo: number } | null>(null)
   const { data: balance } = usePartyBalance(party?.id)
   const { data: pending } = usePendingBills({ partyId: party?.id, pageSize: 50 }, !!party)
 
@@ -69,7 +81,7 @@ export function NewUdhar() {
 
   const submit = async () => {
     if (!party) return
-    await create.mutateAsync({
+    const res = await create.mutateAsync({
       partyId: party.id, txnDate,
       cashOut: n(f.cashOut), onlineOut: n(f.onlineOut), outBankId: n(f.onlineOut) > 0 ? Number(f.outBankId) : undefined,
       cashIn: n(f.cashIn), onlineIn: n(f.onlineIn), inBankId: n(f.onlineIn) > 0 ? Number(f.inBankId) : undefined,
@@ -78,26 +90,41 @@ export function NewUdhar() {
       settleBillId: settleBillId ? Number(settleBillId) : undefined,
       remark: f.remark || undefined,
     })
+    setSaved({ id: res.id, txnNo: res.txnNo })
+    clearAmounts()
+  }
+  const clearAmounts = () => {
     setF({ cashOut: '0', onlineOut: '0', outBankId: '', cashIn: '0', onlineIn: '0', inBankId: '', goldOut: '0', goldIn: '0', silverOut: '0', silverIn: '0', remark: '' })
     setBhavOn(false); setSettleBillId('')
   }
+  const startNew = () => { clearAmounts(); setParty(null); setTxnDate(today()); setSaved(null) }
 
   const bankSelect = (value: string, onChange: (v: string) => void, label: string) => (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger aria-label={label}><SelectValue placeholder="Bank" /></SelectTrigger>
+      <SelectTrigger aria-label={label}><SelectValue placeholder={t('udhari.bank')} /></SelectTrigger>
       <SelectContent>{banks?.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.bankName} · {b.accountNo}</SelectItem>)}</SelectContent>
     </Select>
   )
 
   return (
     <div className="max-w-4xl space-y-6">
-      <p className="text-sm text-muted-foreground">Record cash, online, gold or silver given to or received from a party.</p>
-      {!branchReady && <SelectBranchForTxn note="Udhar posts to one branch. Select a branch for this entry." />}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">{t('udhari.new_intro')}</p>
+        <Button variant="outline" size="sm" onClick={startNew}><RotateCcw aria-hidden />{t('udhari.new_entry')}</Button>
+      </div>
+      {saved && (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-green-600/30 bg-green-500/10 px-4 py-3 text-sm">
+          <CheckCircle2 className="size-4 text-green-600 dark:text-green-500" aria-hidden />
+          <span>{t('udhari.saved_banner', { no: saved.txnNo })}</span>
+          <Link to={`/app/udhari/txn/${saved.id}`} className="ml-auto font-semibold text-brand-strong hover:underline">{t('udhari.view_receipt')}</Link>
+        </div>
+      )}
+      {!branchReady && <SelectBranchForTxn note={t('udhari.branch_note')} />}
 
       <Card className="grid gap-4 p-6 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="u-party">{t('udhari.party')}</Label>
-          <PartyPicker value={party} onChange={setParty} placeholder="Search name / mobile" id="u-party" ariaLabel="Party" />
+          <PartyPicker value={party} onChange={setParty} placeholder={t('udhari.search_party')} id="u-party" ariaLabel="Party" />
           {party && <p className="w-fit rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">{t('udhari.old_balance')} {balance ? bal(n(o.amount), n(o.gold), n(o.silver)) : '—'}</p>}
         </div>
         <div className="space-y-1.5">
@@ -189,7 +216,7 @@ export function NewUdhar() {
             <SelectContent>
               <SelectItem value="none">{t('udhari.none')}</SelectItem>
               {pending.items.filter((b) => b.kind === 'SELL' && Number(b.balance) > 0).map((b) => (
-                <SelectItem key={b.id} value={String(b.id)}>{b.billNo} · balance ₹{b.balance}</SelectItem>
+                <SelectItem key={b.id} value={String(b.id)}>{t('udhari.settle_option', { billNo: b.billNo, balance: b.balance })}</SelectItem>
               ))}
             </SelectContent>
           </Select>

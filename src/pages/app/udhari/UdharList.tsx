@@ -1,51 +1,77 @@
 import type { ColumnDef } from '@tanstack/react-table'
-import { Filter } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { DataTable } from '@/components/DataTable'
+import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useT } from '@/lib/i18n'
 import { useUdharEntries } from '@/lib/udhariQueries'
 import { LEDGER_SOURCES, type UdharEntryRowDto } from '@/shared'
 
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
+const time = (s: string) => new Date(s).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
 
 export function UdharList() {
+  const t = useT()
   const [source, setSource] = useState('')
+  const [q, setQ] = useState('')
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
   const [page, setPage] = useState(1)
-  const { data, isLoading } = useUdharEntries({ source: source || undefined, page })
+  const [pageSize, setPageSize] = useState(20)
+  const { data, isLoading } = useUdharEntries({ source: source || undefined, q: q || undefined, from: from || undefined, to: to || undefined, page, pageSize })
 
   const columns: ColumnDef<UdharEntryRowDto, unknown>[] = [
-    { header: 'Date', cell: ({ row }) => date(row.original.txnDate) },
-    { header: 'Source', cell: ({ row }) => row.original.source },
-    { header: 'Ref', cell: ({ row }) => row.original.reference },
-    { header: 'Party', cell: ({ row }) => row.original.party.name },
+    { header: t('udhari.date'), cell: ({ row }) => date(row.original.txnDate) },
+    { header: t('udhari.col_time'), cell: ({ row }) => <span className="text-muted-foreground tabular-nums">{time(row.original.createdAt)}</span> },
+    { header: t('udhari.col_source'), cell: ({ row }) => row.original.source },
+    { header: t('udhari.col_ref'), cell: ({ row }) => row.original.reference },
+    {
+      header: t('udhari.col_party'),
+      cell: ({ row }) => <div><div className="font-medium">{row.original.party.name}</div>{row.original.party.mobile && <div className="text-xs text-muted-foreground">{row.original.party.mobile}</div>}</div>,
+    },
     { header: '₹', cell: ({ row }) => <span className={row.original.isReversal ? 'line-through' : ''}>{Number(row.original.amount) ? row.original.amount : '—'}</span> },
-    { header: 'Gold', cell: ({ row }) => (Number(row.original.gold) ? `${row.original.gold}g` : '—') },
-    { header: 'Silver', cell: ({ row }) => (Number(row.original.silver) ? `${row.original.silver}g` : '—') },
-    { header: 'Narration', cell: ({ row }) => row.original.narration ?? '—' },
+    { header: t('udhari.col_gold'), cell: ({ row }) => (Number(row.original.gold) ? `${row.original.gold}g` : '—') },
+    { header: t('udhari.col_silver'), cell: ({ row }) => (Number(row.original.silver) ? `${row.original.silver}g` : '—') },
+    { header: t('udhari.col_narration'), cell: ({ row }) => row.original.narration ?? '—' },
+    {
+      id: 'actions', header: '',
+      // manual udhar entries open their receipt (print / MPIN delete); other sources live in their own module
+      cell: ({ row }) => (row.original.source === 'UDHAR' && !row.original.isReversal
+        ? <Button asChild variant="outline" size="sm"><Link to={`/app/udhari/txn/${row.original.sourceId}`}>{t('udhari.view')}</Link></Button>
+        : null),
+    },
   ]
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-muted-foreground">Every udhar movement across parties. Filter by where it came from.</p>
-      <Card className="flex flex-wrap items-center gap-3 p-4">
-        <Filter className="size-4 text-muted-foreground" aria-hidden />
+      <p className="text-sm text-muted-foreground">{t('udhari.list_intro')}</p>
+      <Card className="flex flex-wrap items-end gap-3 p-4">
+        <div className="relative w-full sm:max-w-xs sm:flex-1">
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+          <Input className="pl-9" placeholder={t('udhari.search_list')} value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
+        </div>
         <Select value={source || 'all'} onValueChange={(v) => { setSource(v === 'all' ? '' : v); setPage(1) }}>
           <SelectTrigger className="w-48" aria-label="Source"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All sources</SelectItem>
+            <SelectItem value="all">{t('udhari.all_sources')}</SelectItem>
             {LEDGER_SOURCES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Input className="w-40" type="date" aria-label="From date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1) }} />
+        <Input className="w-40" type="date" aria-label="To date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1) }} />
       </Card>
 
       <DataTable
         columns={columns}
         data={data?.items ?? []}
         isLoading={isLoading}
-        emptyText="No transactions"
-        pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined}
+        emptyText={t('udhari.no_txns')}
+        pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: setPageSize } : undefined}
       />
     </div>
   )

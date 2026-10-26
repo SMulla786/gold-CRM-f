@@ -21,6 +21,11 @@ const monthRange = (m: string) => {
 }
 
 type Section = 'b2b' | 'b2cl' | 'b2cs' | 'hsnB2b' | 'hsnB2c' | 'cdnr' | 'docIssue'
+/** On-screen header label -> i18n key. `head` stays English (it is also the CSV header); abbreviations (GSTIN/POS/HSN/UQC/CGST...) are not translated. */
+const HEAD_KEY: Record<string, string> = {
+  Party: 'udhari.party', Inv: 'gst.col_inv', Date: 'udhari.date', Rate: 'udhari.rate', Taxable: 'gst.taxable', Value: 'gst.col_value', Type: 'bill.type',
+  Qty: 'jbill.col_qty', Total: 'bill.col_total', 'Note date': 'gst.col_note_date', Series: 'gst.col_series', From: 'common.from', To: 'common.to', Cancelled: 'gst.col_cancelled',
+}
 
 export function Gstr1Report() {
   const t = useT()
@@ -94,7 +99,7 @@ export function Gstr1Report() {
 
       <TableCard>
         <Table>
-          <TableHeader><TableRow>{head.map((h) => <TableHead key={h} className={money.has(h) ? 'text-right' : ''}>{h}</TableHead>)}</TableRow></TableHeader>
+          <TableHeader><TableRow>{head.map((h) => <TableHead key={h} className={money.has(h) ? 'text-right' : ''}>{HEAD_KEY[h] ? t(HEAD_KEY[h]) : h}</TableHead>)}</TableRow></TableHeader>
           <TableBody>
             {isLoading ? <TableRow><TableCell colSpan={head.length || 1} className="h-16 text-center text-muted-foreground">{t('common.loading')}</TableCell></TableRow>
               : rows.length ? rows.map((r, i) => (

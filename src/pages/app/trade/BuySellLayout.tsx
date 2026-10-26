@@ -7,6 +7,7 @@ const TABS = [
   { to: '/app/buy_sell/new', label: 'New Buy/Sell', key: 'buy_sell.entry' },
   { to: '/app/buy_sell', label: 'Trades', key: 'buy_sell.list', end: true },
   { to: '/app/buy_sell/bhav', label: 'Bhav Booking', key: 'buy_sell.bhav_booking' },
+  { to: '/app/buy_sell/bhav-old', label: 'Old bookings', key: 'buy_sell.bhav_booking' },
 ]
 
 export function BuySellLayout() {

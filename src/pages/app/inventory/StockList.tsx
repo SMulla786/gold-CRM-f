@@ -1,7 +1,7 @@
 import type { ColumnDef } from '@tanstack/react-table'
 import { Boxes, Gem, History, Layers, Scale, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { AuthedImage } from '@/components/AuthedImage'
 import { DataTable } from '@/components/DataTable'
@@ -15,7 +15,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { fetchAllStock, useBulkDeleteStock, useBulkEditStock, useDeleteStock, useStock, useStockLedger, useUpdateStock, useUploadStockPhoto } from '@/lib/inventoryQueries'
+import { useKarats } from '@/lib/appQueries'
+import { fetchAllStock, useBulkDeleteStock, useBulkEditStock, useDeleteStock, useItemGroups, useItemNames, useRemoveStockPhoto, useStock, useStockLedger, useUpdateStock, useUploadStockPhoto } from '@/lib/inventoryQueries'
 import { useAuth } from '@/lib/auth'
 import { downloadCsv } from '@/lib/csv'
 import { useT } from '@/lib/i18n'
@@ -24,6 +25,7 @@ import { CheckoutDraftDialog } from '@/pages/app/billing/CheckoutDraftDialog'
 import { CHARGE_UNITS, STOCK_CLASSES, STOCK_STATUSES, type StockItemDto } from '@/shared'
 
 const CLASS_LABEL: Record<string, string> = { GOLD: 'Gold', SILVER: 'Silver', STONE: 'Stone', ARTIFICIAL: 'Artificial', FRANCHISE: 'Franchise' }
+const UNIT_SHORT: Record<string, string> = { PER_GRAM: '/g', PERCENT: '%', FIXED: 'fixed' }
 
 // Editable numeric/charge fields shared by single + bulk edit (empty = unchanged in bulk).
 const NUM_FIELDS = ['pcs', 'gross', 'less', 'tunch', 'wastage', 'stoneCharge', 'other', 'labour', 'rate', 'purchaseCost'] as const
@@ -41,8 +43,10 @@ function toBody(form: Record<string, string>, labourUnit: string) {
 function StockEditDialog({ item, onClose }: { item: StockItemDto; onClose: () => void }) {
   const update = useUpdateStock()
   const uploadPhoto = useUploadStockPhoto()
+  const removePhoto = useRemoveStockPhoto()
   const [photoVer, setPhotoVer] = useState(0)
-  const hasPhoto = !!item.photoUrl || photoVer > 0
+  const [photoRemoved, setPhotoRemoved] = useState(false)
+  const hasPhoto = (!!item.photoUrl && !photoRemoved) || photoVer > 0
   const [form, setForm] = useState<Record<string, string>>({
     pcs: String(item.pcs), gross: item.gross, less: item.less, tunch: item.tunch, wastage: item.wastage,
     stoneCharge: item.stoneCharge, other: item.other, labour: item.labour, rate: item.rate ?? '', purchaseCost: item.purchaseCost ?? '', remarks: item.remarks ?? '',
@@ -80,7 +84,13 @@ function StockEditDialog({ item, onClose }: { item: StockItemDto; onClose: () =>
           <div className="flex items-center gap-3">
             {hasPhoto && <AuthedImage path={`/app/files/stock/${item.id}/photo`} ver={photoVer} alt={item.itemName.name} className="h-16 w-16 rounded-md border object-cover" />}
             <Input id="e-photo" type="file" accept="image/jpeg,image/png,image/webp" disabled={uploadPhoto.isPending}
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPhoto.mutate({ id: item.id, file: f }, { onSuccess: () => setPhotoVer((v) => v + 1) }) }} />
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPhoto.mutate({ id: item.id, file: f }, { onSuccess: () => { setPhotoRemoved(false); setPhotoVer((v) => v + 1) } }) }} />
+            {hasPhoto && (
+              <Button type="button" variant="ghost" size="sm" disabled={removePhoto.isPending}
+                onClick={() => removePhoto.mutate(item.id, { onSuccess: () => { setPhotoRemoved(true); setPhotoVer(0) } })}>
+                Remove photo
+              </Button>
+            )}
           </div>
         </div>
         <DialogFooter>
@@ -214,7 +224,31 @@ export function StockList() {
   })
   const [status, setStatus] = useState('AVAILABLE')
   const [q, setQ] = useState('')
-  const { data, isLoading } = useStock({ page, status, stockClass: stockClass || undefined, q: q || undefined })
+  // Extra filters (all already accepted by stockListQuery). '' = any.
+  const [method, setMethod] = useState('')
+  const [groupId, setGroupId] = useState('')
+  const [itemNameId, setItemNameId] = useState('')
+  const [karatCode, setKaratCode] = useState('')
+  const [minWeight, setMinWeight] = useState('')
+  const [maxWeight, setMaxWeight] = useState('')
+  const { data: groupOpts } = useItemGroups({ stockClass: stockClass || undefined, pageSize: 100 })
+  const { data: nameOpts } = useItemNames({ stockClass: stockClass || undefined, groupId: groupId ? Number(groupId) : undefined, pageSize: 100 })
+  const { data: karats } = useKarats()
+  const karatCodes = [...new Set((karats ?? []).map((k) => k.code))]
+  const filters = {
+    status,
+    stockClass: stockClass || undefined,
+    q: q || undefined,
+    method: method || undefined,
+    groupId: groupId || undefined,
+    itemNameId: itemNameId || undefined,
+    karatCode: karatCode || undefined,
+    minWeight: minWeight || undefined,
+    maxWeight: maxWeight || undefined,
+  }
+  const { data, isLoading } = useStock({ page, ...filters })
+  const navigate = useNavigate()
+  const canTags = can('inventory.tag_print', 'view')
   const del = useDeleteStock()
   const bulkDelete = useBulkDeleteStock()
   const [deleting, setDeleting] = useState<StockItemDto | null>(null)
@@ -230,7 +264,7 @@ export function StockList() {
   const exportCsv = async () => {
     setExporting(true)
     try {
-      const all = await fetchAllStock({ status, stockClass: stockClass || undefined, q: q || undefined })
+      const all = await fetchAllStock(filters)
       const header = ['Tag', 'Item', 'Group', 'Class', 'Karat', 'Pcs', 'Gross', 'Net', 'Fine', 'Stone', 'Labour', 'Rate', 'Cost', 'Branch', 'Status']
       const body = all.map((i) => [i.tagNo ?? '', i.itemName.name, i.group.name, i.stockClass, i.karatCode ?? '', i.pcs, i.gross, i.net, i.fine, i.stoneCharge, i.labour, i.rate ?? '', i.purchaseCost ?? '', i.branch.name, i.status])
       downloadCsv(`stock-${status.toLowerCase()}.csv`, [header, ...body])
@@ -288,12 +322,19 @@ export function StockList() {
         } as ColumnDef<StockItemDto, unknown>]
       : []),
     { header: t('stock.col_tag_item'), cell: ({ row }) => <button type="button" className="rounded-sm font-medium text-primary hover:underline focus-visible:underline focus-visible:outline-none" onClick={() => setViewing(row.original)}>{row.original.tagNo ?? row.original.itemName.name}</button> },
+    { id: 'item', header: 'Item', cell: ({ row }) => row.original.itemName.name },
+    { id: 'huid', header: 'HUID', cell: ({ row }) => row.original.huid ?? '—' },
     { header: t('stock.col_group'), cell: ({ row }) => row.original.group.name },
+    { id: 'hsn', header: 'HSN', cell: ({ row }) => row.original.hsnCode ?? '—' },
     { accessorKey: 'karatCode', header: t('stock.col_karat'), cell: ({ row }) => row.original.karatCode ?? '—' },
     { accessorKey: 'pcs', header: t('stock.col_pcs') },
     { accessorKey: 'gross', header: t('stock.col_gross') },
     { accessorKey: 'net', header: t('stock.col_net') },
+    { id: 'tunch', header: 'Tunch', cell: ({ row }) => row.original.tunch },
+    { id: 'wastage', header: 'Wst %', cell: ({ row }) => row.original.wastage },
     { accessorKey: 'fine', header: t('stock.col_fine') },
+    { id: 'labour', header: 'Labour', cell: ({ row }) => <span className="whitespace-nowrap">{row.original.labour} {UNIT_SHORT[row.original.labourUnit] ?? row.original.labourUnit}</span> },
+    { id: 'rate', header: 'Rate', cell: ({ row }) => row.original.rate ?? '—' },
     { header: t('stock.col_branch'), cell: ({ row }) => row.original.branch.name },
     { accessorKey: 'status', header: t('stock.col_status'), cell: ({ row }) => <Badge variant={row.original.status === 'AVAILABLE' ? 'default' : 'secondary'}>{row.original.status}</Badge> },
     {
@@ -321,7 +362,7 @@ export function StockList() {
       <Card>
         <CardContent className="flex flex-wrap items-end gap-3 pt-6">
           <Input className="max-w-xs" placeholder={t('stock.search')} value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
-          <Select value={stockClass || 'all'} onValueChange={(v) => { setStockClass(v === 'all' ? '' : v); setPage(1) }}>
+          <Select value={stockClass || 'all'} onValueChange={(v) => { setStockClass(v === 'all' ? '' : v); setGroupId(''); setItemNameId(''); setPage(1) }}>
             <SelectTrigger className="w-36" aria-label="Stock class">
               <SelectValue />
             </SelectTrigger>
@@ -342,6 +383,54 @@ export function StockList() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={method || 'all'} onValueChange={(v) => { setMethod(v === 'all' ? '' : v); setPage(1) }}>
+            <SelectTrigger className="w-32" aria-label="Entry type">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tag + Loose</SelectItem>
+              <SelectItem value="TAG">Tag only</SelectItem>
+              <SelectItem value="LOOSE">Loose only</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={groupId || 'all'} onValueChange={(v) => { setGroupId(v === 'all' ? '' : v); setItemNameId(''); setPage(1) }}>
+            <SelectTrigger className="w-40" aria-label="Item group">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All groups</SelectItem>
+              {groupOpts?.items.map((g) => (
+                <SelectItem key={g.id} value={String(g.id)}>{g.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={itemNameId || 'all'} onValueChange={(v) => { setItemNameId(v === 'all' ? '' : v); setPage(1) }}>
+            <SelectTrigger className="w-40" aria-label="Item">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All items</SelectItem>
+              {nameOpts?.items.map((n) => (
+                <SelectItem key={n.id} value={String(n.id)}>{n.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={karatCode || 'all'} onValueChange={(v) => { setKaratCode(v === 'all' ? '' : v); setPage(1) }}>
+            <SelectTrigger className="w-32" aria-label="Purity">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Any purity</SelectItem>
+              {karatCodes.map((c) => (
+                <SelectItem key={c} value={c}>{c}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="flex items-center gap-1">
+            <Input className="w-24" type="number" min={0} step="0.001" placeholder="Net from g" aria-label="Minimum net weight" value={minWeight} onChange={(e) => { setMinWeight(e.target.value); setPage(1) }} />
+            <span className="text-muted-foreground" aria-hidden>–</span>
+            <Input className="w-24" type="number" min={0} step="0.001" placeholder="Net to g" aria-label="Maximum net weight" value={maxWeight} onChange={(e) => { setMaxWeight(e.target.value); setPage(1) }} />
+          </div>
           <Button className="ml-auto" variant="outline" disabled={exporting} onClick={exportCsv}>
             {exporting ? 'Exporting…' : t('common.export_csv')}
           </Button>
@@ -353,6 +442,7 @@ export function StockList() {
           <span>{t('stock.selected', { n: ids.length })}</span>
           {canCheckout && <Button size="sm" onClick={() => setCheckout(true)}>{t('stock.add_to_cart')}</Button>}
           {canEdit && <Button size="sm" variant="outline" onClick={() => setBulkEditing(true)}>{t('stock.edit_selected')}</Button>}
+          {canTags && <Button size="sm" variant="outline" onClick={() => navigate('/app/inventory/tags', { state: { ids } })}>Print tags</Button>}
           {canDelete && <Button size="sm" variant="ghost" onClick={() => setBulkDeleting(true)}>{t('stock.delete_selected')}</Button>}
           <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>{t('stock.clear')}</Button>
         </div>

@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useBankAccounts } from '@/lib/appQueries'
 import { useAddSchemePayment } from '@/lib/schemesQueries'
-import { SCHEME_PAY_MEDIUMS, type EnrollmentDto } from '@/shared'
+import { businessDayISO, SCHEME_PAY_MEDIUMS, type EnrollmentDto } from '@/shared'
 
 const n = (s: string) => Number(s) || 0
 
@@ -16,13 +16,13 @@ export function AddMoneyDialog({ enrollment, onClose }: { enrollment: Enrollment
   const { data: banks } = useBankAccounts()
   const add = useAddSchemePayment()
   const gold = enrollment.scheme.type === 'GOLD'
-  const [f, setF] = useState({ emiNo: enrollment.nextEmiNo ? String(enrollment.nextEmiNo) : '', amount: enrollment.emiAmount, medium: 'CASH', bankAccountId: '', rate: '', remark: '' })
+  const [f, setF] = useState({ emiNo: enrollment.nextEmiNo ? String(enrollment.nextEmiNo) : '', txnDate: businessDayISO(), amount: enrollment.emiAmount, medium: 'CASH', bankAccountId: '', rate: '', remark: '' })
   const set = (k: keyof typeof f, v: string) => setF((s) => ({ ...s, [k]: v }))
   const valid = n(f.amount) > 0 && (f.medium !== 'ONLINE' || f.bankAccountId)
 
   const submit = async () => {
     await add.mutateAsync({
-      enrollmentId: enrollment.id, emiNo: f.emiNo ? n(f.emiNo) : undefined, amount: n(f.amount), medium: f.medium,
+      enrollmentId: enrollment.id, emiNo: f.emiNo ? n(f.emiNo) : undefined, txnDate: f.txnDate || undefined, amount: n(f.amount), medium: f.medium,
       bankAccountId: f.medium === 'ONLINE' ? Number(f.bankAccountId) : undefined, rate: gold && f.rate ? n(f.rate) : undefined, remark: f.remark || undefined,
     })
     onClose()
@@ -34,6 +34,7 @@ export function AddMoneyDialog({ enrollment, onClose }: { enrollment: Enrollment
         <DialogHeader><DialogTitle>Add money — {enrollment.assignId} {enrollment.displayName}</DialogTitle></DialogHeader>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5"><Label htmlFor="am-emi">EMI no {enrollment.nextEmiNo ? `(next ${enrollment.nextEmiNo})` : ''}</Label><Input id="am-emi" type="number" placeholder="auto" value={f.emiNo} onChange={(e) => set('emiNo', e.target.value)} /></div>
+          <div className="space-y-1.5"><Label htmlFor="am-date">Payment date</Label><Input id="am-date" type="date" max={businessDayISO()} value={f.txnDate} onChange={(e) => set('txnDate', e.target.value)} /></div>
           <div className="space-y-1.5"><Label htmlFor="am-amt">Amount ₹</Label><Input id="am-amt" type="number" value={f.amount} onChange={(e) => set('amount', e.target.value)} /></div>
           <div className="space-y-1.5"><Label>Medium</Label>
             <Select value={f.medium} onValueChange={(v) => set('medium', v)}><SelectTrigger aria-label="Medium"><SelectValue /></SelectTrigger>

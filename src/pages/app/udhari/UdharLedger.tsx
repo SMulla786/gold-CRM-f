@@ -30,10 +30,11 @@ export function UdharLedger() {
   const [to, setTo] = useState('')
   const [unit, setUnit] = useState<'amount' | 'gold' | 'silver'>('amount')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
   const [exporting, setExporting] = useState(false)
   const period = !!(from || to) // when a period is set the server fills old/in/out/final
   const unitSuffix = unit === 'amount' ? '' : 'g'
-  const { data, isLoading } = useUdharLedger({ type: type || undefined, nonZero, q: q || undefined, from: from || undefined, to: to || undefined, page })
+  const { data, isLoading } = useUdharLedger({ type: type || undefined, nonZero, q: q || undefined, from: from || undefined, to: to || undefined, page, pageSize })
 
   const exportCsv = async () => {
     setExporting(true)
@@ -53,22 +54,30 @@ export function UdharLedger() {
     // Period Old/In/Out/Final (from/to set) for the chosen unit — the breakdown carries all three units.
     ...(period
       ? [
-          { header: 'Old', cell: ({ row }: { row: { original: PartyBalanceRowDto } }) => signed(row.original.old?.[unit] ?? '0', unitSuffix) },
-          { header: 'In', cell: ({ row }: { row: { original: PartyBalanceRowDto } }) => signed(row.original.in?.[unit] ?? '0', unitSuffix) },
-          { header: 'Out', cell: ({ row }: { row: { original: PartyBalanceRowDto } }) => signed(row.original.out?.[unit] ?? '0', unitSuffix) },
-          { header: 'Final', cell: ({ row }: { row: { original: PartyBalanceRowDto } }) => signed(row.original.final?.[unit] ?? '0', unitSuffix) },
+          { header: t('udhari.col_old'), cell: ({ row }: { row: { original: PartyBalanceRowDto } }) => signed(row.original.old?.[unit] ?? '0', unitSuffix) },
+          { header: t('udhari.col_in'), cell: ({ row }: { row: { original: PartyBalanceRowDto } }) => signed(row.original.in?.[unit] ?? '0', unitSuffix) },
+          { header: t('udhari.col_out'), cell: ({ row }: { row: { original: PartyBalanceRowDto } }) => signed(row.original.out?.[unit] ?? '0', unitSuffix) },
+          { header: t('bill.final'), cell: ({ row }: { row: { original: PartyBalanceRowDto } }) => signed(row.original.final?.[unit] ?? '0', unitSuffix) },
         ]
       : []),
     { header: t('udhari.col_amount'), cell: ({ row }) => signed(row.original.amount, '') },
     { header: t('udhari.col_gold'), cell: ({ row }) => signed(row.original.gold, 'g') },
     { header: t('udhari.col_silver'), cell: ({ row }) => signed(row.original.silver, 'g') },
     { header: t('udhari.col_last_txn'), cell: ({ row }) => (row.original.lastTxnDate ? new Date(row.original.lastTxnDate).toLocaleDateString('en-IN') : '—') },
-    { id: 'actions', header: '', cell: ({ row }) => <Button asChild variant="outline" size="sm"><Link to={`/app/udhari/statement/${row.original.party.id}`}>{t('udhari.statement')}</Link></Button> },
+    {
+      id: 'actions', header: '',
+      cell: ({ row }) => (
+        <div className="flex justify-end gap-2">
+          <Button asChild variant="ghost" size="sm"><Link to={`/app/udhari?partyId=${row.original.party.id}`}>{t('udhari.new_txn')}</Link></Button>
+          <Button asChild variant="outline" size="sm"><Link to={`/app/udhari/statement/${row.original.party.id}`}>{t('udhari.statement')}</Link></Button>
+        </div>
+      ),
+    },
   ]
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-muted-foreground">Outstanding money, gold and silver per party. Set a period to see opening, movement and closing.</p>
+      <p className="text-sm text-muted-foreground">{t('udhari.ledger_intro')}</p>
       <Card className="flex flex-wrap items-center gap-3 p-4">
         <div className="relative w-full sm:max-w-xs sm:flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
@@ -91,13 +100,13 @@ export function UdharLedger() {
           <Select value={unit} onValueChange={(v) => setUnit(v as 'amount' | 'gold' | 'silver')}>
             <SelectTrigger className="w-32" aria-label="Balance unit"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="amount">₹ Amount</SelectItem>
-              <SelectItem value="gold">Gold</SelectItem>
-              <SelectItem value="silver">Silver</SelectItem>
+              <SelectItem value="amount">{t('udhari.unit_amount')}</SelectItem>
+              <SelectItem value="gold">{t('udhari.col_gold')}</SelectItem>
+              <SelectItem value="silver">{t('udhari.col_silver')}</SelectItem>
             </SelectContent>
           </Select>
         )}
-        <Button className="ml-auto" variant="outline" disabled={exporting} onClick={exportCsv}><Download aria-hidden />{exporting ? 'Exporting…' : t('common.export_csv')}</Button>
+        <Button className="ml-auto" variant="outline" disabled={exporting} onClick={exportCsv}><Download aria-hidden />{exporting ? t('udhari.exporting') : t('common.export_csv')}</Button>
       </Card>
 
       <DataTable
@@ -105,7 +114,7 @@ export function UdharLedger() {
         data={data?.items ?? []}
         isLoading={isLoading}
         emptyText={t('udhari.no_balances')}
-        pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined}
+        pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: setPageSize } : undefined}
       />
     </div>
   )

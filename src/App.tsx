@@ -20,6 +20,7 @@ const PermissionEnquiries = lazy(() => import('@/pages/admin/PermissionEnquiries
 const AccessRequests = lazy(() => import('@/pages/app/AccessRequests').then((m) => ({ default: m.AccessRequests })))
 const Branches = lazy(() => import('@/pages/admin/Branches').then((m) => ({ default: m.Branches })))
 const Counters = lazy(() => import('@/pages/admin/Counters').then((m) => ({ default: m.Counters })))
+const MyAccount = lazy(() => import('@/pages/account/MyAccount').then((m) => ({ default: m.MyAccount })))
 const Users = lazy(() => import('@/pages/admin/Users').then((m) => ({ default: m.Users })))
 const Roles = lazy(() => import('@/pages/admin/Roles').then((m) => ({ default: m.Roles })))
 const BusinessProfile = lazy(() => import('@/pages/admin/BusinessProfile').then((m) => ({ default: m.BusinessProfile })))
@@ -65,7 +66,12 @@ const NewOrder = lazy(() => import('@/pages/app/orders/NewOrder').then((m) => ({
 const OrderList = lazy(() => import('@/pages/app/orders/OrderList').then((m) => ({ default: m.OrderList })))
 const OrderDetail = lazy(() => import('@/pages/app/orders/OrderDetail').then((m) => ({ default: m.OrderDetail })))
 const KarigarIssues = lazy(() => import('@/pages/app/orders/KarigarIssues').then((m) => ({ default: m.KarigarIssues })))
+const KarigarIssuePrint = lazy(() => import('@/pages/app/orders/KarigarIssuePrint').then((m) => ({ default: m.KarigarIssuePrint })))
+const OrderPrint = lazy(() => import('@/pages/app/orders/OrderPrint').then((m) => ({ default: m.OrderPrint })))
+const ReadyToDeliver = lazy(() => import('@/pages/app/orders/ReadyToDeliver').then((m) => ({ default: m.ReadyToDeliver })))
 const RepairBoard = lazy(() => import('@/pages/app/repair/RepairBoard').then((m) => ({ default: m.RepairBoard })))
+const RepairLedger = lazy(() => import('@/pages/app/repair/RepairLedger').then((m) => ({ default: m.RepairLedger })))
+const RepairSlip = lazy(() => import('@/pages/app/repair/RepairSlip').then((m) => ({ default: m.RepairSlip })))
 const GirviLayout = lazy(() => import('@/pages/app/girvi/GirviLayout').then((m) => ({ default: m.GirviLayout })))
 const NewGirvi = lazy(() => import('@/pages/app/girvi/NewGirvi').then((m) => ({ default: m.NewGirvi })))
 const GirviList = lazy(() => import('@/pages/app/girvi/GirviList').then((m) => ({ default: m.GirviList })))
@@ -79,6 +85,7 @@ const BuySellLayout = lazy(() => import('@/pages/app/trade/BuySellLayout').then(
 const NewBuySell = lazy(() => import('@/pages/app/trade/NewBuySell').then((m) => ({ default: m.NewBuySell })))
 const BuySellList = lazy(() => import('@/pages/app/trade/BuySellList').then((m) => ({ default: m.BuySellList })))
 const BhavBookings = lazy(() => import('@/pages/app/trade/BhavBookings').then((m) => ({ default: m.BhavBookings })))
+const BhavOldBookings = lazy(() => import('@/pages/app/trade/BhavOldBookings').then((m) => ({ default: m.BhavOldBookings })))
 const SchemesLayout = lazy(() => import('@/pages/app/schemes/SchemesLayout').then((m) => ({ default: m.SchemesLayout })))
 const SchemeList = lazy(() => import('@/pages/app/schemes/SchemeList').then((m) => ({ default: m.SchemeList })))
 const SchemeGroups = lazy(() => import('@/pages/app/schemes/SchemeGroups').then((m) => ({ default: m.SchemeGroups })))
@@ -95,6 +102,7 @@ const UdharLedger = lazy(() => import('@/pages/app/udhari/UdharLedger').then((m)
 const UdharList = lazy(() => import('@/pages/app/udhari/UdharList').then((m) => ({ default: m.UdharList })))
 const UdharPendingBills = lazy(() => import('@/pages/app/udhari/PendingBills').then((m) => ({ default: m.PendingBills })))
 const UdharStatement = lazy(() => import('@/pages/app/udhari/Statement').then((m) => ({ default: m.Statement })))
+const UdharView = lazy(() => import('@/pages/app/udhari/UdharView').then((m) => ({ default: m.UdharView })))
 const OwnerDashboard = lazy(() => import('@/pages/app/OwnerDashboard').then((m) => ({ default: m.OwnerDashboard })))
 const GstReports = lazy(() => import('@/pages/app/billing/GstReports').then((m) => ({ default: m.GstReports })))
 
@@ -131,6 +139,7 @@ export default function App() {
             <Route index element={<AdminDashboard />} />
             <Route path="branches" element={<Branches />} />
             <Route path="counters" element={<Counters />} />
+            <Route path="account" element={<MyAccount />} />
             <Route path="users" element={<Users />} />
             <Route path="roles" element={<Roles />} />
             <Route path="permission-enquiries" element={<PermissionEnquiries />} />
@@ -144,6 +153,7 @@ export default function App() {
             <Route index element={<OwnerDashboard />} />
             <Route path="dashboard" element={<OwnerDashboard />} />
             <Route path="access-requests" element={<AccessRequests />} />
+            <Route path="account" element={<MyAccount />} />
             <Route path="settings" element={<SettingsLayout />}>
               <Route index element={<Navigate to="/app/settings/parties" replace />} />
               <Route path="parties" element={<Parties />} />
@@ -191,9 +201,16 @@ export default function App() {
               <Route index element={<OrderList />} />
               <Route path="new" element={<NewOrder />} />
               <Route path="karigar" element={<KarigarIssues />} />
+              <Route path="karigar/:id/print" element={<KarigarIssuePrint />} />
+              <Route path="ready" element={<ReadyToDeliver />} />
               <Route path=":id" element={<OrderDetail />} />
+              <Route path=":id/print" element={<OrderPrint />} />
             </Route>
-            <Route path="repair" element={<RepairBoard />} />
+            <Route path="repair">
+              <Route index element={<RepairBoard />} />
+              <Route path="ledger" element={<RepairLedger />} />
+              <Route path="slip/:id" element={<RepairSlip />} />
+            </Route>
             <Route path="exchange" element={<ExchangeLayout />}>
               <Route index element={<ExchangeList />} />
               <Route path="new" element={<NewExchange />} />
@@ -203,6 +220,7 @@ export default function App() {
               <Route index element={<BuySellList />} />
               <Route path="new" element={<NewBuySell />} />
               <Route path="bhav" element={<BhavBookings />} />
+              <Route path="bhav-old" element={<BhavOldBookings />} />
             </Route>
             <Route path="schemes" element={<SchemesLayout />}>
               <Route index element={<SchemeList />} />
@@ -227,6 +245,7 @@ export default function App() {
               <Route path="list" element={<UdharList />} />
               <Route path="pending" element={<UdharPendingBills />} />
               <Route path="statement/:partyId" element={<UdharStatement />} />
+              <Route path="txn/:id" element={<UdharView />} />
             </Route>
             <Route path=":moduleKey" element={<ModulePlaceholder />} />
           </Route>

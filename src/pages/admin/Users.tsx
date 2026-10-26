@@ -21,6 +21,7 @@ import {
   useBranches,
   useCreateUser,
   usePermissionCatalog,
+  useResetUserMpin,
   useResetUserPassword,
   useRoles,
   useSaveUserPermissions,
@@ -67,6 +68,7 @@ type UserForm = {
   branchId: number
   roleId?: number
   viewDaysLimit?: number | null
+  mpin?: string
 }
 
 function UserDialog({ user, onClose }: { user?: UserDto; onClose: () => void }) {
@@ -101,7 +103,7 @@ function UserDialog({ user, onClose }: { user?: UserDto; onClose: () => void }) 
       await update.mutateAsync({ id: user.id, body: common })
       return onClose()
     }
-    const u = await create.mutateAsync({ ...common, username: v.username, password: v.password })
+    const u = await create.mutateAsync({ ...common, username: v.username, password: v.password, mpin: v.mpin })
     setCreated({ username: u.username, password: v.password ?? '' })
   })
 
@@ -174,6 +176,11 @@ function UserDialog({ user, onClose }: { user?: UserDto; onClose: () => void }) 
                 <Label htmlFor="u-pass">Password</Label>
                 <Input id="u-pass" type="text" {...register('password')} />
                 {formState.errors.password && <p className="text-xs text-destructive">{formState.errors.password.message}</p>}
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="u-mpin">MPIN (optional)</Label>
+                <Input id="u-mpin" inputMode="numeric" maxLength={4} placeholder="4 digits" autoComplete="off" {...register('mpin', { setValueAs: (v: string) => v?.trim() || undefined })} />
+                {formState.errors.mpin && <p className="text-xs text-destructive">{formState.errors.mpin.message}</p>}
               </div>
             </div>
           )}
@@ -280,6 +287,37 @@ function ResetPasswordDialog({ user, onClose }: { user: UserDto; onClose: () => 
   )
 }
 
+function ResetMpinDialog({ user, onClose }: { user: UserDto; onClose: () => void }) {
+  const reset = useResetUserMpin()
+  const [mpin, setMpin] = useState('')
+  const valid = /^\d{4}$/.test(mpin)
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Set MPIN · {user.name}</DialogTitle>
+          <DialogDescription>The user is asked for this PIN before sensitive edits and deletes. They can change it later from My account.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-1.5">
+          <Label htmlFor="r-mpin">New MPIN</Label>
+          <Input id="r-mpin" inputMode="numeric" maxLength={4} autoComplete="off" value={mpin} onChange={(e) => setMpin(e.target.value.replace(/\D/g, ''))} />
+        </div>
+        <DialogFooter>
+          <Button
+            disabled={!valid || reset.isPending}
+            onClick={async () => {
+              await reset.mutateAsync({ id: user.id, mpin })
+              onClose()
+            }}
+          >
+            Set MPIN
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function PermissionsDialog({ user, onClose }: { user: UserDto; onClose: () => void }) {
   const { data: catalog } = usePermissionCatalog()
   const { data: perms, isLoading } = useUserPermissions(user.id)
@@ -303,6 +341,20 @@ function PermissionsDialog({ user, onClose }: { user: UserDto; onClose: () => vo
           <PermissionMatrix catalog={catalog} value={map} onChange={setMap} overriddenKeys={perms?.overriddenKeys} />
         )}
         <DialogFooter>
+          {!!perms?.overriddenKeys.length && (
+            <Button
+              variant="outline"
+              disabled={save.isPending}
+              onClick={async () => {
+                // Saving no overrides leaves the user on their role's defaults.
+                if (!window.confirm(`Drop ${user.name}'s custom permissions and use the role defaults?`)) return
+                await save.mutateAsync({ id: user.id, grants: [] })
+                onClose()
+              }}
+            >
+              Reset to role defaults
+            </Button>
+          )}
           <Button
             disabled={save.isPending}
             onClick={async () => {
@@ -342,12 +394,14 @@ export function Users() {
   const { me } = useAuth()
   const [page, setPage] = useState(1)
   const [tab, setTab] = useState<StatusTab>('ALL')
-  const { data, isLoading } = useUsers({ page, status: statusParam(tab) })
+  const [q, setQ] = useState('')
+  const { data, isLoading } = useUsers({ page, status: statusParam(tab), q: q.trim() || undefined })
   const counts = useStatusCounts()
   const setStatus = useSetUserStatus()
   const [editing, setEditing] = useState<UserDto | null>(null)
   const [creating, setCreating] = useState(false)
   const [resetting, setResetting] = useState<UserDto | null>(null)
+  const [mpinFor, setMpinFor] = useState<UserDto | null>(null)
   const [permsFor, setPermsFor] = useState<UserDto | null>(null)
 
   const columns: ColumnDef<UserDto, unknown>[] = [
@@ -371,15 +425,32 @@ export function Users() {
               <Button variant="ghost" size="sm">Actions</Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {canManage && <DropdownMenuItem onClick={() => setEditing(u)}>Edit</DropdownMenuItem>}
-              {canManage && <DropdownMenuItem onClick={() => setPermsFor(u)}>Permissions</DropdownMenuItem>}
-              {canManage && <DropdownMenuItem onClick={() => setResetting(u)}>Reset password</DropdownMenuItem>}
-              {canBlock &&
-                (u.status === 'BLOCKED' ? (
-                  <DropdownMenuItem onClick={() => setStatus.mutate({ id: u.id, action: 'unblock' })}>Unblock</DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem onClick={() => setStatus.mutate({ id: u.id, action: 'block' })}>Block</DropdownMenuItem>
-                ))}
+              {u.status === 'DELETED' ? (
+                <DropdownMenuItem onClick={() => setStatus.mutate({ id: u.id, action: 'restore' })}>Restore</DropdownMenuItem>
+              ) : (
+                <>
+                  {canManage && <DropdownMenuItem onClick={() => setEditing(u)}>Edit</DropdownMenuItem>}
+                  {canManage && <DropdownMenuItem onClick={() => setPermsFor(u)}>Permissions</DropdownMenuItem>}
+                  {canManage && <DropdownMenuItem onClick={() => setResetting(u)}>Reset password</DropdownMenuItem>}
+                  {canManage && <DropdownMenuItem onClick={() => setMpinFor(u)}>Set MPIN</DropdownMenuItem>}
+                  {canBlock &&
+                    (u.status === 'BLOCKED' ? (
+                      <DropdownMenuItem onClick={() => setStatus.mutate({ id: u.id, action: 'unblock' })}>Unblock</DropdownMenuItem>
+                    ) : (
+                      <DropdownMenuItem onClick={() => setStatus.mutate({ id: u.id, action: 'block' })}>Block</DropdownMenuItem>
+                    ))}
+                  {canBlock && (
+                    <DropdownMenuItem
+                      className="text-destructive"
+                      onClick={() => {
+                        if (window.confirm(`Move ${u.name} to Trash? They are signed out and can't log in until restored.`)) setStatus.mutate({ id: u.id, action: 'delete' })
+                      }}
+                    >
+                      Move to trash
+                    </DropdownMenuItem>
+                  )}
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         )
@@ -412,6 +483,16 @@ export function Users() {
           ))}
         </TabsList>
       </Tabs>
+      <Input
+        className="max-w-xs"
+        aria-label="Search users"
+        placeholder="Search name or username…"
+        value={q}
+        onChange={(e) => {
+          setQ(e.target.value)
+          setPage(1)
+        }}
+      />
       <DataTable
         columns={columns}
         data={data?.items ?? []}
@@ -421,6 +502,7 @@ export function Users() {
       {creating && <UserDialog onClose={() => setCreating(false)} />}
       {editing && <UserDialog user={editing} onClose={() => setEditing(null)} />}
       {resetting && <ResetPasswordDialog user={resetting} onClose={() => setResetting(null)} />}
+      {mpinFor && <ResetMpinDialog user={mpinFor} onClose={() => setMpinFor(null)} />}
       {permsFor && <PermissionsDialog user={permsFor} onClose={() => setPermsFor(null)} />}
     </div>
   )

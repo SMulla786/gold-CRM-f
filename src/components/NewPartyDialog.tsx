@@ -164,8 +164,8 @@ export function NewPartyDialog({ open, onClose, defaultType = 'CUSTOMER', defaul
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Birthday"><Input type="date" value={birthday} onChange={(e) => setBirthday(e.target.value)} /></Field>
-            <Field label="Anniversary"><Input type="date" value={anniversary} onChange={(e) => setAnniversary(e.target.value)} /></Field>
+            <Field label={t('party.birthday')}><Input type="date" value={birthday} onChange={(e) => setBirthday(e.target.value)} /></Field>
+            <Field label={t('party.anniversary')}><Input type="date" value={anniversary} onChange={(e) => setAnniversary(e.target.value)} /></Field>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -211,13 +211,13 @@ export function NewPartyDialog({ open, onClose, defaultType = 'CUSTOMER', defaul
           )}
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="License no."><Input {...register('licenseNo')} /></Field>
-            <Field label="Registration no."><Input {...register('regNo')} /></Field>
-            <Field label="Logo title"><Input {...register('logoTitle')} /></Field>
-            <Field label="Area"><Input {...register('area')} /></Field>
-            <Field label="Pin code" error={errors.pinCode?.message}><Input {...register('pinCode')} /></Field>
+            <Field label={t('party.license_no')}><Input {...register('licenseNo')} /></Field>
+            <Field label={t('party.reg_no')}><Input {...register('regNo')} /></Field>
+            <Field label={t('party.logo_title')}><Input {...register('logoTitle')} /></Field>
+            <Field label={t('party.area')}><Input {...register('area')} /></Field>
+            <Field label={t('party.pin_code')} error={errors.pinCode?.message}><Input {...register('pinCode')} /></Field>
           </div>
-          <Field label="Shop address"><Input {...register('shopAddress')} /></Field>
+          <Field label={t('party.shop_address')}><Input {...register('shopAddress')} /></Field>
 
           <p className="text-xs text-muted-foreground">{t('party.photo_note')}</p>
 

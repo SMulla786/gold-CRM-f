@@ -9,26 +9,28 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useCurrentRates, useSetRates } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
+import { useT } from '@/lib/i18n'
 import { RATE_UNIT_GRAMS, type RateRowDto, type RateUnitKey } from '@/shared'
 
-const UNIT: Record<RateUnitKey, string> = { GRAM_1: 'per g', GRAM_10: 'per 10 g', TOLA: 'per tola', KG_1: 'per kg' }
+// Unit labels are i18n keys: `rates.unit.<RateUnitKey | display key>` (e.g. rates.unit.TOLA = 'per tola').
 const money = (s: string | number) => new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(Number(s))
 
 // Display-only unit switch (TASK-82). 'DEFAULT' keeps each metal's stored shop unit; the rest
 // re-express the stored rate by grams. Troy ounce isn't a stored RateUnitKey — display math only.
-const DISPLAY_UNITS: { key: string; label: string; grams: number | null }[] = [
-  { key: 'DEFAULT', label: 'Shop units', grams: null },
-  { key: 'GRAM_1', label: 'per g', grams: 1 },
-  { key: 'GRAM_10', label: 'per 10 g', grams: 10 },
-  { key: 'TOLA', label: 'per tola', grams: RATE_UNIT_GRAMS.TOLA },
-  { key: 'TROY_OZ', label: 'per troy oz', grams: 31.1035 },
-  { key: 'KG_1', label: 'per kg', grams: 1000 },
+const DISPLAY_UNITS: { key: string; grams: number | null }[] = [
+  { key: 'DEFAULT', grams: null },
+  { key: 'GRAM_1', grams: 1 },
+  { key: 'GRAM_10', grams: 10 },
+  { key: 'TOLA', grams: RATE_UNIT_GRAMS.TOLA },
+  { key: 'TROY_OZ', grams: 31.1035 },
+  { key: 'KG_1', grams: 1000 },
 ]
 
 interface EditRow { karatCode: string; title: string; sell: string; buy: string }
 const toEdit = (r: RateRowDto): EditRow => ({ karatCode: r.karatCode, title: r.title, sell: r.sellRate, buy: r.buyRate })
 
 function EditRatesDialog({ onClose }: { onClose: () => void }) {
+  const t = useT()
   const { data } = useCurrentRates()
   const setRates = useSetRates()
   const [gold, setGold] = useState<EditRow[]>(() => (data?.gold.rows ?? []).map(toEdit))
@@ -50,7 +52,7 @@ function EditRatesDialog({ onClose }: { onClose: () => void }) {
     <div className="space-y-2">
       <div className="flex items-center gap-2 text-sm font-semibold capitalize">
         <span aria-hidden className={metal === 'gold' ? 'size-2 rounded-full bg-brand' : 'size-2 rounded-full bg-slate-400'} />
-        {metal} ({data ? UNIT[data[metal].rateUnit] : ''})
+        {t(metal === 'gold' ? 'class.GOLD' : 'class.SILVER')} ({data ? t(`rates.unit.${data[metal].rateUnit}`) : ''})
       </div>
       {rows.map((r, i) => (
         <div key={r.karatCode} className="flex items-center gap-2">
@@ -65,11 +67,11 @@ function EditRatesDialog({ onClose }: { onClose: () => void }) {
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>Edit rates</DialogTitle></DialogHeader>
-        <p className="text-xs text-muted-foreground">Sell · Buy. Rates outside the shop's limits are rejected — use Settings → Rates to override.</p>
+        <DialogHeader><DialogTitle>{t('rates.edit')}</DialogTitle></DialogHeader>
+        <p className="text-xs text-muted-foreground">{t('rates.edit_hint')}</p>
         <div className="grid gap-4 sm:grid-cols-2">{section('gold', gold)}{section('silver', silver)}</div>
         <DialogFooter>
-          <Button disabled={setRates.isPending} onClick={save}>{setRates.isPending ? 'Saving…' : 'Save rates'}</Button>
+          <Button disabled={setRates.isPending} onClick={save}>{setRates.isPending ? t('bill.saving') : t('rates.save')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -77,6 +79,7 @@ function EditRatesDialog({ onClose }: { onClose: () => void }) {
 }
 
 export function ShopRateCard() {
+  const t = useT()
   const { can } = useAuth()
   const { data } = useCurrentRates()
   const [edit, setEdit] = useState(false)
@@ -93,7 +96,7 @@ export function ShopRateCard() {
         <TableCell className="font-medium">
           <span className="inline-flex items-center gap-2.5">
             <span aria-hidden className={metal === 'gold' ? 'size-2.5 rounded-full bg-brand shadow-[0_0_8px_var(--color-brand)]' : 'size-2.5 rounded-full bg-slate-400'} />
-            {metal === 'gold' ? 'Gold' : 'Silver'} {r.title}
+            {t(metal === 'gold' ? 'class.GOLD' : 'class.SILVER')} {r.title}
           </span>
         </TableCell>
         <TableCell className="text-right font-bold">₹{show(metal, r.sellRate)}</TableCell>
@@ -101,23 +104,25 @@ export function ShopRateCard() {
       </TableRow>
     ))
 
-  const unitLabel = to === null ? `Gold ${UNIT[data.gold.rateUnit]} · Silver ${UNIT[data.silver.rateUnit]}` : DISPLAY_UNITS.find((u) => u.key === unit)!.label
+  const unitLabel = to === null
+    ? t('rates.both_units', { gold: t(`rates.unit.${data.gold.rateUnit}`), silver: t(`rates.unit.${data.silver.rateUnit}`) })
+    : t(`rates.unit.${unit}`)
 
   return (
     <SectionCard
-      title={<>Today's rates <span className="text-sm font-normal text-muted-foreground">({unitLabel})</span></>}
+      title={<>{`${t('rates.today')} `}<span className="text-sm font-normal text-muted-foreground">({unitLabel})</span></>}
       actions={
         <>
           <Select value={unit} onValueChange={setUnit}>
             <SelectTrigger className="h-8 w-32 rounded-xl" aria-label="Rate unit"><SelectValue /></SelectTrigger>
-            <SelectContent>{DISPLAY_UNITS.map((u) => <SelectItem key={u.key} value={u.key}>{u.label}</SelectItem>)}</SelectContent>
+            <SelectContent>{DISPLAY_UNITS.map((u) => <SelectItem key={u.key} value={u.key}>{t(`rates.unit.${u.key}`)}</SelectItem>)}</SelectContent>
           </Select>
-          {can('settings.misc', 'edit') && <Button size="sm" variant="outline" onClick={() => setEdit(true)}><Pencil aria-hidden />Edit rates</Button>}
+          {can('settings.misc', 'edit') && <Button size="sm" variant="outline" onClick={() => setEdit(true)}><Pencil aria-hidden />{t('rates.edit')}</Button>}
         </>
       }
     >
       <Table>
-        <TableHeader><TableRow><TableHead>Metal</TableHead><TableHead className="text-right">Sell</TableHead><TableHead className="text-right">Buy</TableHead></TableRow></TableHeader>
+        <TableHeader><TableRow><TableHead>{t('udhari.metal')}</TableHead><TableHead className="text-right">{t('rates.sell')}</TableHead><TableHead className="text-right">{t('rates.buy')}</TableHead></TableRow></TableHeader>
         <TableBody>{rows('gold')}{rows('silver')}</TableBody>
       </Table>
       {edit && <EditRatesDialog onClose={() => setEdit(false)} />}

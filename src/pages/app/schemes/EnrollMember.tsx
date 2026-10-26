@@ -34,7 +34,7 @@ export function EnrollMember() {
   const [f, setF] = useState({ groupId: '', assignId: '', displayName: '', emiAmount: '', startDate: today(), tokenAmount: '0' })
   const set = (k: keyof typeof f, v: string) => setF((s) => ({ ...s, [k]: v }))
   const [payFirst, setPayFirst] = useState(false)
-  const [pay, setPay] = useState({ amount: '', medium: 'CASH', bankAccountId: '', rate: '' })
+  const [pay, setPay] = useState({ txnDate: today(), amount: '', medium: 'CASH', bankAccountId: '', rate: '' })
   const setPayF = (k: keyof typeof pay, v: string) => setPay((s) => ({ ...s, [k]: v }))
 
   const pickParty = (p: PartyRefDto | null) => { setParty(p); if (p && !f.displayName) set('displayName', p.name) }
@@ -45,7 +45,7 @@ export function EnrollMember() {
 
   const submit = async () => {
     const firstPayment = payFirst
-      ? { amount: n(pay.amount || emi), medium: pay.medium, bankAccountId: pay.medium === 'ONLINE' ? Number(pay.bankAccountId) : undefined, rate: gold && pay.rate ? n(pay.rate) : undefined }
+      ? { txnDate: pay.txnDate || undefined, amount: n(pay.amount || emi), medium: pay.medium, bankAccountId: pay.medium === 'ONLINE' ? Number(pay.bankAccountId) : undefined, rate: gold && pay.rate ? n(pay.rate) : undefined }
       : undefined
     const saved = await enroll.mutateAsync({
       schemeId: Number(schemeId), groupId: f.groupId ? Number(f.groupId) : undefined, partyId: party!.id,
@@ -103,6 +103,7 @@ export function EnrollMember() {
         </CardHeader>
         {payFirst && (
           <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="space-y-1.5"><Label htmlFor="en-pay-date">Payment date</Label><Input id="en-pay-date" type="date" max={today()} value={pay.txnDate} onChange={(e) => setPayF('txnDate', e.target.value)} /></div>
             <div className="space-y-1.5"><Label htmlFor="en-pay-amt">Amount ₹</Label><Input id="en-pay-amt" type="number" placeholder={emi} value={pay.amount} onChange={(e) => setPayF('amount', e.target.value)} /></div>
             <div className="space-y-1.5"><Label>Medium</Label>
               <Select value={pay.medium} onValueChange={(v) => setPayF('medium', v)}><SelectTrigger aria-label="Medium"><SelectValue /></SelectTrigger>

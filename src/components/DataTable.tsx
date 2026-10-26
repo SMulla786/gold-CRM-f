@@ -11,9 +11,11 @@ interface DataTableProps<T> {
   data: T[]
   isLoading?: boolean
   emptyText?: string
-  /** Server-side pagination controls (optional). */
-  pagination?: { page: number; pageSize: number; total: number; onPage: (page: number) => void }
+  /** Server-side pagination controls (optional). `onPageSize` adds an entries-per-page picker (backend max 100). */
+  pagination?: { page: number; pageSize: number; total: number; onPage: (page: number) => void; onPageSize?: (size: number) => void }
 }
+
+const PAGE_SIZES = [10, 20, 50, 100]
 
 export function DataTable<T>({ columns, data, isLoading, emptyText, pagination }: DataTableProps<T>) {
   const t = useT()
@@ -61,17 +63,31 @@ export function DataTable<T>({ columns, data, isLoading, emptyText, pagination }
         </Table>
       </div>
 
-      {pagination && pagination.total > pagination.pageSize && (
-        <div className="flex items-center justify-end gap-2 text-sm">
+      {pagination && (pagination.total > pagination.pageSize || (pagination.onPageSize && pagination.total > PAGE_SIZES[0])) && (
+        <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
+          {pagination.onPageSize && (
+            <label className="mr-auto flex items-center gap-2 text-muted-foreground">
+              {t('table.entries')}
+              <select
+                className="h-8 rounded-lg border bg-card px-2 text-foreground"
+                value={pagination.pageSize}
+                onChange={(e) => { pagination.onPageSize!(Number(e.target.value)); pagination.onPage(1) }}
+              >
+                {PAGE_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </label>
+          )}
           <span className="text-muted-foreground">
             {t('table.page_of', { page: pagination.page, pages: pageCount, total: pagination.total })}
           </span>
+          {pagination.total > pagination.pageSize && <>
           <Button variant="outline" size="sm" disabled={pagination.page <= 1} onClick={() => pagination.onPage(pagination.page - 1)}>
             {t('table.previous')}
           </Button>
           <Button variant="outline" size="sm" disabled={pagination.page >= pageCount} onClick={() => pagination.onPage(pagination.page + 1)}>
             {t('table.next')}
           </Button>
+          </>}
         </div>
       )}
     </div>

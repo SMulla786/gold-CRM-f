@@ -5,20 +5,29 @@ import { useState } from 'react'
 import { DataTable } from '@/components/DataTable'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useKarats } from '@/lib/appQueries'
 import { useGroupStock } from '@/lib/inventoryQueries'
 import { downloadCsv } from '@/lib/csv'
-import { STOCK_CLASSES, type GroupStockDto } from '@/shared'
+import { STOCK_CLASSES, STOCK_STATUSES, type GroupStockDto } from '@/shared'
 
 const CLASS_LABEL: Record<string, string> = { GOLD: 'Gold', SILVER: 'Silver', STONE: 'Stone', ARTIFICIAL: 'Artificial', FRANCHISE: 'Franchise' }
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Number(s))
 
 export function GroupStock() {
   const [stockClass, setStockClass] = useState('')
-  const { data, isLoading } = useGroupStock({ stockClass: stockClass || undefined })
+  const [status, setStatus] = useState('AVAILABLE')
+  const [method, setMethod] = useState('')
+  const [karatCode, setKaratCode] = useState('')
+  const [q, setQ] = useState('')
+  const { data: karats } = useKarats()
+  const karatCodes = [...new Set((karats ?? []).map((k) => k.code))]
+  const { data, isLoading } = useGroupStock({ stockClass: stockClass || undefined, status, method: method || undefined, karatCode: karatCode || undefined, q: q || undefined })
 
   const columns: ColumnDef<GroupStockDto, unknown>[] = [
     { accessorKey: 'groupName', header: 'Group' },
+    { id: 'hsn', header: 'HSN', cell: ({ row }) => row.original.hsnCode ?? '—' },
     { accessorKey: 'karatCode', header: 'Karat', cell: ({ row }) => row.original.karatCode ?? '—' },
     { accessorKey: 'items', header: 'Items' },
     { accessorKey: 'pcs', header: 'Pcs' },
@@ -29,8 +38,8 @@ export function GroupStock() {
   ]
 
   const exportCsv = () => {
-    const header = ['Group', 'Karat', 'Items', 'Pcs', 'Gross', 'Net', 'Fine', 'Value']
-    const body = (data ?? []).map((g) => [g.groupName, g.karatCode ?? '', g.items, g.pcs, g.gross, g.net, g.fine, g.value])
+    const header = ['Group', 'HSN', 'Karat', 'Items', 'Pcs', 'Gross', 'Net', 'Fine', 'Value']
+    const body = (data ?? []).map((g) => [g.groupName, g.hsnCode ?? '', g.karatCode ?? '', g.items, g.pcs, g.gross, g.net, g.fine, g.value])
     downloadCsv(`group-stock${stockClass ? `-${stockClass.toLowerCase()}` : ''}.csv`, [header, ...body])
   }
 
@@ -79,6 +88,38 @@ export function GroupStock() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={status} onValueChange={setStatus}>
+            <SelectTrigger className="w-36" aria-label="Status">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STOCK_STATUSES.map((s) => (
+                <SelectItem key={s} value={s}>{s}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={method || 'all'} onValueChange={(v) => setMethod(v === 'all' ? '' : v)}>
+            <SelectTrigger className="w-32" aria-label="Entry type">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tag + Loose</SelectItem>
+              <SelectItem value="TAG">Tag only</SelectItem>
+              <SelectItem value="LOOSE">Loose only</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={karatCode || 'all'} onValueChange={(v) => setKaratCode(v === 'all' ? '' : v)}>
+            <SelectTrigger className="w-32" aria-label="Purity">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Any purity</SelectItem>
+              {karatCodes.map((c) => (
+                <SelectItem key={c} value={c}>{c}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input className="max-w-xs" placeholder="Search tag / HUID / item…" aria-label="Search stock" value={q} onChange={(e) => setQ(e.target.value)} />
           <Button className="ml-auto" variant="outline" disabled={!data?.length} onClick={exportCsv}>Export CSV</Button>
         </CardContent>
       </Card>

@@ -9,11 +9,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { useBankAccounts, useSettings } from '@/lib/appQueries'
+import { useBankAccounts, useCurrentRates, useSettings } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { metalRateUnitGrams } from '@/lib/billingQueries'
 import { useBhavBookings, useCreateBuySell } from '@/lib/tradeQueries'
 import { businessDayISO, METALS, TRADE_SIDES, metalToMoney, type BhavBookingDto, type PartyRefDto } from '@/shared'
+
+import { fineRate } from './tradeRates'
 
 let uid = 0
 const k = () => `b${uid++}`
@@ -30,6 +32,7 @@ export function NewBuySell() {
   const branchReady = activeBranch !== '' && activeBranch !== 'all'
   const { data: settings } = useSettings()
   const { data: banks } = useBankAccounts()
+  const { data: rates } = useCurrentRates()
   const create = useCreateBuySell()
 
   const [side, setSide] = useState('BUY')
@@ -46,7 +49,10 @@ export function NewBuySell() {
 
   const unit = metalRateUnitGrams(metal, settings)
   const setRow = (i: number, key: keyof Row, v: string) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, [key]: v } : r)))
-  const amountOf = (r: Row) => Number(metalToMoney(n(r.weight), n(r.rate), unit))
+  // A blank rate falls back to today's fine rate for this side (shown as the placeholder); typing a rate overrides it.
+  const spot = booking ? '' : fineRate(rates, metal, side, settings)
+  const rateOf = (r: Row) => (r.rate !== '' ? r.rate : spot)
+  const amountOf = (r: Row) => Number(metalToMoney(n(r.weight), n(rateOf(r)), unit))
   const totalWeight = rows.reduce((a, r) => a + n(r.weight), 0)
   const gross = rows.reduce((a, r) => a + amountOf(r), 0)
   const totalAmount = gross - n(f.discount)
@@ -61,12 +67,12 @@ export function NewBuySell() {
     if (b) setRows((rs) => rs.map((r) => ({ ...r, rate: b.rate })))
   }
 
-  const valid = branchReady && !!party && rows.every((r) => n(r.weight) > 0 && n(r.rate) > 0) && totalWeight > 0 && (n(f.online) === 0 || f.bankAccountId)
+  const valid = branchReady && !!party && rows.every((r) => n(r.weight) > 0 && n(rateOf(r)) > 0) && totalWeight > 0 && (n(f.online) === 0 || f.bankAccountId)
 
   const submit = async () => {
     await create.mutateAsync({
       side, partyId: party!.id, metal, txnDate,
-      lines: rows.map((r) => ({ weight: n(r.weight), rate: n(r.rate) })),
+      lines: rows.map((r) => ({ weight: n(r.weight), rate: n(rateOf(r)) })),
       discount: n(f.discount), bhavBookingId: booking?.id,
       cash: n(f.cash), online: n(f.online), bankAccountId: n(f.online) > 0 ? Number(f.bankAccountId) : undefined,
       narration: f.narration || undefined,
@@ -121,7 +127,7 @@ export function NewBuySell() {
               {rows.map((r, i) => (
                 <TableRow key={r.key}>
                   <TableCell><Input className="w-28" type="number" step="0.001" aria-label="Weight" value={r.weight} onChange={(e) => setRow(i, 'weight', e.target.value)} /></TableCell>
-                  <TableCell><Input className="w-32" type="number" aria-label="Rate" value={r.rate} disabled={!!booking} onChange={(e) => setRow(i, 'rate', e.target.value)} /></TableCell>
+                  <TableCell><Input className="w-32" type="number" aria-label="Rate" value={r.rate} placeholder={spot || undefined} disabled={!!booking} onChange={(e) => setRow(i, 'rate', e.target.value)} /></TableCell>
                   <TableCell className="whitespace-nowrap tabular-nums text-muted-foreground">{inr(amountOf(r))}</TableCell>
                   <TableCell><Button variant="ghost" size="sm" aria-label="Remove line" disabled={rows.length === 1} onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))}>✕</Button></TableCell>
                 </TableRow>
@@ -129,7 +135,10 @@ export function NewBuySell() {
             </TableBody>
           </Table>
         </Card>
-        <Button variant="outline" size="sm" onClick={() => setRows((rs) => [...rs, blankRow(booking?.rate ?? '')])}>+ Add line</Button>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Button variant="outline" size="sm" onClick={() => setRows((rs) => [...rs, blankRow(booking?.rate ?? '')])}>+ Add line</Button>
+          {spot && <p className="text-xs text-muted-foreground tabular-nums">Today's fine {side === 'BUY' ? 'buy' : 'sell'} rate {spot} ({metal === 'GOLD' ? '/10g' : '/kg'}) is used when a line's rate is left blank.</p>}
+        </div>
       </section>
 
       <div className="grid gap-4 lg:grid-cols-2">

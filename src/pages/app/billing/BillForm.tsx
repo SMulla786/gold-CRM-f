@@ -54,12 +54,13 @@ const inr = (s: string | number) => new Intl.NumberFormat('en-IN', { style: 'cur
 
 // TASK-86 bill-grid column customizer. Item/Gross/Total/actions stay fixed (needed for a valid bill);
 // the rest are show/hide, remembered per browser. Default all-on → grid is unchanged out of the box.
+// `label` stays English (checkbox aria-label); `tk` is the i18n key for the visible text.
 const OPTIONAL_COLS = [
-  { key: 'karat', label: 'Karat' }, { key: 'pcs', label: 'Pcs' }, { key: 'less', label: 'Less' },
-  { key: 'tunch', label: 'Tunch' }, { key: 'wastage', label: 'Wst%' }, { key: 'net', label: 'Net' },
-  { key: 'fine', label: 'Fine' }, { key: 'stone', label: 'Stone' }, { key: 'rate', label: 'Rate' },
-  { key: 'labour', label: 'Labour' }, { key: 'unit', label: 'Unit' }, { key: 'other', label: 'Other' },
-  { key: 'disc', label: 'Disc' },
+  { key: 'karat', label: 'Karat', tk: 'stock.col_karat' }, { key: 'pcs', label: 'Pcs', tk: 'stock.col_pcs' }, { key: 'less', label: 'Less', tk: 'bill.col_less' },
+  { key: 'tunch', label: 'Tunch', tk: 'bill.col_tunch' }, { key: 'wastage', label: 'Wst%', tk: 'bill.col_wastage' }, { key: 'net', label: 'Net', tk: 'stock.col_net' },
+  { key: 'fine', label: 'Fine', tk: 'stock.col_fine' }, { key: 'stone', label: 'Stone', tk: 'class.STONE' }, { key: 'rate', label: 'Rate', tk: 'udhari.rate' },
+  { key: 'labour', label: 'Labour', tk: 'bill.col_labour' }, { key: 'unit', label: 'Unit', tk: 'bill.col_unit' }, { key: 'other', label: 'Other', tk: 'bill.col_other' },
+  { key: 'disc', label: 'Disc', tk: 'bill.col_disc' },
 ] as const
 const COLS_LS = 'ju.billcols'
 const loadCols = (): Record<string, boolean> => {
@@ -176,7 +177,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
     setOrderId(order.id)
     void Promise.all(order.items.filter((it) => it.stockItemId).map((it) => api.get<StockItemDto>(`/app/stock/${it.stockItemId}`)))
       .then((items) => setRows(items.map(rowFromStock)))
-      .catch(() => toast.error('Could not load the order items'))
+      .catch(() => toast.error(t('bill.err_order_items')))
   }
   useEffect(() => {
     if (!orderData || orderLoaded) return
@@ -197,14 +198,14 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
       setDraftId(draft.id)
       if (draft.party) {
         setParty(draft.party)
-        toast.success(`Draft #${draft.draftNo} loaded`)
+        toast.success(t('bill.draft_loaded', { no: draft.draftNo }))
       } else {
         // walk-in draft: a sell bill needs a party — offer to create one from the draft's name/mobile (or pick via the picker)
         setWalkInDraft({ name: draft.customerName, mobile: draft.mobile ?? '' })
-        toast.info(`Draft #${draft.draftNo} loaded — add or pick a customer to bill it`)
+        toast.info(t('bill.draft_loaded_walkin', { no: draft.draftNo }))
       }
     } catch (e) {
-      toast.error(e instanceof ApiException ? e.message : 'Could not load that draft')
+      toast.error(e instanceof ApiException ? e.message : t('bill.err_draft'))
     }
   }
 
@@ -263,13 +264,13 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
   const keepMetalWeight = keepAs !== 'MONEY' && balanceDue > 0 ? moneyToMetal(balanceDue, Number(keepRate) || 0, metalRateUnitGrams(keepAs, settings)) : null
 
   const addStock = (it: StockItemDto) => {
-    if (rows.some((r) => r.stockItemId === it.id)) { toast.error('Item already on the bill'); return }
+    if (rows.some((r) => r.stockItemId === it.id)) { toast.error(t('bill.item_already')); return }
     setRows((rs) => [...rs, rowFromStock(it)])
     setStockQ('')
   }
   const addPurchaseRow = () => {
     const n = buyNames?.items.find((x) => String(x.id) === buyItemId)
-    if (!n) { toast.error('Pick an item name'); return }
+    if (!n) { toast.error(t('bill.pick_item_name')); return }
     setRows((rs) => [...rs, blankRow({ itemNameId: n.id, description: n.name, stockClass: buyClass })])
   }
 
@@ -306,15 +307,15 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
       const saved = editBill
         ? await update.mutateAsync({ id: editBill.id, body, mpin: mpinValue ?? editMpin })
         : await create.mutateAsync(body)
-      toast.success(editBill ? 'Bill updated' : 'Bill saved')
+      toast.success(editBill ? t('bill.updated') : t('bill.saved'))
       navigate(`/app/billing/view/${saved.id}`)
     } catch (e) {
       if (e instanceof ApiException && e.code === 'VALIDATION') {
         const d = e.details as { code?: string; line?: number } | undefined
         if (d?.code === 'PAN_REQUIRED') { setPanOpen(true); return } // keeps editMpin for the resubmit
-        if (d?.code === 'RATE_LIMIT') { setRateLimitLine(d.line ?? null); toast.error(`Line ${(d.line ?? 0) + 1}: rate outside the allowed limit`); return }
+        if (d?.code === 'RATE_LIMIT') { setRateLimitLine(d.line ?? null); toast.error(t('bill.rate_limit', { line: (d.line ?? 0) + 1 })); return }
       }
-      toast.error(e instanceof ApiException ? e.message : `Could not ${editBill ? 'update' : 'save'} bill`)
+      toast.error(e instanceof ApiException ? e.message : editBill ? t('bill.err_update') : t('bill.err_save'))
     }
   }
 
@@ -327,22 +328,22 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
     <div className="space-y-6">
       <p className="text-sm text-muted-foreground">
         {editBill
-          ? 'Editing a saved bill. Totals are recomputed and the change needs your PIN.'
+          ? t('bill.sub_edit')
           : kind === 'SELL'
-            ? 'Pick a customer, scan tags or pull in a draft or ready order, take payment and save.'
-            : 'Record metal bought from a supplier; each line is added to stock on save.'}
+            ? t('bill.sub_sell')
+            : t('bill.sub_purchase')}
       </p>
-      {!branchReady && <SelectBranchForTxn note="This bill posts to one branch. Select a branch to bill from." />}
+      {!branchReady && <SelectBranchForTxn note={t('bill.branch_note')} />}
 
       {/* Header */}
       <Card className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-4">
         <div className="space-y-1.5 lg:col-span-2">
           <Label htmlFor="bf-party">{kind === 'SELL' ? t('bill.customer') : t('bill.supplier')}</Label>
-          <PartyPicker value={party} onChange={setParty} placeholder="Search name / mobile" id="bf-party" ariaLabel={kind === 'SELL' ? 'Customer' : 'Supplier'} />
+          <PartyPicker value={party} onChange={setParty} placeholder={t('bill.search_party')} id="bf-party" ariaLabel={kind === 'SELL' ? 'Customer' : 'Supplier'} />
           {party && (
             <p className="w-fit rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">
               {party.mobile}
-              {balance && ` · balance ₹${balance.amount}${Number(balance.gold) ? ` · ${balance.gold}g Au` : ''}${Number(balance.silver) ? ` · ${balance.silver}g Ag` : ''}`}
+              {balance && `${t('bill.party_balance', { amount: balance.amount })}${Number(balance.gold) ? ` · ${balance.gold}g Au` : ''}${Number(balance.silver) ? ` · ${balance.silver}g Ag` : ''}`}
             </p>
           )}
         </div>
@@ -372,7 +373,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
       {kind === 'SELL' ? (
         <div className="relative max-w-md">
           <Label htmlFor="bf-stock-search">{t('bill.add_item')}</Label>
-          <Input id="bf-stock-search" value={stockQ} onChange={(e) => setStockQ(e.target.value)} placeholder="Tag no. or item name" />
+          <Input id="bf-stock-search" value={stockQ} onChange={(e) => setStockQ(e.target.value)} placeholder={t('bill.stock_search_ph')} />
           {stockQ && stockHits?.items.length ? (
             <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-auto rounded-md border bg-popover shadow-md">
               {stockHits.items.map((it) => (
@@ -389,23 +390,23 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
             <Button type="button" variant="outline" size="sm" onClick={() => setRows((rs) => [...rs, blankRow({})])}>{t('bill.direct_line')}</Button>
             {!editBill && (
               <>
-                <Input className="w-32" placeholder="Draft #" aria-label="Draft number" value={draftNo} onChange={(e) => setDraftNo(e.target.value)} />
+                <Input className="w-32" placeholder={t('bill.draft_no_ph')} aria-label="Draft number" value={draftNo} onChange={(e) => setDraftNo(e.target.value)} />
                 <Button type="button" variant="outline" size="sm" onClick={() => void retrieveDraft()}>{t('bill.retrieve_draft')}</Button>
               </>
             )}
           </div>
-          {draftId && <p className="text-xs text-muted-foreground">Billing from showroom draft — approved discount pre-filled.</p>}
+          {draftId && <p className="text-xs text-muted-foreground">{t('bill.from_draft')}</p>}
           {!editBill && (
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <Checkbox id="bf-ordersearch" checked={orderSearch} onCheckedChange={(v) => setOrderSearch(!!v)} />
-              <Label htmlFor="bf-ordersearch" className="font-normal">Bill a ready order</Label>
+              <Label htmlFor="bf-ordersearch" className="font-normal">{t('bill.bill_ready_order')}</Label>
               {orderSearch && (
                 <Select value={orderId ? String(orderId) : ''} onValueChange={(v) => { const o = readyOrders?.items.find((x) => String(x.id) === v); if (o) applyOrder(o) }}>
-                  <SelectTrigger className="w-64" aria-label="Ready order"><SelectValue placeholder="Select a ready order" /></SelectTrigger>
+                  <SelectTrigger className="w-64" aria-label="Ready order"><SelectValue placeholder={t('bill.select_ready_order')} /></SelectTrigger>
                   <SelectContent>
                     {readyOrders?.items.length
                       ? readyOrders.items.map((o) => <SelectItem key={o.id} value={String(o.id)}>#{o.orderNo} · {o.party.name}</SelectItem>)
-                      : <div className="px-3 py-2 text-sm text-muted-foreground">No ready orders</div>}
+                      : <div className="px-3 py-2 text-sm text-muted-foreground">{t('bill.no_ready_orders')}</div>}
                   </SelectContent>
                 </Select>
               )}
@@ -424,7 +425,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
           <div className="space-y-1.5">
             <Label>{t('bill.item_name')}</Label>
             <Select value={buyItemId} onValueChange={setBuyItemId}>
-              <SelectTrigger className="w-56" aria-label="Item name"><SelectValue placeholder="Select" /></SelectTrigger>
+              <SelectTrigger className="w-56" aria-label="Item name"><SelectValue placeholder={t('bill.select')} /></SelectTrigger>
               <SelectContent>{buyNames?.items.map((n) => <SelectItem key={n.id} value={String(n.id)}>{n.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
@@ -437,11 +438,11 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
       <Card className="overflow-hidden">
       <div className="flex justify-end border-b bg-muted/40 px-6 py-3">
         <Popover>
-          <PopoverTrigger asChild><Button type="button" variant="outline" size="sm"><Columns3 aria-hidden />Columns</Button></PopoverTrigger>
+          <PopoverTrigger asChild><Button type="button" variant="outline" size="sm"><Columns3 aria-hidden />{t('bill.columns')}</Button></PopoverTrigger>
           <PopoverContent align="end" className="w-44 space-y-2">
             {OPTIONAL_COLS.map((c) => (
               <label key={c.key} className="flex items-center gap-2 text-sm">
-                <Checkbox checked={cols[c.key]} onCheckedChange={() => toggleCol(c.key)} aria-label={c.label} /> {c.label}
+                <Checkbox checked={cols[c.key]} onCheckedChange={() => toggleCol(c.key)} aria-label={c.label} /> {t(c.tk)}
               </label>
             ))}
           </PopoverContent>
@@ -451,22 +452,22 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="min-w-44">Item</TableHead>
-              {cols.karat && <TableHead>Karat</TableHead>}
-              {cols.pcs && <TableHead>Pcs</TableHead>}
-              <TableHead>Gross</TableHead>
-              {cols.less && <TableHead>Less</TableHead>}
-              {cols.tunch && <TableHead>Tunch</TableHead>}
-              {cols.wastage && <TableHead>Wst%</TableHead>}
-              {cols.net && <TableHead>Net</TableHead>}
-              {cols.fine && <TableHead>Fine</TableHead>}
-              {cols.stone && <TableHead>Stone</TableHead>}
-              {cols.rate && <TableHead>Rate</TableHead>}
-              {cols.labour && <TableHead>Labour</TableHead>}
-              {cols.unit && <TableHead>Unit</TableHead>}
-              {cols.other && <TableHead>Other</TableHead>}
-              {cols.disc && <TableHead>Disc</TableHead>}
-              <TableHead>Total</TableHead>
+              <TableHead className="min-w-44">{t('bill.col_item')}</TableHead>
+              {cols.karat && <TableHead>{t('stock.col_karat')}</TableHead>}
+              {cols.pcs && <TableHead>{t('stock.col_pcs')}</TableHead>}
+              <TableHead>{t('stock.col_gross')}</TableHead>
+              {cols.less && <TableHead>{t('bill.col_less')}</TableHead>}
+              {cols.tunch && <TableHead>{t('bill.col_tunch')}</TableHead>}
+              {cols.wastage && <TableHead>{t('bill.col_wastage')}</TableHead>}
+              {cols.net && <TableHead>{t('stock.col_net')}</TableHead>}
+              {cols.fine && <TableHead>{t('stock.col_fine')}</TableHead>}
+              {cols.stone && <TableHead>{t('class.STONE')}</TableHead>}
+              {cols.rate && <TableHead>{t('udhari.rate')}</TableHead>}
+              {cols.labour && <TableHead>{t('bill.col_labour')}</TableHead>}
+              {cols.unit && <TableHead>{t('bill.col_unit')}</TableHead>}
+              {cols.other && <TableHead>{t('bill.col_other')}</TableHead>}
+              {cols.disc && <TableHead>{t('bill.col_disc')}</TableHead>}
+              <TableHead>{t('bill.col_total')}</TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
@@ -488,7 +489,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
                       </div>
                     ) : (
                       <div className="flex gap-1">
-                        <Input className="w-32" placeholder="Description" value={r.description} onChange={(e) => setRow(i, 'description', e.target.value)} />
+                        <Input className="w-32" placeholder={t('bill.description')} value={r.description} onChange={(e) => setRow(i, 'description', e.target.value)} />
                         <Select value={r.stockClass} onValueChange={(v) => setRow(i, 'stockClass', v)}>
                           <SelectTrigger className="w-24" aria-label="Class"><SelectValue /></SelectTrigger>
                           <SelectContent>{STOCK_CLASSES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
@@ -563,20 +564,20 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
                   </Select>
                   <Select value={p.metalForm} onValueChange={(v) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, metalForm: v } : x))}>
                     <SelectTrigger className="w-28" aria-label="Metal form"><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="BULLION">Bullion</SelectItem><SelectItem value="KACHA">Kacha</SelectItem></SelectContent>
+                    <SelectContent><SelectItem value="BULLION">{t('bill.form_bullion')}</SelectItem><SelectItem value="KACHA">{t('bill.form_kacha')}</SelectItem></SelectContent>
                   </Select>
-                  <Input className="w-20" type="number" placeholder="Gross" aria-label="Gross" value={p.gross} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, gross: e.target.value } : x))} />
-                  <Input className="w-16" type="number" placeholder="Less" aria-label="Less" value={p.less} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, less: e.target.value } : x))} />
-                  <Input className="w-16" type="number" placeholder="Tunch" aria-label="Tunch" value={p.tunch} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, tunch: e.target.value } : x))} />
-                  <Input className="w-24" type="number" placeholder="Rate" aria-label="Rate" value={p.rate} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, rate: e.target.value } : x))} />
+                  <Input className="w-20" type="number" placeholder={t('stock.col_gross')} aria-label="Gross" value={p.gross} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, gross: e.target.value } : x))} />
+                  <Input className="w-16" type="number" placeholder={t('bill.col_less')} aria-label="Less" value={p.less} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, less: e.target.value } : x))} />
+                  <Input className="w-16" type="number" placeholder={t('bill.col_tunch')} aria-label="Tunch" value={p.tunch} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, tunch: e.target.value } : x))} />
+                  <Input className="w-24" type="number" placeholder={t('udhari.rate')} aria-label="Rate" value={p.rate} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, rate: e.target.value } : x))} />
                   <span className="text-sm">= {inr(payAmount(p))}</span>
                 </>
               ) : (
                 <>
-                  <Input className="w-28" type="number" placeholder="Amount" aria-label="Amount" value={p.amount} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))} />
+                  <Input className="w-28" type="number" placeholder={t('bill.amount')} aria-label="Amount" value={p.amount} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))} />
                   {p.mode === 'ONLINE' && (
                     <Select value={p.bankAccountId} onValueChange={(v) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, bankAccountId: v } : x))}>
-                      <SelectTrigger className="w-44" aria-label="Bank account"><SelectValue placeholder="Bank" /></SelectTrigger>
+                      <SelectTrigger className="w-44" aria-label="Bank account"><SelectValue placeholder={t('bill.bank')} /></SelectTrigger>
                       <SelectContent>{banks?.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.bankName} · {b.accountNo}</SelectItem>)}</SelectContent>
                     </Select>
                   )}
@@ -625,8 +626,8 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
           <Row2 label={t('bill.round_off')} value={bill.round} muted />
           <div className="flex justify-between border-t-2 border-brand pt-3 text-lg font-extrabold"><span>{t('bill.final')}</span><span>{inr(bill.final)}</span></div>
           <Row2 label={t('bill.paid')} value={inr(paid)} />
-          <div className={`-mx-3 flex justify-between rounded-xl px-3 py-2 font-semibold ${balanceDue < 0 ? 'bg-green-500/10' : 'bg-muted/50'}`}><span>{t('bill.balance')}</span><span className={balanceDue < 0 ? 'text-green-600 dark:text-green-500' : ''}>{inr(balanceDue)}{balanceDue < 0 ? ' (advance)' : ''}</span></div>
-          <p className="text-xs text-muted-foreground">Live preview — the server recomputes every line and total authoritatively on save (GST split uses the party's state).</p>
+          <div className={`-mx-3 flex justify-between rounded-xl px-3 py-2 font-semibold ${balanceDue < 0 ? 'bg-green-500/10' : 'bg-muted/50'}`}><span>{t('bill.balance')}</span><span className={balanceDue < 0 ? 'text-green-600 dark:text-green-500' : ''}>{inr(balanceDue)}{balanceDue < 0 ? t('bill.advance') : ''}</span></div>
+          <p className="text-xs text-muted-foreground">{t('bill.live_preview')}</p>
           <Button size="lg" className="mt-2 hidden w-full lg:inline-flex" disabled={!valid || pending} onClick={onSaveClick}>
             {pending ? t('bill.saving') : editBill ? t('bill.update_mpin') : kind === 'SELL' ? t('bill.save_sell') : t('bill.save_purchase')}
           </Button>
@@ -637,25 +638,25 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
       <div className="sticky bottom-0 z-10 -mx-6 flex items-center gap-3 border-t bg-card/95 px-6 pt-3 shadow-[0_-4px_16px_rgb(0_0_0/0.06)] pb-[calc(0.75rem+env(safe-area-inset-bottom))] tabular-nums backdrop-blur lg:hidden">
         <div className="text-sm">
           <div className="font-semibold">{inr(bill.final)}</div>
-          <div className="text-xs text-muted-foreground">Bal {inr(balanceDue)}</div>
+          <div className="text-xs text-muted-foreground">{t('bill.bal_short', { amount: inr(balanceDue) })}</div>
         </div>
         <Button className="ml-auto" disabled={!valid || pending} onClick={onSaveClick}>
-          {pending ? 'Saving…' : editBill ? 'Update (MPIN)' : 'Save bill'}
+          {pending ? t('bill.saving') : editBill ? t('bill.update_mpin_short') : t('bill.save_bill')}
         </Button>
       </div>
 
       <Dialog open={panOpen} onOpenChange={(o) => !o && setPanOpen(false)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>PAN required</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">Cash on this bill is at or above ₹2,00,000, so the customer's PAN is required. It will be saved to the party.</p>
+          <DialogHeader><DialogTitle>{t('bill.pan_required')}</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">{t('bill.pan_desc')}</p>
           <Input value={pan} onChange={(e) => setPan(e.target.value.toUpperCase())} placeholder="ABCDE1234F" aria-label="PAN" />
           <DialogFooter>
-            <Button disabled={!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan) || pending} onClick={() => { setPanOpen(false); void submit(pan, editBill ? editMpin : undefined) }}>Save with PAN</Button>
+            <Button disabled={!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan) || pending} onClick={() => { setPanOpen(false); void submit(pan, editBill ? editMpin : undefined) }}>{t('bill.save_with_pan')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <MpinDialog open={mpinOpen} title="Authenticate bill edit" onConfirm={async (mpin) => { setEditMpin(mpin); setMpinOpen(false); await submit(undefined, mpin) }} onClose={() => setMpinOpen(false)} />
+      <MpinDialog open={mpinOpen} title={t('bill.auth_edit')} onConfirm={async (mpin) => { setEditMpin(mpin); setMpinOpen(false); await submit(undefined, mpin) }} onClose={() => setMpinOpen(false)} />
 
       {walkInDraft && (
         <NewPartyDialog

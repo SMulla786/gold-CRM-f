@@ -1,6 +1,8 @@
-import { ClipboardList, Coins, Gem, Hourglass, Inbox, type LucideIcon } from 'lucide-react'
+import { ClipboardList, Coins, Gem, Hourglass, Inbox, Printer, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 
+import { PartyCombobox } from '@/components/PartyCombobox'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -10,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useAuth } from '@/lib/auth'
 import { useKarigarIssues, useReceiveKarigarIssue } from '@/lib/ordersQueries'
-import type { KarigarIssueDto } from '@/shared'
+import type { KarigarIssueDto, PartyRefDto } from '@/shared'
 
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
 const n = (s: string) => Number(s) || 0
@@ -62,7 +64,10 @@ export function KarigarIssues() {
   const canReceive = can('orders.karigar_list', 'edit')
   const [status, setStatus] = useState('OPEN')
   const [page, setPage] = useState(1)
-  const { data, isLoading } = useKarigarIssues({ status: status || undefined, page })
+  const [q, setQ] = useState('')
+  const [karigar, setKarigar] = useState<PartyRefDto | null>(null)
+  const { data, isLoading } = useKarigarIssues({ status: status || undefined, q: q.trim() || undefined, karigarId: karigar?.id, page })
+  const pageCount = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1
   const [receiving, setReceiving] = useState<KarigarIssueDto | null>(null)
 
   // Summary numbers derived from the page already fetched (no extra requests).
@@ -100,6 +105,11 @@ export function KarigarIssues() {
             <SelectTrigger className="w-44" aria-label="Issue status"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="all">All</SelectItem><SelectItem value="OPEN">Open</SelectItem><SelectItem value="RECEIVED">Received</SelectItem><SelectItem value="CANCELLED">Cancelled</SelectItem></SelectContent>
           </Select>
+          <Input className="max-w-xs" aria-label="Search issues" placeholder="Search karigar / order no / item…" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
+          <div className="w-64">
+            <PartyCombobox value={karigar} onChange={(p) => { setKarigar(p); setPage(1) }} type="KARIGAR" ariaLabel="Filter by karigar" placeholder="All karigars" />
+          </div>
+          {karigar && <Button variant="ghost" size="sm" onClick={() => { setKarigar(null); setPage(1) }}>Clear filter</Button>}
         </CardContent>
       </Card>
 
@@ -109,14 +119,33 @@ export function KarigarIssues() {
             <Card key={iss.id}>
               <CardHeader className="flex-row items-start justify-between gap-3 pb-2">
                 <CardTitle className="text-sm">Issue #{iss.issueNo} · {iss.karigar.name} <Badge variant={iss.status === 'OPEN' ? 'secondary' : 'default'} className="ml-2">{iss.status}</Badge></CardTitle>
-                {canReceive && iss.status === 'OPEN' && <Button size="sm" onClick={() => setReceiving(iss)}>Receive</Button>}
+                <div className="flex shrink-0 gap-2">
+                  <Button asChild size="sm" variant="outline"><Link to={`/app/orders/karigar/${iss.id}/print`}><Printer className="size-4" aria-hidden />Print slip</Link></Button>
+                  {canReceive && iss.status === 'OPEN' && <Button size="sm" onClick={() => setReceiving(iss)}>Receive</Button>}
+                </div>
               </CardHeader>
               <CardContent className="space-y-1 text-sm text-muted-foreground">
                 <div>{date(iss.issueDate)}{iss.dueDate ? ` · due ${date(iss.dueDate)}` : ''} · issued {Number(iss.goldFine) ? `${iss.goldFine}g Au ` : ''}{Number(iss.silverFine) ? `${iss.silverFine}g Ag ` : ''}{Number(iss.cash) + Number(iss.online) > 0 ? `₹${Number(iss.cash) + Number(iss.online)}` : ''}</div>
                 <div>{iss.items.map((it) => `${it.itemName.name} (ord #${it.order.orderNo})`).join(', ')}</div>
+                <ul className="space-y-0.5 text-xs tabular-nums">
+                  {iss.items.map((it) => (
+                    <li key={it.id}>
+                      {it.itemName.name} · {it.metal} {it.karatCode ?? ''} · {it.pcs} pc · gross {it.gross}g · fine {it.fine}g
+                      {' · '}for {it.order.party?.name ?? '—'}{it.order.party?.mobile ? ` (${it.order.party.mobile})` : ''}
+                      {it.status === 'RECEIVED' && ` · returned ${it.returnedGross ?? '—'}g / fine ${it.returnedFine ?? '—'}g · ghat ${it.ghatAllowance ?? '0.000'}g · charges ₹${it.karigarLabour ?? '0.00'}`}
+                    </li>
+                  ))}
+                </ul>
               </CardContent>
             </Card>
           ))}
+          {data.total > data.pageSize && (
+            <div className="flex items-center justify-end gap-2 text-sm">
+              <span className="text-muted-foreground">Page {data.page} of {pageCount} · {data.total} issues</span>
+              <Button variant="outline" size="sm" disabled={data.page <= 1} onClick={() => setPage(data.page - 1)}>Previous</Button>
+              <Button variant="outline" size="sm" disabled={data.page >= pageCount} onClick={() => setPage(data.page + 1)}>Next</Button>
+            </div>
+          )}
         </div>
       ) : (
         <Card>

@@ -158,9 +158,15 @@ export const useCreateUser = () =>
 export const useUpdateUser = () =>
   useApiMutation(({ id, body }: { id: number; body: Record<string, unknown> }) => api.patch<UserDto>(`/admin/users/${id}`, body), { invalidate: [['users']], success: 'User updated' })
 export const useSetUserStatus = () =>
-  useApiMutation(({ id, action }: { id: number; action: 'block' | 'unblock' }) => api.post(`/admin/users/${id}/${action}`), { invalidate: [['users']], success: 'User updated' })
+  useApiMutation(
+    ({ id, action }: { id: number; action: 'block' | 'unblock' | 'delete' | 'restore' }) =>
+      action === 'delete' ? api.del(`/admin/users/${id}`) : api.post(`/admin/users/${id}/${action}`),
+    { invalidate: [['users']], success: 'User updated' },
+  )
 export const useResetUserPassword = () =>
   useApiMutation(({ id, password }: { id: number; password: string }) => api.post(`/admin/users/${id}/reset-password`, { password }), { success: 'Password reset' })
+export const useResetUserMpin = () =>
+  useApiMutation(({ id, mpin }: { id: number; mpin: string }) => api.post(`/admin/users/${id}/reset-mpin`, { mpin }), { success: 'MPIN set' })
 
 export const useUserPermissions = (id: number) =>
   useQuery({ queryKey: ['user-permissions', id], queryFn: () => api.get<UserPermissionsDto>(`/admin/users/${id}/permissions`), enabled: !!id })
@@ -174,6 +180,9 @@ export const useCreateRole = () =>
   useApiMutation((name: string) => api.post<RoleDto>('/admin/roles', { name }), { invalidate: [['roles']], success: 'Role created' })
 export const useSaveRolePermissions = () =>
   useApiMutation(({ id, grants }: { id: number; grants: unknown[] }) => api.put(`/admin/roles/${id}/permissions`, { grants }), { invalidate: [['roles']], success: 'Role permissions saved' })
+export const useRenameRole = () =>
+  useApiMutation(({ id, name }: { id: number; name: string }) => api.patch<RoleDto>(`/admin/roles/${id}`, { name }), { invalidate: [['roles']], success: 'Role renamed' })
+export const useDeleteRole = () => useApiMutation((id: number) => api.del(`/admin/roles/${id}`), { invalidate: [['roles']], success: 'Role deleted' })
 
 export const useAdminBusiness = () => useQuery({ queryKey: ['admin-business'], queryFn: () => api.get<BusinessProfileDto>('/admin/business') })
 export const useUpdateAdminBusiness = () =>

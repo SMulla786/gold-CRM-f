@@ -15,6 +15,7 @@ import { METALS, TRADE_SIDES, type BuySellDto } from '@/shared'
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
+const time = (s: string) => new Date(s).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
 
 export function BuySellList() {
   const { can } = useAuth()
@@ -29,11 +30,16 @@ export function BuySellList() {
 
   const columns: ColumnDef<BuySellDto, unknown>[] = [
     { header: 'No', cell: ({ row }) => <span className="font-medium">#{row.original.buySellNo}</span> },
-    { header: 'Date', cell: ({ row }) => date(row.original.txnDate) },
+    { header: 'Date', cell: ({ row }) => <div className="whitespace-nowrap">{date(row.original.txnDate)}<div className="text-xs text-muted-foreground">{time(row.original.createdAt)}</div></div> },
     { header: 'Side', cell: ({ row }) => <Badge variant="secondary">{row.original.side}</Badge> },
-    { header: 'Party', cell: ({ row }) => row.original.party.name },
+    { header: 'Party', cell: ({ row }) => <div>{row.original.party.name}<div className="text-xs text-muted-foreground tabular-nums">{row.original.party.mobile}</div></div> },
     { header: 'Metal', cell: ({ row }) => row.original.metal },
     { header: 'Weight', cell: ({ row }) => `${row.original.totalWeight} g` },
+    { header: 'Rate', cell: ({ row }) => (
+      <div className="tabular-nums">
+        {row.original.lines.map((l) => <div key={l.id} className="whitespace-nowrap">{row.original.lines.length > 1 ? `${l.weight} g @ ` : ''}{l.rate}</div>)}
+      </div>
+    ) },
     { header: 'Amount', cell: ({ row }) => inr(row.original.totalAmount) },
     { header: 'Balance', cell: ({ row }) => inr(row.original.balance) },
     { header: 'Booking', cell: ({ row }) => (row.original.bhavBooking ? `#${row.original.bhavBooking.bookingNo}` : '—') },

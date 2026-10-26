@@ -46,9 +46,15 @@ export function SchemeGroups() {
   const { can } = useAuth()
   const canEdit = can('schemes.groups', 'edit')
   const [schemeId, setSchemeId] = useState('')
+  const [nameQ, setNameQ] = useState('')
   const { data: schemes } = useSchemes({ active: 'true', pageSize: 100 })
-  const { data: groups, isLoading } = useSchemeGroups(schemeId ? Number(schemeId) : undefined)
+  // names for the Scheme column — groups of inactive schemes are listed too
+  const { data: allSchemes } = useSchemes({ pageSize: 100 })
+  const { data: allGroups, isLoading } = useSchemeGroups(schemeId ? Number(schemeId) : undefined)
   const schemeOpts = schemes?.items.map((s) => ({ id: s.id, name: s.name })) ?? []
+  const schemeName = new Map((allSchemes?.items ?? []).map((s) => [s.id, s.name]))
+  // group-name filter is client-side: the groups endpoint returns the full (unpaged) list
+  const groups = allGroups?.filter((g) => g.name.toLowerCase().includes(nameQ.trim().toLowerCase()))
 
   const groupCount = groups?.length ?? 0
   const memberTotal = groups?.reduce((sum, g) => sum + g.memberCount, 0) ?? 0
@@ -91,22 +97,23 @@ export function SchemeGroups() {
             <SelectTrigger className="w-56" aria-label="Scheme filter"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="all">All schemes</SelectItem>{schemeOpts.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}</SelectContent>
           </Select>
+          <Input className="max-w-xs" placeholder="Search group name…" aria-label="Group name" value={nameQ} onChange={(e) => setNameQ(e.target.value)} />
         </CardContent>
       </Card>
 
       <div className="overflow-x-auto rounded-3xl border bg-card shadow-sm">
         <Table>
-          <TableHeader><TableRow><TableHead>Group</TableHead><TableHead>Members</TableHead><TableHead>Limit</TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow><TableHead>Group</TableHead><TableHead>Scheme</TableHead><TableHead>Members</TableHead><TableHead>Limit</TableHead></TableRow></TableHeader>
           <TableBody>
-            {isLoading ? <TableRow><TableCell colSpan={3} className="h-16 text-center text-muted-foreground">Loading…</TableCell></TableRow>
+            {isLoading ? <TableRow><TableCell colSpan={4} className="h-16 text-center text-muted-foreground">Loading…</TableCell></TableRow>
               : groups?.length ? groups.map((g) => (
-                <TableRow key={g.id}><TableCell className="font-medium">{g.name}</TableCell><TableCell className="tabular-nums">{g.memberCount}</TableCell><TableCell className="tabular-nums">{g.memberLimit ?? '—'}</TableCell></TableRow>
+                <TableRow key={g.id}><TableCell className="font-medium">{g.name}</TableCell><TableCell>{schemeName.get(g.schemeId) ?? `#${g.schemeId}`}</TableCell><TableCell className="tabular-nums">{g.memberCount}</TableCell><TableCell className="tabular-nums">{g.memberLimit ?? '—'}</TableCell></TableRow>
               )) : (
                 <TableRow>
-                  <TableCell colSpan={3} className="py-10">
+                  <TableCell colSpan={4} className="py-10">
                     <div className="flex flex-col items-center justify-center gap-3 text-center text-sm text-muted-foreground">
                       <span className="icon-chip"><Layers className="size-5" aria-hidden /></span>
-                      {schemeId ? 'No groups' : 'Pick a scheme to see its groups'}
+                      {nameQ.trim() ? 'No groups match that name' : schemeId ? 'No groups' : 'No groups yet'}
                     </div>
                   </TableCell>
                 </TableRow>

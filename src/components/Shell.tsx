@@ -69,6 +69,7 @@ export function Shell({ area, nav, showBranch }: ShellProps) {
   const isStore = area === 'Store'
   const canBill = can('billing.sell_bill', 'view') || can('billing.purchase_bill', 'view')
   const canAddParty = can('settings.parties', 'edit')
+  const canSeeStock = can('inventory.all_stock', 'view')
 
   const onEndImpersonation = async () => {
     await endImpersonation()
@@ -95,12 +96,20 @@ export function Shell({ area, nav, showBranch }: ShellProps) {
         <span className="rounded-full border border-brand/25 bg-brand/10 px-2 py-0.5 text-xs font-medium text-brand">{area}</span>
         <div className="ml-auto flex items-center gap-3">
           {area !== 'Platform' && <CommandPalette nav={nav} />}
+          {isStore && canSeeStock && <StockLookup />}
+          {area !== 'Platform' && <ShortcutsHelp />}
           {isStore && canBill && <QuickBilling />}
           {isStore && canAddParty && <Button variant="outline" size="sm" onClick={() => setNewParty(true)}>{t('shell.new_party')}</Button>}
           {showBranch && <BranchSwitcher />}
           <LanguageSwitch />
           <ThemeToggle />
-          <span className="text-sm text-muted-foreground">{me?.name}</span>
+          {area === 'Platform' ? (
+            <span className="text-sm text-muted-foreground">{me?.name}</span>
+          ) : (
+            <NavLink to={isStore ? '/app/account' : '/admin/account'} className="text-sm text-muted-foreground hover:text-foreground hover:underline" title="My account" aria-label={`My account (${me?.name ?? ''})`}>
+              {me?.name}
+            </NavLink>
+          )}
           <Button variant="ghost" size="icon" onClick={() => void logout()} aria-label={t('shell.logout')}>
             <LogOut />
           </Button>
