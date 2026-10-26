@@ -21,25 +21,17 @@ import { useBankAccounts, useSettings } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { metalRateUnitGrams } from '@/lib/billingQueries'
 import { useT } from '@/lib/i18n'
-import { fetchAllPaged } from '@/lib/queries'
 import { useBhavBookings, useBulkDeleteBhav, useCancelBhav, useCreateBhav, useDeleteBhav, useUndeliverBhav, useUpdateBhav, useVerifyBhav } from '@/lib/tradeQueries'
 import { BHAV_STATUSES, businessDayISO, METALS, TRADE_SIDES, metalToMoney, type BhavBookingDto, type PartyRefDto } from '@/shared'
 
 import { blankPay, payBody, payRowsFrom, payTotal, payValid, type PayRow } from './splitPay'
 import { DateRangeFilter, HistoryDialog, PartyBalanceChip, SplitPaymentTable, SplitToggle } from './TradeExtras'
+import { bhavExportRows } from './tradeExport'
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
 const n = (s: string) => Number(s) || 0
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = { PENDING: 'default', PARTIAL: 'secondary', DELIVERED: 'outline', CANCELLED: 'outline' }
-
-/** Header + body for the bhav CSV / Excel export (open and old bookings share it). */
-export async function bhavExportRows(filters: Record<string, string | number | undefined>) {
-  const all = await fetchAllPaged<BhavBookingDto>('/app/bhav-booking', filters)
-  const header = ['No', 'Date', 'Side', 'Party', 'Mobile', 'Metal', 'Weight (g)', 'Pending (g)', 'Rate', 'Amount', 'Advance', 'Entry type', 'Status', 'Verified', 'Narration']
-  const body = all.map((b) => [b.bookingNo, date(b.txnDate), b.side, b.party.name, b.party.mobile, b.metal, b.weight, b.pendingWeight, b.rate, b.amount, b.advance, b.entryType ?? '', b.status, b.verifiedAt ? 'Yes' : 'No', b.narration])
-  return [header, ...body]
-}
 
 let uid = 0
 interface WRow { key: string; weight: string; rate: string }

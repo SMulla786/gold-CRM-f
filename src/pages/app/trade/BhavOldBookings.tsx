@@ -14,8 +14,9 @@ import { useT } from '@/lib/i18n'
 import { useBhavBookings } from '@/lib/tradeQueries'
 import { businessDayISO, METALS, TRADE_SIDES, type BhavBookingDto } from '@/shared'
 
-import { BhavRowMenu, VerifiedBadge, bhavExportRows } from './BhavBookings'
+import { BhavRowMenu, VerifiedBadge } from './BhavBookings'
 import { DateRangeFilter } from './TradeExtras'
+import { bhavExportRows } from './tradeExport'
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')

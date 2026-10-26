@@ -1,4 +1,4 @@
-import { Barcode, Image as ImageIcon, Plus, Tag, Trash2, Type, Variable } from 'lucide-react'
+import { Barcode, Image as ImageIcon, Plus, QrCode, Tag, Trash2, Type, Variable } from 'lucide-react'
 import { useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
@@ -19,8 +19,8 @@ import { TagLabel } from './TagLabel'
 // Labels below are i18n keys, translated at render. 'HUID' is not a key: t() returns it unchanged.
 const SHAPE_LABEL: Record<string, string> = { RECT: 'inv.editor.shape_rect', ROUNDED: 'inv.editor.shape_rounded', BUTTERFLY: 'inv.editor.shape_butterfly' }
 const DIRECTION_LABEL: Record<string, string> = { HORIZONTAL: 'inv.editor.dir_horizontal', VERTICAL: 'inv.editor.dir_vertical' }
-const FIELD_LABEL: Record<string, string> = { tagNo: 'inv.editor.f_tag_no', huid: 'HUID', itemName: 'bill.item_name', karat: 'jbill.col_purity', gross: 'inv.editor.f_gross', net: 'inv.editor.f_net', fine: 'inv.editor.f_fine', rate: 'udhari.rate', shopName: 'inv.editor.f_shop_name' }
-const TYPE_LABEL: Record<TagElement['type'], string> = { text: 'inv.editor.type_text', field: 'inv.import.col_field', barcode: 'inv.editor.type_barcode', image: 'inv.editor.type_logo' }
+const FIELD_LABEL: Record<string, string> = { tagNo: 'inv.editor.f_tag_no', huid: 'HUID', itemName: 'bill.item_name', karat: 'jbill.col_purity', gross: 'inv.editor.f_gross', net: 'inv.editor.f_net', fine: 'inv.editor.f_fine', rate: 'udhari.rate', shopName: 'inv.editor.f_shop_name', epcCode: 'inv.editor.f_epc' }
+const TYPE_LABEL: Record<TagElement['type'], string> = { text: 'inv.editor.type_text', field: 'inv.import.col_field', barcode: 'inv.editor.type_barcode', image: 'inv.editor.type_logo', qr: 'inv.editor.type_qr' }
 const PRESETS: [string, string, number, number][] = [
   ['80x12', 'inv.editor.preset_80x12', 80, 12],
   ['100x12', 'inv.editor.preset_100x12', 100, 12],
@@ -72,7 +72,7 @@ function ElementProps({ el, onChange }: { el: TagElement; onChange: (el: TagElem
           <Input id="el-text" maxLength={200} value={el.text ?? ''} onChange={(e) => set({ text: e.target.value })} />
         </div>
       )}
-      {(el.type === 'field' || el.type === 'barcode') && (
+      {(el.type === 'field' || el.type === 'barcode' || el.type === 'qr') && (
         <div className="space-y-1.5">
           <Label>{t('inv.editor.prints')}</Label>
           <Select value={el.field ?? 'tagNo'} onValueChange={(v) => set({ field: v as TagElement['field'] })}>
@@ -93,6 +93,13 @@ function ElementProps({ el, onChange }: { el: TagElement; onChange: (el: TagElem
         <NumField id="el-angle" label={t('inv.editor.angle')} value={el.angle} step="1" min={-360} onChange={(v) => set({ angle: v })} />
         <NumField id="el-opacity" label={t('inv.editor.opacity')} value={el.opacity} step="0.1" onChange={(v) => set({ opacity: v })} />
         {hasText && <NumField id="el-font" label={t('inv.editor.font_size')} value={el.fontSize} step="0.5" min={1} onChange={(v) => set({ fontSize: v })} />}
+        {hasText && (
+          <div className="space-y-1.5">
+            <Label htmlFor="el-colour">{t('inv.editor.colour')}</Label>
+            {/* <input type=color> only takes #rrggbb; other stored hex forms show as black until changed. */}
+            <Input id="el-colour" type="color" className="h-9 w-16 p-1" value={/^#[0-9a-fA-F]{6}$/.test(el.colour ?? '') ? el.colour : '#000000'} onChange={(e) => set({ colour: e.target.value })} />
+          </div>
+        )}
         {hasText && (
           <div className="flex items-end gap-2 pb-2">
             <Checkbox id="el-bold" checked={!!el.bold} onCheckedChange={(v) => set({ bold: v === true })} />
@@ -117,8 +124,8 @@ function Editor({ initial, sample, shopName, canEdit, canDelete, onDone }: { ini
   const setEl = (el: TagElement) => set({ elements: d.elements.map((e) => (e.id === el.id ? el : e)) })
   const addEl = (type: TagElement['type']) => {
     const id = `e${Date.now().toString(36)}`
-    const base = { id, type, x: 1, y: 1, w: type === 'barcode' ? 28 : type === 'image' ? 8 : 20, h: type === 'text' || type === 'field' ? 3 : 6 }
-    const el: TagElement = type === 'text' ? { ...base, text: 'Text', fontSize: 6 } : type === 'field' ? { ...base, field: 'itemName', fontSize: 6 } : type === 'barcode' ? { ...base, field: 'tagNo' } : base
+    const base = { id, type, x: 1, y: 1, w: type === 'barcode' ? 28 : type === 'image' || type === 'qr' ? 8 : 20, h: type === 'text' || type === 'field' ? 3 : type === 'qr' ? 8 : 6 }
+    const el: TagElement = type === 'text' ? { ...base, text: 'Text', fontSize: 6 } : type === 'field' ? { ...base, field: 'itemName', fontSize: 6 } : type === 'barcode' || type === 'qr' ? { ...base, field: 'tagNo' } : base
     set({ elements: [...d.elements, el] })
     setSel(id)
   }
@@ -223,6 +230,7 @@ function Editor({ initial, sample, shopName, canEdit, canDelete, onDone }: { ini
               <Button size="sm" variant="outline" onClick={() => addEl('text')}><Type className="size-4" aria-hidden />{t('inv.editor.add_text')}</Button>
               <Button size="sm" variant="outline" onClick={() => addEl('field')}><Variable className="size-4" aria-hidden />{t('inv.editor.add_field')}</Button>
               <Button size="sm" variant="outline" onClick={() => addEl('barcode')}><Barcode className="size-4" aria-hidden />{t('inv.editor.add_barcode')}</Button>
+              <Button size="sm" variant="outline" onClick={() => addEl('qr')}><QrCode className="size-4" aria-hidden />{t('inv.editor.add_qr')}</Button>
               <Button size="sm" variant="outline" onClick={() => addEl('image')}><ImageIcon className="size-4" aria-hidden />{t('inv.editor.add_logo')}</Button>
             </div>
             <ul className="divide-y rounded-xl border">

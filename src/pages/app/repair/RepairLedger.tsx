@@ -1,8 +1,10 @@
 import type { ColumnDef } from '@tanstack/react-table'
 import { Download, Printer, Search } from 'lucide-react'
 import { useState } from 'react'
+import { flushSync } from 'react-dom'
 import { Link, useSearchParams } from 'react-router-dom'
 
+import { ExcelExportButton } from '@/components/CsvExportButton'
 import { DataTable } from '@/components/DataTable'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -14,11 +16,12 @@ import { downloadCsv } from '@/lib/csv'
 import { useT } from '@/lib/i18n'
 import { fetchAllPaged } from '@/lib/queries'
 import { useRepairs } from '@/lib/repairQueries'
+import { downloadPdf } from '@/lib/share'
 import { businessDayISO, REPAIR_STATUSES, type RepairTicketDto } from '@/shared'
 
 import { AssignKarigarDialog, DeliverDialog, RepairThumb, TicketDetailsDialog } from './RepairDialogs'
 import { RepairTabs } from './RepairTabs'
-import { ASSIGNABLE, date, estCharge, inr, STATUS_KEY, STATUS_LABEL } from './repairUtils'
+import { ASSIGNABLE, date, estCharge, inr, n, STATUS_KEY, STATUS_LABEL } from './repairUtils'
 
 const statusVariant = (s: RepairTicketDto['status']) => (s === 'CANCELLED' ? 'secondary' : s === 'DELIVERED' ? 'outline' : s === 'READY' ? 'default' : 'secondary')
 
@@ -39,20 +42,39 @@ export function RepairLedger() {
   const [detailsId, setDetailsId] = useState<number | null>(null)
   const [deliver, setDeliver] = useState<RepairTicketDto | null>(null)
   const [assign, setAssign] = useState<RepairTicketDto | null>(null)
+  const [pdfRows, setPdfRows] = useState<RepairTicketDto[] | null>(null)
   const filters = { q: q.trim() || undefined, status: status || undefined, metal: metal || undefined, from: from || undefined, to: to || undefined }
   const { data, isLoading } = useRepairs({ ...filters, page, pageSize })
 
+  const exportName = `repair-ledger-${status ? status.toLowerCase() : 'all'}-${businessDayISO()}.csv`
+  // every filtered row (not just this page); same header + body for CSV and Excel
+  const ledgerRows = async () => {
+    const all = await fetchAllPaged<RepairTicketDto>('/app/repairs', filters)
+    const header = ['Ticket', 'Date', 'Customer', 'Mobile', 'Category', 'Metal', 'Karat', 'Pcs', 'Gross (g)', 'Net (g)', 'Final (g)', 'Job description', 'Karigar', 'Expected', 'Priority', 'Labour', 'Other', 'Est. charge', 'Advance', 'Balance', 'Status', 'Delivered on', 'Remarks']
+    const body = all.map((x) => [x.ticketNo, date(x.createdAt), x.party.name, x.party.mobile, x.category, x.metal, x.karatCode, x.pcs, x.gross, x.net, x.finalWeight, x.description, x.karigar?.name, date(x.expectedDate), x.priority, x.labourCharge, x.otherCharge, estCharge(x), x.advance, x.balance, STATUS_LABEL[x.status], x.deliveredAt ? date(x.deliveredAt) : '', x.remarks])
+    return [header, ...body]
+  }
   const exportCsv = async () => {
     setExporting(true)
     try {
-      const all = await fetchAllPaged<RepairTicketDto>('/app/repairs', filters)
-      const header = ['Ticket', 'Date', 'Customer', 'Mobile', 'Category', 'Metal', 'Karat', 'Pcs', 'Gross (g)', 'Net (g)', 'Final (g)', 'Job description', 'Karigar', 'Expected', 'Priority', 'Labour', 'Other', 'Est. charge', 'Advance', 'Balance', 'Status', 'Delivered on', 'Remarks']
-      const body = all.map((x) => [x.ticketNo, date(x.createdAt), x.party.name, x.party.mobile, x.category, x.metal, x.karatCode, x.pcs, x.gross, x.net, x.finalWeight, x.description, x.karigar?.name, date(x.expectedDate), x.priority, x.labourCharge, x.otherCharge, estCharge(x), x.advance, x.balance, STATUS_LABEL[x.status], x.deliveredAt ? date(x.deliveredAt) : '', x.remarks])
-      downloadCsv(`repair-ledger-${status ? status.toLowerCase() : 'all'}-${businessDayISO()}.csv`, [header, ...body])
+      downloadCsv(exportName, await ledgerRows())
     } finally {
       setExporting(false)
     }
   }
+  /** Print / PDF = browser print of every filtered row into the hidden .print-area below (same fetch-all as CSV). */
+  const exportPdf = async () => {
+    setExporting(true)
+    try {
+      const all = await fetchAllPaged<RepairTicketDto>('/app/repairs', filters)
+      flushSync(() => setPdfRows(all))
+      window.addEventListener('afterprint', () => setPdfRows(null), { once: true })
+      downloadPdf()
+    } finally {
+      setExporting(false)
+    }
+  }
+  const total = (rows: RepairTicketDto[], f: (x: RepairTicketDto) => string) => rows.reduce((a, x) => a + n(f(x)), 0)
 
   const weightOf = (x: RepairTicketDto) => `${x.gross} g${x.net ? t('repair.net_paren', { n: x.net }) : ''}`
 
@@ -116,6 +138,8 @@ export function RepairLedger() {
           <Input type="date" className="w-full sm:w-40" aria-label="Received from" value={from} max={to || undefined} onChange={(e) => { setFrom(e.target.value); setPage(1) }} />
           <Input type="date" className="w-full sm:w-40" aria-label="Received to" value={to} min={from || undefined} onChange={(e) => { setTo(e.target.value); setPage(1) }} />
           <Button className="sm:ml-auto" variant="outline" disabled={exporting} onClick={exportCsv}><Download aria-hidden />{exporting ? t('bill.exporting') : t('common.export_csv')}</Button>
+          <ExcelExportButton disabled={exporting} filename={exportName} rows={ledgerRows} />
+          <Button variant="outline" disabled={exporting} onClick={() => void exportPdf()}><Printer aria-hidden />{t('gst.print_pdf')}</Button>
         </CardContent>
       </Card>
 
@@ -126,6 +150,41 @@ export function RepairLedger() {
         emptyText={q || status || metal || from || to ? t('repair.no_match') : t('repair.no_tickets')}
         pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: setPageSize } : undefined}
       />
+
+      {pdfRows && (
+        <div className="print-area hidden print:block">
+          <h2 className="mb-1 text-lg font-semibold">{t('repair.ledger_title')}{status ? ` · ${t(STATUS_KEY[status as RepairTicketDto['status']])}` : ''}{metal ? ` · ${metal}` : ''}</h2>
+          <p className="mb-3 text-xs">{from || to ? `${from ? date(from) : '…'} – ${to ? date(to) : '…'} · ` : ''}{q.trim() ? `"${q.trim()}" · ` : ''}{t('repair.print_count', { n: pdfRows.length })}</p>
+          <table className="w-full border-collapse text-xs">
+            <thead>
+              <tr className="border-b text-left">
+                {['repair.col_ticket', 'udhari.date', 'bill.customer', 'girvi.col_category', 'udhari.metal', 'girvi.gross_g', 'repair.job', 'party.type.KARIGAR', 'repair.expected', 'repair.est_charge', 'repair.advance', 'bill.balance', 'stock.col_status'].map((h, i) => <th key={h} className={i >= 9 && i <= 11 ? 'p-1 text-right' : 'p-1'}>{t(h)}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {pdfRows.map((x) => (
+                <tr key={x.id} className="border-b align-top">
+                  <td className="p-1">#{x.ticketNo}</td><td className="whitespace-nowrap p-1">{date(x.createdAt)}</td><td className="p-1">{x.party.name}<div className="text-[10px]">{x.party.mobile}</div></td>
+                  <td className="p-1">{x.category}{x.subCategory ? ` · ${x.subCategory}` : ''}</td><td className="p-1">{x.metal}{x.karatCode ? ` ${x.karatCode}` : ''}</td><td className="p-1 tabular-nums">{x.gross}</td>
+                  <td className="p-1">{x.description}</td><td className="p-1">{x.karigar?.name ?? '—'}</td><td className="whitespace-nowrap p-1">{date(x.expectedDate)}</td>
+                  <td className="p-1 text-right tabular-nums">{inr(estCharge(x))}</td><td className="p-1 text-right tabular-nums">{inr(x.advance)}</td><td className="p-1 text-right tabular-nums">{inr(x.balance)}</td><td className="p-1">{t(STATUS_KEY[x.status])}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="font-semibold">
+                <td className="p-1" colSpan={5}>{t('bill.col_total')}</td>
+                <td className="p-1 tabular-nums">{total(pdfRows, (x) => x.gross).toFixed(3)}</td>
+                <td className="p-1" colSpan={3} />
+                <td className="p-1 text-right tabular-nums">{inr(String(total(pdfRows, estCharge)))}</td>
+                <td className="p-1 text-right tabular-nums">{inr(String(total(pdfRows, (x) => x.advance)))}</td>
+                <td className="p-1 text-right tabular-nums">{inr(String(total(pdfRows, (x) => x.balance)))}</td>
+                <td />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
 
       {detailsId != null && <TicketDetailsDialog id={detailsId} onClose={() => setDetailsId(null)} />}
       {deliver && <DeliverDialog ticket={deliver} onClose={() => setDeliver(null)} />}

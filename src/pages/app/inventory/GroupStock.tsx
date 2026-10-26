@@ -6,6 +6,7 @@ import { flushSync } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
+import { ExcelExportButton } from '@/components/CsvExportButton'
 import { DataTable } from '@/components/DataTable'
 import { MpinDialog } from '@/components/MpinDialog'
 import { Button } from '@/components/ui/button'
@@ -15,7 +16,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useKarats } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
-import { fetchAllStock, useBulkDeleteStock, useGroupStock } from '@/lib/inventoryQueries'
+import { fetchAllStock, useBulkDeleteStock, useGroupStock, useJewelleryTypes } from '@/lib/inventoryQueries'
 import { downloadCsv } from '@/lib/csv'
 import { downloadPdf } from '@/lib/share'
 import { useT } from '@/lib/i18n'
@@ -42,9 +43,11 @@ export function GroupStock() {
   const [method, setMethod] = useState('')
   const [karatCode, setKaratCode] = useState('')
   const [q, setQ] = useState('')
+  const [jewelleryTypeId, setJewelleryTypeId] = useState('')
+  const { data: typeOpts } = useJewelleryTypes(stockClass || undefined)
   const { data: karats } = useKarats()
   const karatCodes = [...new Set((karats ?? []).map((k) => k.code))]
-  const filters = { stockClass: stockClass || undefined, status, method: method || undefined, karatCode: karatCode || undefined, q: q || undefined }
+  const filters = { stockClass: stockClass || undefined, status, method: method || undefined, karatCode: karatCode || undefined, q: q || undefined, jewelleryTypeId: jewelleryTypeId || undefined }
   const { data, isLoading } = useGroupStock(filters)
 
   // Selection (by group+karat row). Only AVAILABLE stock can be bulk-edited/deleted/tagged, as in StockList.
@@ -128,11 +131,14 @@ export function GroupStock() {
     { accessorKey: 'value', header: t('gst.col_value'), cell: ({ row }) => inr(row.original.value) },
   ]
 
-  const exportCsv = () => {
+  /** Header + listed rows; shared by Export CSV and Excel. */
+  const exportRows = () => {
     const header = ['Group', 'HSN', 'Karat', 'Items', 'Pcs', 'Gross', 'Net', 'Fine', 'Value']
     const body = (data ?? []).map((g) => [g.groupName, g.hsnCode ?? '', g.karatCode ?? '', g.items, g.pcs, g.gross, g.net, g.fine, g.value])
-    downloadCsv(`group-stock${stockClass ? `-${stockClass.toLowerCase()}` : ''}.csv`, [header, ...body])
+    return [header, ...body]
   }
+  const exportFile = `group-stock${stockClass ? `-${stockClass.toLowerCase()}` : ''}.csv`
+  const exportCsv = () => downloadCsv(exportFile, exportRows())
 
   // PDF = browser print of the listed groups (the endpoint is unpaged, so these are all rows) via the hidden .print-area.
   const [printing, setPrinting] = useState(false)
@@ -175,7 +181,7 @@ export function GroupStock() {
 
       <Card>
         <CardContent className="flex flex-wrap items-end gap-3 pt-6">
-          <Select value={stockClass || 'all'} onValueChange={(v) => changeFilter(setStockClass)(v === 'all' ? '' : v)}>
+          <Select value={stockClass || 'all'} onValueChange={(v) => { setJewelleryTypeId(''); changeFilter(setStockClass)(v === 'all' ? '' : v) }}>
             <SelectTrigger className="w-40" aria-label="Stock class">
               <SelectValue />
             </SelectTrigger>
@@ -220,8 +226,20 @@ export function GroupStock() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={jewelleryTypeId || 'all'} onValueChange={(v) => changeFilter(setJewelleryTypeId)(v === 'all' ? '' : v)}>
+            <SelectTrigger className="w-40" aria-label="Type (collection)">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t('bill.all_types')}</SelectItem>
+              {typeOpts?.map((jt) => (
+                <SelectItem key={jt.id} value={String(jt.id)}>{jt.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Input className="max-w-xs" placeholder={t('inv.f.search_tag_huid')} aria-label="Search stock" value={q} onChange={(e) => changeFilter(setQ)(e.target.value)} />
           <Button className="ml-auto" variant="outline" disabled={!data?.length} onClick={exportCsv}>{t('common.export_csv')}</Button>
+          <ExcelExportButton filename={exportFile} rows={exportRows} disabled={!data?.length} />
           <Button variant="outline" disabled={!data?.length} onClick={exportPdf}>{t('inv.f.export_pdf')}</Button>
         </CardContent>
       </Card>

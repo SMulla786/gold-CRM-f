@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { toast } from 'sonner'
 
 import { MpinDialog } from '@/components/MpinDialog'
 import { Button } from '@/components/ui/button'
@@ -6,8 +7,10 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useT } from '@/lib/i18n'
-import { useKachaProcess } from '@/lib/tradeQueries'
+import { useBulkKachaProcess, useKachaBalance, useKachaProcess } from '@/lib/tradeQueries'
+import type { ExchangeDto } from '@/shared'
 
 const n = (s: string) => Number(s) || 0
 
@@ -20,6 +23,7 @@ export interface ProcessSource { id: number; exchangeNo: number; fine: string }
 export function ProcessKachaDialog({ metal, source, onClose }: { metal: string; source?: ProcessSource; onClose: () => void }) {
   const t = useT()
   const proc = useKachaProcess()
+  const { data: pool } = useKachaBalance(metal) // read-only context: what the branch pool holds right now
   const [f, setF] = useState<ProcessForm>({ type: 'MELT', inFine: source?.fine ?? '', outFine: '', ravalFine: '0', remark: '' })
   const set = (k: keyof ProcessForm, v: string) => setF((s) => ({ ...s, [k]: v }))
   const difference = n(f.inFine) - n(f.outFine) - (f.type === 'REFINE' ? n(f.ravalFine) : 0)
@@ -28,6 +32,10 @@ export function ProcessKachaDialog({ metal, source, onClose }: { metal: string; 
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader><DialogTitle>{t('trade.proc.title', { metal })}{source ? t('trade.proc.title_exchange', { no: source.exchangeNo }) : ''}</DialogTitle></DialogHeader>
+        <div className="grid grid-cols-2 gap-2 rounded-xl border bg-muted/40 p-3 text-sm tabular-nums">
+          <div><div className="text-xs text-muted-foreground">{t('trade.proc.pool_kacha')}</div><div className="font-semibold">{pool ? `${pool.kachaFine} g` : '—'}</div></div>
+          <div><div className="text-xs text-muted-foreground">{t('trade.proc.pool_fine')}</div><div className="font-semibold">{pool ? `${pool.bullionFine} g` : '—'}</div></div>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5"><Label>{t('bill.type')}</Label>
             <Select value={f.type} onValueChange={(v) => set('type', v)}><SelectTrigger aria-label="Process type"><SelectValue /></SelectTrigger>
@@ -58,5 +66,52 @@ function MpinProcess({ proc, metal, exchangeId, f, ok, onClose }: { proc: Return
         setMpinOpen(false); onClose()
       }} onClose={() => setMpinOpen(false)} />
     </>
+  )
+}
+
+/**
+ * Send several unprocessed BUY exchanges to melt in one go: one MPIN, then the same POST /app/kacha/process the row
+ * dialog sends, once per exchange (MELT, kacha in = the exchange's fine, linked by exchangeId). Failures are listed in one toast.
+ */
+export function BulkMeltDialog({ exchanges, onClose, onDone }: { exchanges: ExchangeDto[]; onClose: () => void; onDone: () => void }) {
+  const t = useT()
+  const bulk = useBulkKachaProcess()
+  const [out, setOut] = useState<Record<number, string>>({})
+  const [mpinOpen, setMpinOpen] = useState(false)
+  const ok = exchanges.length > 0 && exchanges.every((e) => (out[e.id] ?? '') !== '')
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader><DialogTitle>{t('trade.ex.bulk_melt_title', { n: exchanges.length })}</DialogTitle></DialogHeader>
+        <p className="text-xs text-muted-foreground">{t('trade.ex.bulk_melt_note')}</p>
+        <div className="max-h-[50vh] overflow-auto rounded-xl border">
+          <Table>
+            <TableHeader><TableRow><TableHead>{t('trade.col_no')}</TableHead><TableHead>{t('udhari.party')}</TableHead><TableHead>{t('udhari.metal')}</TableHead><TableHead>{t('trade.proc.kacha_in')}</TableHead><TableHead>{t('trade.proc.bullion_out')}</TableHead><TableHead>{t('trade.kacha.col_loss')}</TableHead></TableRow></TableHeader>
+            <TableBody>
+              {exchanges.map((e) => (
+                <TableRow key={e.id}>
+                  <TableCell className="font-medium">#{e.exchangeNo}</TableCell>
+                  <TableCell>{e.party.name}</TableCell>
+                  <TableCell>{e.metal}</TableCell>
+                  <TableCell className="tabular-nums">{e.afterFine}</TableCell>
+                  <TableCell><Input className="w-28" type="number" step="0.001" aria-label={`Bullion out for exchange ${e.exchangeNo}`} value={out[e.id] ?? ''} onChange={(ev) => setOut((s) => ({ ...s, [e.id]: ev.target.value }))} /></TableCell>
+                  <TableCell className="tabular-nums text-muted-foreground">{(out[e.id] ?? '') === '' ? '—' : (n(e.afterFine) - n(out[e.id] ?? '')).toFixed(3)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+        <DialogFooter><Button disabled={!ok || bulk.isPending} onClick={() => setMpinOpen(true)}>{t('trade.ex.bulk_continue')}</Button></DialogFooter>
+        <MpinDialog open={mpinOpen} title={t('trade.proc.mpin_title')} onConfirm={async (mpin) => {
+          const { done, failed } = await bulk.mutateAsync({
+            items: exchanges.map((e) => ({ no: e.exchangeNo, body: { type: 'MELT', metal: e.metal, inFine: n(e.afterFine), outFine: n(out[e.id] ?? ''), ravalFine: 0, exchangeId: e.id } })),
+            mpin,
+          })
+          if (done) toast.success(t('trade.ex.bulk_melt_done', { n: done }))
+          if (failed.length) toast.error(t('trade.ex.bulk_melt_failed', { list: failed.join('; ') }))
+          setMpinOpen(false); onDone()
+        }} onClose={() => setMpinOpen(false)} />
+      </DialogContent>
+    </Dialog>
   )
 }

@@ -5,14 +5,19 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useT } from '@/lib/i18n'
 import { useAllStock, useItemGroups } from '@/lib/inventoryQueries'
 import type { StockItemDto } from '@/shared'
+
+import { CODE_TYPE_LABEL, CODE_TYPES as LABEL_CODES } from './codeTypes'
 
 const CLASS_LABEL: Record<string, string> = { GOLD: 'Gold', SILVER: 'Silver', STONE: 'Stone', ARTIFICIAL: 'Artificial', FRANCHISE: 'Franchise' }
 const CODE_TYPES = [
   { value: 'ANY', label: 'Any (tag or HUID)' },
   { value: 'TAG', label: 'Tag no' },
   { value: 'HUID', label: 'HUID' },
+  // TASK-98: 'EPC' (label i18n'd at render) — ANY also matches the EPC.
+  { value: 'EPC', label: 'inv.editor.f_epc' },
 ]
 type FilterKey = 'category' | 'type' | 'purity' | 'group' | 'itemName'
 const EMPTY: Record<FilterKey, string> = { category: '', type: '', purity: '', group: '', itemName: '' }
@@ -24,6 +29,7 @@ const totals = (rows: StockItemDto[]) => ({
 
 // Browser-only stock audit: scan TAG barcodes / HUIDs (keyboard-wedge; Enter submits) and match against available stock.
 export function ScanMatch() {
+  const t = useT()
   const { data, isLoading } = useAllStock({ status: 'AVAILABLE', method: 'TAG' })
   // Group -> jewellery type ("Item" filter); the stock DTO only carries the group.
   // shortcut: first 100 groups only (API page cap); page through if a shop ever has more.
@@ -32,6 +38,8 @@ export function ScanMatch() {
   const typeOf = useMemo(() => new Map((groups?.items ?? []).map((g) => [g.id, g.jewelleryType])), [groups])
 
   const [codeType, setCodeType] = useState('ANY')
+  // TASK-98: printed label kind (Barcode / QR / RFID); '' = any. Narrows the lists like the other filters.
+  const [labelType, setLabelType] = useState('')
   const [f, setF] = useState(EMPTY)
   const [q, setQ] = useState('')
   const [scanned, setScanned] = useState<Set<number>>(new Set())
@@ -59,7 +67,8 @@ export function ScanMatch() {
   const available = all.filter(
     (i) =>
       matches(i, order) &&
-      (!needle || [i.tagNo, i.huid, i.itemName.name, i.group.name].some((s) => s?.toLowerCase().includes(needle))),
+      (!labelType || (i.codeType ?? 'BARCODE') === labelType) &&
+      (!needle || [i.tagNo, i.huid, i.epcCode, i.itemName.name, i.group.name].some((s) => s?.toLowerCase().includes(needle))),
   )
   const scannedRows = available.filter((i) => scanned.has(i.id))
   const missed = available.filter((i) => !scanned.has(i.id))
@@ -68,7 +77,12 @@ export function ScanMatch() {
   const submit = (raw: string) => {
     const code = raw.trim().toUpperCase()
     if (!code) return
-    const hit = all.find((i) => (codeType !== 'HUID' && i.tagNo === code) || (codeType !== 'TAG' && i.huid === code))
+    const hit = all.find(
+      (i) =>
+        ((codeType === 'ANY' || codeType === 'TAG') && i.tagNo === code) ||
+        ((codeType === 'ANY' || codeType === 'HUID') && i.huid === code) ||
+        ((codeType === 'ANY' || codeType === 'EPC') && !!i.epcCode && i.epcCode === code),
+    )
     if (hit) setScanned((s) => new Set(s).add(hit.id))
     else if (!unknown.includes(code)) setUnknown((u) => [...u, code])
     if (inputRef.current) inputRef.current.value = ''
@@ -103,7 +117,7 @@ export function ScanMatch() {
   )
 
   const panel = (title: string, rows: StockItemDto[], Icon: LucideIcon, empty: string) => {
-    const t = totals(rows)
+    const tot = totals(rows)
     return (
       <Card className="gap-3" aria-label={`${title} panel`}>
         <CardHeader className="flex flex-row items-center justify-between pb-1">
@@ -115,11 +129,11 @@ export function ScanMatch() {
           <dl className="grid grid-cols-2 gap-2 text-xs">
             <div>
               <dt className="uppercase tracking-wide text-muted-foreground">Gross wt</dt>
-              <dd className="font-semibold tabular-nums">{g3(t.gross)}</dd>
+              <dd className="font-semibold tabular-nums">{g3(tot.gross)}</dd>
             </div>
             <div>
               <dt className="uppercase tracking-wide text-muted-foreground">Net wt</dt>
-              <dd className="font-semibold tabular-nums">{g3(t.net)}</dd>
+              <dd className="font-semibold tabular-nums">{g3(tot.net)}</dd>
             </div>
           </dl>
           <ul className="max-h-72 space-y-1 overflow-y-auto border-t pt-2 text-sm">
@@ -156,8 +170,22 @@ export function ScanMatch() {
               <SelectContent>
                 {CODE_TYPES.map((c) => (
                   <SelectItem key={c.value} value={c.value}>
-                    {c.label}
+                    {c.value === 'EPC' ? t(c.label) : c.label}
                   </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <span className="text-xs font-medium text-muted-foreground">{t('inv.scan.label_type')}</span>
+            <Select value={labelType || 'all'} onValueChange={(v) => setLabelType(v === 'all' ? '' : v)}>
+              <SelectTrigger className="w-36" aria-label="Label type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t('inv.code.any')}</SelectItem>
+                {LABEL_CODES.map((c) => (
+                  <SelectItem key={c} value={c}>{t(CODE_TYPE_LABEL[c])}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

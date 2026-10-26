@@ -2,6 +2,7 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { Boxes, Gem, Hash, Layers, Plus, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { DataTable } from '@/components/DataTable'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -14,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useHsn, useKarats } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
-import { useCreateItemGroup, useCreateItemName, useItemGroups, useItemNames, useJewelleryTypes, useUpdateItemGroup, useUpdateItemName } from '@/lib/inventoryQueries'
+import { useCreateItemGroup, useCreateItemName, useDeleteItemGroup, useItemGroups, useItemNames, useJewelleryTypes, useUpdateItemGroup, useUpdateItemName } from '@/lib/inventoryQueries'
 import { CHARGE_UNITS, ENTRY_METHODS, STOCK_CLASSES, type ItemGroupDto, type ItemNameDto } from '@/shared'
 
 /** '' → `empty` (undefined = not sent on create; null = cleared on edit), else a number. */
@@ -448,10 +449,13 @@ export function ItemMasters() {
   const t = useT()
   const { can } = useAuth()
   const canEdit = can('inventory.item_masters', 'edit')
+  const canDelete = can('inventory.item_masters', 'delete')
   // Group tab filters + page
   const [gQ, setGQ] = useState('')
   const [gClass, setGClass] = useState('')
   const [gType, setGType] = useState('')
+  // HSN digit length (4/6/8) — client-side over the current page only.
+  const [gHsnLen, setGHsnLen] = useState('')
   const [gPage, setGPage] = useState(1)
   const [gSize, setGSize] = useState(20)
   const { data: gTypes } = useJewelleryTypes(gClass || undefined)
@@ -459,17 +463,21 @@ export function ItemMasters() {
   const [nQ, setNQ] = useState('')
   const [nClass, setNClass] = useState('')
   const [nGroup, setNGroup] = useState('')
+  const [nType, setNType] = useState('')
+  const { data: nTypes } = useJewelleryTypes(nClass || undefined)
   const [nPage, setNPage] = useState(1)
   const [nSize, setNSize] = useState(20)
 
   const groupsQ = useItemGroups({ page: gPage, pageSize: gSize, q: gQ || undefined, stockClass: gClass || undefined, jewelleryTypeId: gType ? Number(gType) : undefined })
-  const namesQ = useItemNames({ page: nPage, pageSize: nSize, q: nQ || undefined, stockClass: nClass || undefined, groupId: nGroup ? Number(nGroup) : undefined })
+  const namesQ = useItemNames({ page: nPage, pageSize: nSize, q: nQ || undefined, stockClass: nClass || undefined, groupId: nGroup ? Number(nGroup) : undefined, jewelleryTypeId: nType ? Number(nType) : undefined })
   // Unfiltered: every group (contract max 100) for pickers + the catalogue totals.
   const allGroupsQ = useItemGroups({ page: 1, pageSize: 100 })
   const allNamesCount = useItemNames({ page: 1, pageSize: 1 })
   const allGroups = allGroupsQ.data?.items ?? []
   const updateGroup = useUpdateItemGroup()
   const updateName = useUpdateItemName()
+  const deleteGroup = useDeleteItemGroup()
+  const [deletingGroup, setDeletingGroup] = useState<ItemGroupDto | null>(null)
 
   const [newGroup, setNewGroup] = useState(false)
   const [newName, setNewName] = useState(false)
@@ -489,16 +497,19 @@ export function ItemMasters() {
     { id: 'limits', header: t('inv.masters.col_limits'), cell: ({ row }) => <span className="whitespace-nowrap tabular-nums text-muted-foreground">{limitText(row.original.minWeight, row.original.maxWeight, row.original.minPcs, row.original.maxPcs)}</span> },
     { accessorKey: 'itemCount', header: t('bill.col_items') },
     { id: 'status', header: t('stock.col_status'), cell: ({ row }) => statusBadge(row.original.isActive) },
-    ...(canEdit
+    ...(canEdit || canDelete
       ? [{
           id: 'actions',
           header: '',
           cell: ({ row }: { row: { original: ItemGroupDto } }) => (
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => setEditGroup(row.original)}>{t('common.edit')}</Button>
-              <Button variant="ghost" size="sm" disabled={updateGroup.isPending} onClick={() => updateGroup.mutate({ id: row.original.id, body: { isActive: !row.original.isActive } })}>
-                {row.original.isActive ? t('inv.masters.deactivate') : t('inv.masters.activate')}
-              </Button>
+              {canEdit && <Button variant="outline" size="sm" onClick={() => setEditGroup(row.original)}>{t('common.edit')}</Button>}
+              {canEdit && (
+                <Button variant="ghost" size="sm" disabled={updateGroup.isPending} onClick={() => updateGroup.mutate({ id: row.original.id, body: { isActive: !row.original.isActive } })}>
+                  {row.original.isActive ? t('inv.masters.deactivate') : t('inv.masters.activate')}
+                </Button>
+              )}
+              {canDelete && <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setDeletingGroup(row.original)}>{t('common.delete')}</Button>}
             </div>
           ),
         } as ColumnDef<ItemGroupDto, unknown>]
@@ -538,7 +549,7 @@ export function ItemMasters() {
   ]
 
   // Summary numbers derived from the pages already fetched.
-  const groupItems = groupsQ.data?.items ?? []
+  const groupItems = (groupsQ.data?.items ?? []).filter((g) => !gHsnLen || g.hsn?.code.length === Number(gHsnLen))
   const nameItems = namesQ.data?.items ?? []
   const linkedTotal = groupItems.reduce((sum, g) => sum + g.itemCount, 0)
   const numbered = nameItems.filter((n) => n.tagPrefix).length
@@ -611,6 +622,17 @@ export function ItemMasters() {
                   ))}
                 </SelectContent>
               </Select>
+              <Select value={gHsnLen || ALL} onValueChange={(v) => setGHsnLen(v === ALL ? '' : v)}>
+                <SelectTrigger className="w-36" aria-label="Filter by HSN digits" title={t('inv.masters.hsn_len_hint')}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>{t('inv.masters.any_hsn_length')}</SelectItem>
+                  {['4', '6', '8'].map((d) => (
+                    <SelectItem key={d} value={d}>{t('inv.masters.hsn_digits', { n: d })}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </CardContent>
           </Card>
           <Card className="p-4">
@@ -636,14 +658,27 @@ export function ItemMasters() {
           <Card>
             <CardContent className="flex flex-wrap items-end gap-3 pt-6">
               <Input className="max-w-xs" placeholder={t('inv.masters.search_names')} aria-label="Search item names" value={nQ} onChange={(e) => { setNQ(e.target.value); setNPage(1) }} />
-              {classSelect(nClass, (v) => { setNClass(v); setNGroup(''); setNPage(1) }, 'Filter item names by class')}
+              {classSelect(nClass, (v) => { setNClass(v); setNGroup(''); setNType(''); setNPage(1) }, 'Filter item names by class')}
+              <Select value={nType || ALL} onValueChange={(v) => { setNType(v === ALL ? '' : v); setNGroup(''); setNPage(1) }}>
+                <SelectTrigger className="w-44" aria-label="Filter item names by jewellery type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>{t('inv.shortage.all_types')}</SelectItem>
+                  {nTypes?.map((jt) => (
+                    <SelectItem key={jt.id} value={String(jt.id)}>
+                      {jt.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Select value={nGroup || ALL} onValueChange={(v) => { setNGroup(v === ALL ? '' : v); setNPage(1) }}>
                 <SelectTrigger className="w-44" aria-label="Filter by group">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={ALL}>{t('inv.f.all_groups')}</SelectItem>
-                  {allGroups.filter((g) => !nClass || g.stockClass === nClass).map((g) => (
+                  {allGroups.filter((g) => (!nClass || g.stockClass === nClass) && (!nType || String(g.jewelleryType?.id) === nType)).map((g) => (
                     <SelectItem key={g.id} value={String(g.id)}>
                       {g.name}
                     </SelectItem>
@@ -666,6 +701,15 @@ export function ItemMasters() {
         {editGroup && <GroupDialog group={editGroup} onClose={() => setEditGroup(null)} />}
         {newName && <ItemNameDialog groups={allGroups} onClose={() => setNewName(false)} />}
         {editName && <ItemNameDialog groups={allGroups} item={editName} onClose={() => setEditName(null)} />}
+        <ConfirmDialog
+          open={!!deletingGroup}
+          title={t('inv.masters.warning')}
+          description={deletingGroup ? t('inv.masters.delete_group_desc', { name: deletingGroup.name }) : undefined}
+          confirmLabel={t('common.delete')}
+          destructive
+          onConfirm={() => deleteGroup.mutateAsync(deletingGroup!.id)}
+          onClose={() => setDeletingGroup(null)}
+        />
       </Tabs>
     </div>
   )

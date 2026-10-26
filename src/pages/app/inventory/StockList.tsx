@@ -5,6 +5,7 @@ import { flushSync } from 'react-dom'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { AuthedImage } from '@/components/AuthedImage'
+import { ExcelExportButton } from '@/components/CsvExportButton'
 import { DataTable } from '@/components/DataTable'
 import { MpinDialog } from '@/components/MpinDialog'
 import { Badge } from '@/components/ui/badge'
@@ -23,7 +24,9 @@ import { downloadCsv } from '@/lib/csv'
 import { useT } from '@/lib/i18n'
 import { downloadPdf } from '@/lib/share'
 import { CheckoutDraftDialog } from '@/pages/app/billing/CheckoutDraftDialog'
-import { CHARGE_UNITS, STOCK_CLASSES, STOCK_STATUSES, type StockItemDto } from '@/shared'
+import { CHARGE_UNITS, STOCK_CLASSES, STOCK_STATUSES, type StockCodeType, type StockItemDto } from '@/shared'
+
+import { CODE_TYPE_LABEL, CODE_TYPES, isEpc } from './codeTypes'
 
 const UNIT_SHORT: Record<string, string> = { PER_GRAM: '/g', PERCENT: '%', FIXED: 'fixed' }
 type Translate = ReturnType<typeof useT>
@@ -56,6 +59,17 @@ function StockEditDialog({ item, onClose }: { item: StockItemDto; onClose: () =>
     stoneCharge: item.stoneCharge, other: item.other, labour: item.labour, rate: item.rate ?? '', purchaseCost: item.purchaseCost ?? '', remarks: item.remarks ?? '',
   })
   const [labourUnit, setLabourUnit] = useState<string>(item.labourUnit)
+  // TASK-98: label code type + RFID EPC (EPC only kept for RFID; cleared when switching away).
+  const [codeType, setCodeType] = useState<StockCodeType>(item.codeType ?? 'BARCODE')
+  const [epc, setEpc] = useState(item.epcCode ?? '')
+  const epcBad = codeType === 'RFID' && epc.trim() !== '' && !isEpc(epc)
+  const codeBody = () => {
+    const body: Record<string, unknown> = {}
+    if (codeType !== (item.codeType ?? 'BARCODE')) body.codeType = codeType
+    const nextEpc = codeType === 'RFID' && epc.trim() ? epc.trim().toUpperCase() : null
+    if (nextEpc !== (item.epcCode ?? null)) body.epcCode = nextEpc
+    return body
+  }
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
@@ -82,6 +96,26 @@ function StockEditDialog({ item, onClose }: { item: StockItemDto; onClose: () =>
               </SelectContent>
             </Select>
           </div>
+          <div className="space-y-1.5">
+            <Label>{t('inv.code.code_type')}</Label>
+            <Select value={codeType} onValueChange={(v) => setCodeType(v as StockCodeType)}>
+              <SelectTrigger aria-label="Code type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CODE_TYPES.map((c) => (
+                  <SelectItem key={c} value={c}>{t(CODE_TYPE_LABEL[c])}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {codeType === 'RFID' && (
+            <div className="space-y-1.5">
+              <Label htmlFor="e-epc">{t('inv.code.epc')}</Label>
+              <Input id="e-epc" className="font-mono" maxLength={64} placeholder={t('inv.code.epc_ph')} aria-invalid={epcBad || undefined} aria-describedby={epcBad ? 'e-epc-err' : undefined} value={epc} onChange={(e) => setEpc(e.target.value.toUpperCase())} />
+              {epcBad && <p id="e-epc-err" className="text-xs text-destructive">{t('inv.code.epc_invalid')}</p>}
+            </div>
+          )}
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="e-photo">{t('inv.stock.photo')}</Label>
@@ -98,7 +132,7 @@ function StockEditDialog({ item, onClose }: { item: StockItemDto; onClose: () =>
           </div>
         </div>
         <DialogFooter>
-          <Button disabled={update.isPending} onClick={async () => { await update.mutateAsync({ id: item.id, body: toBody(form, labourUnit) }); onClose() }}>
+          <Button disabled={update.isPending || epcBad} onClick={async () => { await update.mutateAsync({ id: item.id, body: { ...toBody(form, labourUnit), ...codeBody() } }); onClose() }}>
             {t('common.save')}
           </Button>
         </DialogFooter>
@@ -156,6 +190,7 @@ export function BulkEditDialog({ ids, onClose }: { ids: number[]; onClose: () =>
 const DETAIL_FIELDS: [string, (i: StockItemDto, t: Translate) => string][] = [
   ['gst.col_class', (i, t) => t(`class.${i.stockClass}`)], ['stock.col_group', (i) => i.group.name], ['bill.col_item', (i) => i.itemName.name],
   ['subscription.col_method', (i) => i.method], ['inv.newstock.tag', (i) => i.tagNo ?? '—'], ['HUID', (i) => i.huid ?? '—'], ['HSN', (i) => i.hsnCode ?? '—'],
+  ['inv.code.code_type', (i, t) => t(CODE_TYPE_LABEL[i.codeType ?? 'BARCODE'])], ['inv.code.epc', (i) => i.epcCode ?? '—'],
   ['stock.col_karat', (i) => i.karatCode ?? '—'], ['stock.col_pcs', (i) => String(i.pcs)], ['stock.col_gross', (i) => i.gross], ['bill.col_less', (i) => i.less],
   ['stock.col_net', (i) => i.net], ['bill.col_tunch', (i) => i.tunch], ['inv.f.wastage_pct', (i) => i.wastage], ['stock.col_fine', (i) => i.fine],
   ['class.STONE', (i) => i.stoneCharge], ['bill.col_labour', (i) => `${i.labour} (${i.labourUnit})`], ['bill.col_other', (i) => i.other],
@@ -242,6 +277,7 @@ export function StockList() {
   const [minWeight, setMinWeight] = useState('')
   const [maxWeight, setMaxWeight] = useState('')
   const [jewelleryTypeId, setJewelleryTypeId] = useState('')
+  const [codeType, setCodeType] = useState('')
   const { data: typeOpts } = useJewelleryTypes(stockClass || undefined)
   const { data: groupOpts } = useItemGroups({ stockClass: stockClass || undefined, pageSize: 100 })
   const { data: nameOpts } = useItemNames({ stockClass: stockClass || undefined, groupId: groupId ? Number(groupId) : undefined, pageSize: 100 })
@@ -258,6 +294,7 @@ export function StockList() {
     minWeight: minWeight || undefined,
     maxWeight: maxWeight || undefined,
     jewelleryTypeId: jewelleryTypeId || undefined,
+    codeType: codeType || undefined,
   }
   const { data, isLoading } = useStock({ page, pageSize, ...filters })
   const navigate = useNavigate()
@@ -275,13 +312,18 @@ export function StockList() {
   const [checkout, setCheckout] = useState(false)
   const canCheckout = can('billing.showroom_drafts', 'edit')
 
+  /** Header + every filtered row; shared by Export CSV and Excel. */
+  const exportRows = async () => {
+    const all = await fetchAllStock(filters)
+    const header = ['Tag', 'Item', 'Group', 'Class', 'Karat', 'Pcs', 'Gross', 'Net', 'Fine', 'Stone', 'Labour', 'Rate', 'Cost', 'Branch', 'Status']
+    const body = all.map((i) => [i.tagNo ?? '', i.itemName.name, i.group.name, i.stockClass, i.karatCode ?? '', i.pcs, i.gross, i.net, i.fine, i.stoneCharge, i.labour, i.rate ?? '', i.purchaseCost ?? '', i.branch.name, i.status])
+    return [header, ...body]
+  }
+  const exportFile = `stock-${status.toLowerCase()}.csv`
   const exportCsv = async () => {
     setExporting(true)
     try {
-      const all = await fetchAllStock(filters)
-      const header = ['Tag', 'Item', 'Group', 'Class', 'Karat', 'Pcs', 'Gross', 'Net', 'Fine', 'Stone', 'Labour', 'Rate', 'Cost', 'Branch', 'Status']
-      const body = all.map((i) => [i.tagNo ?? '', i.itemName.name, i.group.name, i.stockClass, i.karatCode ?? '', i.pcs, i.gross, i.net, i.fine, i.stoneCharge, i.labour, i.rate ?? '', i.purchaseCost ?? '', i.branch.name, i.status])
-      downloadCsv(`stock-${status.toLowerCase()}.csv`, [header, ...body])
+      downloadCsv(exportFile, await exportRows())
     } finally {
       setExporting(false)
     }
@@ -465,6 +507,17 @@ export function StockList() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={codeType || 'all'} onValueChange={(v) => { setCodeType(v === 'all' ? '' : v); setPage(1) }}>
+            <SelectTrigger className="w-36" aria-label="Code type">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t('inv.code.any')}</SelectItem>
+              {CODE_TYPES.map((c) => (
+                <SelectItem key={c} value={c}>{t(CODE_TYPE_LABEL[c])}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <div className="flex items-center gap-1">
             <Input className="w-24" type="number" min={0} step="0.001" placeholder={t('inv.stock.net_from')} aria-label="Minimum net weight" value={minWeight} onChange={(e) => { setMinWeight(e.target.value); setPage(1) }} />
             <span className="text-muted-foreground" aria-hidden>–</span>
@@ -473,6 +526,7 @@ export function StockList() {
           <Button className="ml-auto" variant="outline" disabled={exporting} onClick={exportCsv}>
             {exporting ? t('bill.exporting') : t('common.export_csv')}
           </Button>
+          <ExcelExportButton filename={exportFile} rows={exportRows} disabled={exporting} />
           <Button variant="outline" disabled={exporting} onClick={exportPdf}>{t('inv.f.export_pdf')}</Button>
         </CardContent>
       </Card>

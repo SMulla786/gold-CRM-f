@@ -1,9 +1,10 @@
 import JsBarcode from 'jsbarcode'
 import { Barcode as BarcodeIcon, ListChecks, Scale, Tags, Weight, type LucideIcon } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useLocation } from 'react-router-dom'
 
+import { QrImage } from '@/components/QrImage'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -11,9 +12,10 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
-import { useAllStock, usePrinterSettings, useTagTemplates } from '@/lib/inventoryQueries'
+import { useAllStock, useItemGroups, usePrinterSettings, useTagTemplates } from '@/lib/inventoryQueries'
 import { printerSettingsBody, type PrinterSettingsDto, type StockItemDto } from '@/shared'
 
+import { CODE_TYPE_LABEL } from './codeTypes'
 import { TagLabel } from './TagLabel'
 
 function Barcode({ value }: { value: string }) {
@@ -56,8 +58,15 @@ export function TagPrint() {
   const selected: StockItemDto[] = items.filter((i) => picked.has(i.id))
 
   // Filters narrow only the pick list; already-picked items stay on the sheet.
-  const [f, setF] = useState({ stockClass: '', karatCode: '', groupId: '', itemNameId: '', q: '' })
+  const [f, setF] = useState({ stockClass: '', karatCode: '', groupId: '', itemNameId: '', jewelleryTypeId: '', codeType: '', q: '' })
   const uniq = <T,>(rows: [string, T][]) => [...new Map(rows).entries()]
+  // Group -> jewellery type (the stock DTO only carries the group). shortcut: first 100 groups (API page cap), as in Scan/Match.
+  const { data: groupRows } = useItemGroups({ page: 1, pageSize: 100 })
+  const typeOf = useMemo(() => new Map((groupRows?.items ?? []).map((g) => [g.id, g.jewelleryType])), [groupRows])
+  const typeId = (i: StockItemDto) => String(typeOf.get(i.group.id)?.id ?? '')
+  const codeOf = (i: StockItemDto) => i.codeType ?? 'BARCODE'
+  const typeOpts = uniq(items.filter((i) => typeId(i)).map((i) => [typeId(i), typeOf.get(i.group.id)?.name ?? '']))
+  const codeOpts = uniq(items.map((i) => [codeOf(i), t(CODE_TYPE_LABEL[codeOf(i)])]))
   const classOpts = uniq(items.map((i) => [i.stockClass, t(`class.${i.stockClass}`)]))
   const karatOpts = uniq(items.filter((i) => i.karatCode).map((i) => [i.karatCode as string, i.karatCode as string]))
   const groupOpts = uniq(items.filter((i) => !f.stockClass || i.stockClass === f.stockClass).map((i) => [String(i.group.id), i.group.name]))
@@ -69,9 +78,11 @@ export function TagPrint() {
       (!f.karatCode || i.karatCode === f.karatCode) &&
       (!f.groupId || String(i.group.id) === f.groupId) &&
       (!f.itemNameId || String(i.itemName.id) === f.itemNameId) &&
-      (!needle || [i.tagNo, i.huid, i.itemName.name].some((s) => s?.toLowerCase().includes(needle))),
+      (!f.jewelleryTypeId || typeId(i) === f.jewelleryTypeId) &&
+      (!f.codeType || codeOf(i) === f.codeType) &&
+      (!needle || [i.tagNo, i.huid, i.itemName.name, i.epcCode].some((s) => s?.toLowerCase().includes(needle))),
   )
-  const filterSelect = (key: 'stockClass' | 'karatCode' | 'groupId' | 'itemNameId', label: string, allText: string, opts: [string, string][], reset: Partial<typeof f> = {}) => (
+  const filterSelect = (key: 'stockClass' | 'karatCode' | 'groupId' | 'itemNameId' | 'jewelleryTypeId' | 'codeType', label: string, allText: string, opts: [string, string][], reset: Partial<typeof f> = {}) => (
     <Select value={f[key] || 'all'} onValueChange={(v) => setF({ ...f, ...reset, [key]: v === 'all' ? '' : v })}>
       <SelectTrigger className="w-40" aria-label={label}>
         <SelectValue />
@@ -128,6 +139,8 @@ export function TagPrint() {
           {filterSelect('karatCode', 'Purity', t('inv.f.any_purity'), karatOpts)}
           {filterSelect('groupId', 'Item group', t('inv.f.all_groups'), groupOpts, { itemNameId: '' })}
           {filterSelect('itemNameId', 'Item', t('inv.f.all_items'), nameOpts)}
+          {filterSelect('jewelleryTypeId', 'Jewellery type', t('inv.shortage.all_types'), typeOpts)}
+          {filterSelect('codeType', 'Code type', t('inv.code.any'), codeOpts)}
         </CardContent>
       </Card>
 
@@ -173,7 +186,13 @@ export function TagPrint() {
             <div key={it.id} className="overflow-hidden rounded border p-1 text-center text-xs" style={{ width: `${printer.labelWidthMm}mm`, height: `${printer.labelHeightMm}mm` }}>
               <div className="font-medium">{it.itemName.name}</div>
               <div className="text-muted-foreground">{it.net}g · {it.karatCode ?? ''}</div>
-              <Barcode value={it.tagNo as string} />
+              {/* TASK-98: QR items print a QR of the tag no.; RFID items keep the barcode and add their EPC below it. */}
+              {codeOf(it) === 'QR' ? (
+                <QrImage text={it.tagNo as string} size={Math.max(24, Math.round(printer.labelHeightMm * 1.9))} className="mx-auto" />
+              ) : (
+                <Barcode value={it.tagNo as string} />
+              )}
+              {codeOf(it) === 'RFID' && it.epcCode && <div className="break-all font-mono text-[8px] leading-tight">{it.epcCode}</div>}
             </div>
           )
         })}

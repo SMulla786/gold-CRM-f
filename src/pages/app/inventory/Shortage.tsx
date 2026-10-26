@@ -2,6 +2,7 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { Layers, PackageCheck, PackageX, TrendingDown, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 
+import { CsvExportButton } from '@/components/CsvExportButton'
 import { DataTable } from '@/components/DataTable'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -117,6 +118,11 @@ export function Shortage() {
   const nearMin = rows.filter((r) => r.status === 'WARNING').length
   const healthy = rows.filter((r) => r.status === 'OK').length
   const pcs = (n: number) => t(n === 1 ? 'dash.pcs_one' : 'dash.pcs_other', { n })
+  // CSV + Excel of every filtered row (not just the visible page).
+  const exportRows = async () => [
+    [t('inv.shortage.col_level'), t('inv.shortage.col_name'), t('gst.col_class'), t('daybook.col_type'), t('inv.shortage.csv_weight'), t('inv.shortage.csv_pcs'), t('inv.masters.min_g'), t('inv.masters.max_g'), t('inv.masters.min_pcs'), t('inv.masters.max_pcs'), t('stock.col_status')],
+    ...rows.map((r) => [r.level, r.name, r.stockClass, r.jewelleryType ?? '', r.currentWeight, r.currentPcs, r.minWeight ?? '', r.maxWeight ?? '', r.minPcs ?? '', r.maxPcs ?? '', r.status]),
+  ]
 
   const tile = (label: string, value: string, sub: string | undefined, Icon: LucideIcon) => (
     <Card className="gap-2 hover:-translate-y-1">
@@ -181,6 +187,7 @@ export function Shortage() {
             </SelectContent>
           </Select>
           <Button variant="ghost" disabled={!stockClass && !status && !jewelleryTypeId && !q} onClick={resetFilters}>{t('inv.shortage.reset')}</Button>
+          <CsvExportButton className="ml-auto" filename="stock-shortage.csv" rows={exportRows} />
         </CardContent>
       </Card>
 

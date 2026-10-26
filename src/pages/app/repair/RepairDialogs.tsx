@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useBankAccounts, useKarats } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
-import { repairPhotoPath, useCreateRepair, useRepair, useRepairDeliver, useRepairStatus, useUploadRepairPhoto } from '@/lib/repairQueries'
+import { repairPhotoPath, useCreateRepair, useRepair, useRepairDeliver, useRepairReject, useRepairStatus, useUploadRepairPhoto } from '@/lib/repairQueries'
 import { businessDayISO, METALS, type PartyRefDto, type RepairTicketDto } from '@/shared'
 
 import { addedMetalLabel, addedValue, date, estCharge, inr, n, REPAIR_CATEGORIES, REPAIR_SUB_CATEGORIES, STATUS_KEY } from './repairUtils'
@@ -32,12 +32,14 @@ export function NewTicketDialog({ onClose }: { onClose: () => void }) {
   const { data: karats } = useKarats()
   const [party, setParty] = useState<PartyRefDto | null>(null)
   const [karigar, setKarigar] = useState<PartyRefDto | null>(null)
-  const [f, setF] = useState({ metal: 'GOLD', category: '', description: '', pcs: '1', gross: '', net: '', karatCode: '', hallmark: '', purity: '', subCategory: '', expectedDate: today(), priority: 'NORMAL', labourCharge: '0', otherCharge: '0', advanceCash: '0', advanceOnline: '0', advanceBankId: '' })
+  const [f, setF] = useState({ metal: 'GOLD', category: '', description: '', pcs: '1', gross: '', net: '', karatCode: '', hallmark: '', purity: '', subCategory: '', expectedDate: today(), priority: 'NORMAL', labourCharge: '0', otherCharge: '0', advanceCash: '0', advanceOnline: '0', advanceBankId: '', initialStatus: 'RECEIVED' })
   const set = (k: keyof typeof f, v: string) => setF((s) => ({ ...s, [k]: v }))
   const karatOptions = (karats ?? []).filter((k) => f.metal === 'OTHER' || k.metal === f.metal)
   const netOk = f.net === '' || (n(f.net) > 0 && n(f.net) <= n(f.gross))
   const purityOk = f.purity === '' || (Number(f.purity) >= 0 && Number(f.purity) <= 100)
-  const ok = !!party && f.category.trim() && f.description.trim().length >= 2 && n(f.gross) > 0 && netOk && purityOk && f.expectedDate && (n(f.advanceOnline) === 0 || f.advanceBankId)
+  // starting In progress (work begins at intake) needs a karigar — the server enforces the same
+  const statusOk = f.initialStatus === 'RECEIVED' || !!karigar
+  const ok = !!party && f.category.trim() && f.description.trim().length >= 2 && n(f.gross) > 0 && netOk && purityOk && statusOk && f.expectedDate && (n(f.advanceOnline) === 0 || f.advanceBankId)
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
@@ -63,6 +65,11 @@ export function NewTicketDialog({ onClose }: { onClose: () => void }) {
           {!purityOk && <p className="text-xs text-destructive">{t('repair.purity_error')}</p>}
           <div className="space-y-1.5"><Label htmlFor="rt-desc">{t('bill.description')}</Label><Input id="rt-desc" value={f.description} onChange={(e) => set('description', e.target.value)} /></div>
           <div className="space-y-1.5"><Label htmlFor="rt-karigar">{t('repair.karigar_optional')}</Label><PartyPicker id="rt-karigar" value={karigar} onChange={setKarigar} type="KARIGAR" ariaLabel="Karigar" placeholder={t('repair.search_karigar')} /></div>
+          <div className="space-y-1.5"><Label htmlFor="rt-status">{t('repair.initial_status')}</Label>
+            <Select value={f.initialStatus} onValueChange={(v) => set('initialStatus', v)}><SelectTrigger id="rt-status" className="w-full sm:w-56"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="RECEIVED">{t(STATUS_KEY.RECEIVED)}</SelectItem><SelectItem value="IN_PROGRESS">{t(STATUS_KEY.IN_PROGRESS)}</SelectItem></SelectContent></Select>
+            {f.initialStatus === 'IN_PROGRESS' && <p className={statusOk ? 'text-xs text-muted-foreground' : 'text-xs text-destructive'}>{t('repair.initial_status_hint')}</p>}
+          </div>
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-1.5"><Label htmlFor="rt-pcs">{t('stock.col_pcs')}</Label><Input id="rt-pcs" type="number" value={f.pcs} onChange={(e) => set('pcs', e.target.value)} /></div>
             <div className="space-y-1.5"><Label htmlFor="rt-gross">{t('girvi.gross_g')}</Label><Input id="rt-gross" type="number" step="0.001" value={f.gross} onChange={(e) => set('gross', e.target.value)} /></div>
@@ -95,7 +102,7 @@ export function NewTicketDialog({ onClose }: { onClose: () => void }) {
         </div>
         <DialogFooter>
           <Button disabled={!ok || create.isPending || uploadPhoto.isPending} onClick={async () => {
-            const created = await create.mutateAsync({ partyId: party!.id, metal: f.metal, category: f.category.trim(), description: f.description.trim(), purity: f.purity === '' ? undefined : Number(f.purity), subCategory: f.subCategory.trim() || undefined, pcs: Number(f.pcs) || 1, gross: n(f.gross), net: n(f.net) > 0 ? n(f.net) : undefined, karatCode: f.karatCode || undefined, hallmark: f.hallmark || undefined, expectedDate: f.expectedDate, priority: f.priority, karigarId: karigar?.id, labourCharge: n(f.labourCharge), otherCharge: n(f.otherCharge), advanceCash: n(f.advanceCash), advanceOnline: n(f.advanceOnline), advanceBankId: n(f.advanceOnline) > 0 ? Number(f.advanceBankId) : undefined })
+            const created = await create.mutateAsync({ partyId: party!.id, metal: f.metal, category: f.category.trim(), description: f.description.trim(), purity: f.purity === '' ? undefined : Number(f.purity), subCategory: f.subCategory.trim() || undefined, pcs: Number(f.pcs) || 1, gross: n(f.gross), net: n(f.net) > 0 ? n(f.net) : undefined, karatCode: f.karatCode || undefined, hallmark: f.hallmark || undefined, expectedDate: f.expectedDate, priority: f.priority, karigarId: karigar?.id, labourCharge: n(f.labourCharge), otherCharge: n(f.otherCharge), advanceCash: n(f.advanceCash), advanceOnline: n(f.advanceOnline), advanceBankId: n(f.advanceOnline) > 0 ? Number(f.advanceBankId) : undefined, initialStatus: f.initialStatus })
             // the ticket exists now: a failed photo upload (toast shown) must not leave the form open for a duplicate create
             if (photo) await uploadPhoto.mutateAsync({ id: created.id, file: photo }).catch(() => {})
             onClose()
@@ -118,8 +125,12 @@ const appendRemark = (current: string, add: string) => {
 export function QADialog({ ticket, onClose }: { ticket: RepairTicketDto; onClose: () => void }) {
   const t = useT()
   const move = useRepairStatus()
+  const reject = useRepairReject()
   const [finalWeight, setFinalWeight] = useState(ticket.gross)
   const [remarks, setRemarks] = useState('')
+  // "Return to bench": the one backward move (IN_REVIEW → IN_PROGRESS), needs a reason
+  const [rejecting, setRejecting] = useState(false)
+  const [reason, setReason] = useState('')
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
@@ -137,8 +148,25 @@ export function QADialog({ ticket, onClose }: { ticket: RepairTicketDto; onClose
             </div>
           </div>
         </div>
+        {rejecting && (
+          <div className="space-y-1.5 rounded-xl border border-destructive/40 bg-destructive/5 p-3">
+            <Label htmlFor="qa-reject-reason">{t('repair.return_reason')}</Label>
+            <textarea id="qa-reject-reason" rows={2} maxLength={300} className={TEXTAREA} value={reason} placeholder={t('repair.return_reason_ph')} onChange={(e) => setReason(e.target.value)} />
+            <p className="text-xs text-muted-foreground">{t('repair.return_note')}</p>
+          </div>
+        )}
         <DialogFooter>
-          <Button disabled={n(finalWeight) <= 0 || remarks.trim().length < 1 || move.isPending} onClick={async () => { await move.mutateAsync({ id: ticket.id, body: { status: 'READY', finalWeight: n(finalWeight), remarks: remarks.trim() } }); onClose() }}>{t('repair.mark_ready')}</Button>
+          {rejecting ? (
+            <>
+              <Button variant="outline" onClick={() => setRejecting(false)}>{t('common.cancel')}</Button>
+              <Button variant="destructive" disabled={reason.trim().length < 1 || reject.isPending} onClick={async () => { await reject.mutateAsync({ id: ticket.id, remarks: reason.trim() }); onClose() }}>{t('repair.return_bench')}</Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outline" disabled={move.isPending} onClick={() => setRejecting(true)}>{t('repair.return_bench')}</Button>
+              <Button disabled={n(finalWeight) <= 0 || remarks.trim().length < 1 || move.isPending} onClick={async () => { await move.mutateAsync({ id: ticket.id, body: { status: 'READY', finalWeight: n(finalWeight), remarks: remarks.trim() } }); onClose() }}>{t('repair.mark_ready')}</Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

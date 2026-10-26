@@ -2,6 +2,7 @@ import JsBarcode from 'jsbarcode'
 import { useEffect, useRef, type CSSProperties } from 'react'
 
 import { AuthedImage } from '@/components/AuthedImage'
+import { QrImage } from '@/components/QrImage'
 import type { StockItemDto, TagElement, TagField, TagTemplateDto } from '@/shared'
 
 /** Template fields a label can print, from a stock item (+ the shop name). */
@@ -15,6 +16,7 @@ function fieldValue(field: TagField | undefined, item: StockItemDto, shopName: s
     case 'fine': return `${item.fine}g`
     case 'rate': return item.rate ?? ''
     case 'shopName': return shopName
+    case 'epcCode': return item.epcCode ?? ''
     default: return item.tagNo ?? ''
   }
 }
@@ -47,6 +49,11 @@ function Element({ el, item, shopName }: { el: TagElement; item: StockItemDto; s
     whiteSpace: 'nowrap',
   }
   if (el.type === 'barcode') return <div style={style}><FillBarcode value={fieldValue(el.field ?? 'tagNo', item, shopName)} /></div>
+  // QR is square: the smaller side of the element box, mm → CSS px (96 dpi), like the barcode fills its mm box.
+  if (el.type === 'qr') {
+    const value = fieldValue(el.field ?? 'tagNo', item, shopName)
+    return <div style={style}>{value && <QrImage text={value} size={Math.max(8, Math.round((Math.min(el.w, el.h) * 96) / 25.4))} />}</div>
+  }
   // shortcut: each image element fetches the logo blob itself; share one object URL if sheets get large.
   if (el.type === 'image') return <div style={style}><AuthedImage path="/app/files/invoice/logo" alt="Shop logo" className="h-full w-full object-contain" /></div>
   return <div style={style}>{el.type === 'text' ? (el.text ?? '') : fieldValue(el.field, item, shopName)}</div>

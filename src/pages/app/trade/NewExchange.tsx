@@ -60,7 +60,6 @@ export function NewExchange() {
   const [pays, setPays] = useState<PayRow[]>(() => [blankPay()])
   const [askMpin, setAskMpin] = useState(false)
   // New exchange: the rate field follows today's fine rate until the user types in it (then it is theirs).
-  const [rateAuto, setRateAuto] = useState(true)
   const [askClear, setAskClear] = useState(false)
   // Weighing block (TASK-98): display/derivation only. Nothing here goes into the exchange body or calc.
   const [weighOpen, setWeighOpen] = useState(false)
@@ -96,23 +95,20 @@ export function NewExchange() {
   const totalFine = rows.reduce((a, r) => a + fineOf(r), 0)
   const afterFine = totalFine + n(f.diffFine)
   const moneyMode = n(f.rate) > 0
-  const todayRate = fineRate(rates, metal, side, settings) // prefill + hint only; posting uses whatever is in the field
+  const todayRate = fineRate(rates, metal, side, settings) // hint + one-click fill only; posting uses whatever is in the field
   const finalAmount = moneyMode ? Number(metalToMoney(afterFine, n(f.rate), metalRateUnitGrams(metal, settings))) + n(f.charges) - n(f.discount) : 0
   const splitOn = split && moneyMode
   const paid = splitOn ? payTotal(pays) : n(f.cash) + n(f.online)
   const balance = finalAmount - paid
 
-  // Prefill (new exchange only): today's fine sale rate for SELL / buy rate for BUY, until the user edits the field.
-  if (rateAuto && !editId && todayRate && f.rate !== todayRate) setF((s) => ({ ...s, rate: todayRate }))
-
   const setAllTouch100 = () => setRows((rs) => rs.map((r) => ({ ...r, touch: '100' })))
   const dirty = !!party || side !== 'BUY' || metal !== 'GOLD' || txnDate !== today() || rows.length > 1 || rows.some((r) => r.weight !== '' || r.touch !== '' || r.serialNo !== '')
-    || !rateAuto || (Object.keys(INITIAL_F) as Array<keyof typeof INITIAL_F>).some((key) => key !== 'rate' && f[key] !== INITIAL_F[key])
+    || (Object.keys(INITIAL_F) as Array<keyof typeof INITIAL_F>).some((key) => f[key] !== INITIAL_F[key])
     || split || wb.gross !== '' || wb.less !== '' || wb.sample !== '' || !!tounchSample
   /** Back to a blank new exchange (same as opening the page fresh). */
   const clearForm = () => {
     setSide('BUY'); setParty(null); setMetal('GOLD'); setTxnDate(today()); setRows([blankRow()])
-    setF(INITIAL_F); setRateAuto(true); setSplit(false); setPays([blankPay()])
+    setF(INITIAL_F); setSplit(false); setPays([blankPay()])
     setWeighOpen(false); setWb(BLANK_WB); setTounchSample(null)
   }
 
@@ -234,8 +230,9 @@ export function NewExchange() {
           <CardHeader><CardTitle>{t('trade.ex.settlement')}</CardTitle></CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1.5"><Label htmlFor="ex-diff">{t('trade.fine_adjust')}</Label><Input id="ex-diff" type="number" step="0.001" value={f.diffFine} onChange={(e) => set('diffFine', e.target.value)} /></div>
-            <div className="space-y-1.5"><Label htmlFor="ex-rate">{t('trade.rate_unit', { unit: metal === 'GOLD' ? '/10g' : '/kg' })}</Label><Input id="ex-rate" type="number" value={f.rate} onChange={(e) => { setRateAuto(false); set('rate', e.target.value) }} />
-              {todayRate && <p className="text-xs text-muted-foreground tabular-nums">{t('trade.ex.today_rate', { side: side === 'BUY' ? t('trade.side_buy_lc') : t('trade.side_sell_lc'), rate: todayRate })}</p>}
+            <div className="space-y-1.5"><Label htmlFor="ex-rate">{t('trade.rate_unit', { unit: metal === 'GOLD' ? '/10g' : '/kg' })}</Label><Input id="ex-rate" type="number" value={f.rate} onChange={(e) => set('rate', e.target.value)} />
+              {/* Not auto-filled: a rate switches the exchange to money settlement, so the user opts in. */}
+              {todayRate && <button type="button" className="text-left text-xs text-muted-foreground tabular-nums underline-offset-2 hover:text-foreground hover:underline" onClick={() => set('rate', todayRate)}>{t('trade.ex.today_rate', { side: side === 'BUY' ? t('trade.side_buy_lc') : t('trade.side_sell_lc'), rate: todayRate })}</button>}
             </div>
             {moneyMode && <>
               <div className="space-y-1.5"><Label htmlFor="ex-charges">{t('trade.charges_inr')}</Label><Input id="ex-charges" type="number" value={f.charges} onChange={(e) => set('charges', e.target.value)} /></div>

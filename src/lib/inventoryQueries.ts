@@ -1,5 +1,5 @@
 // Phase 2 inventory — TanStack Query hooks against the real /api/app/* routes.
-import { useQuery } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
 
 import { api } from '@/lib/api'
 import { qs, useApiMutation } from '@/lib/queries'
@@ -10,6 +10,7 @@ import type {
   ItemNameDto,
   JewelleryTypeDto,
   LedgerPageDto,
+  NextTagDto,
   Paged,
   PrinterSettingsDto,
   SetStockCard,
@@ -37,8 +38,11 @@ export const useCreateItemGroup = () =>
   useApiMutation((body: Record<string, unknown>) => api.post<ItemGroupDto[]>('/app/item-groups', body), { invalidate: [['item-groups']], success: 'Groups created' })
 export const useUpdateItemGroup = () =>
   useApiMutation(({ id, body }: { id: number; body: Record<string, unknown> }) => api.patch(`/app/item-groups/${id}`, body), { invalidate: [['item-groups']], success: 'Group updated' })
+/** TASK-98: 409 while item names / stock still use the group. */
+export const useDeleteItemGroup = () =>
+  useApiMutation((id: number) => api.del(`/app/item-groups/${id}`), { invalidate: [['item-groups'], ['stock-shortage']], success: 'Group deleted' })
 
-export const useItemNames = (params: { page?: number; pageSize?: number; q?: string; stockClass?: string; groupId?: number }) =>
+export const useItemNames = (params: { page?: number; pageSize?: number; q?: string; stockClass?: string; groupId?: number; jewelleryTypeId?: number }) =>
   useQuery({ queryKey: ['item-names', params], queryFn: () => api.get<Paged<ItemNameDto>>(`/app/item-names${qs(params)}`) })
 export const useCreateItemName = () =>
   useApiMutation((body: Record<string, unknown>) => api.post<ItemNameDto>('/app/item-names', body), { invalidate: [['item-names']], success: 'Item name created' })
@@ -76,7 +80,22 @@ export async function fetchAllStock(params: Record<string, string | number | und
 export const useShortage = (params: Record<string, string | number | undefined>) =>
   useQuery({ queryKey: ['stock-shortage', params], queryFn: () => api.get<ShortageRowDto[]>(`/app/stock/shortage${qs(params)}`) })
 
-const STOCK_KEYS = [['stock'], ['stock-summary'], ['stock-groups'], ['stock-shortage'], ['stock-transfers'], ['stock-transfer']]
+/** TASK-98: peek the next auto tag no. per item name (read-only; New Stock preview). Map itemNameId → dto. */
+export function useNextTags(itemNameIds: number[], enabled = true): Map<number, NextTagDto> {
+  const results = useQueries({
+    queries: itemNameIds.map((itemNameId) => ({
+      queryKey: ['next-tag', itemNameId],
+      queryFn: () => api.get<NextTagDto>(`/app/stock/next-tag${qs({ itemNameId })}`),
+      enabled,
+      staleTime: 15_000,
+    })),
+  })
+  const out = new Map<number, NextTagDto>()
+  results.forEach((r, i) => { if (r.data) out.set(itemNameIds[i]!, r.data) })
+  return out
+}
+
+const STOCK_KEYS = [['stock'], ['stock-summary'], ['stock-groups'], ['stock-shortage'], ['stock-transfers'], ['stock-transfer'], ['next-tag']]
 export const useCreateStockEntry = () =>
   useApiMutation((body: Record<string, unknown>) => api.post<StockEntryResultDto>('/app/stock/entries', body), { invalidate: STOCK_KEYS, success: 'Stock added' })
 export const useUpdateStock = () =>

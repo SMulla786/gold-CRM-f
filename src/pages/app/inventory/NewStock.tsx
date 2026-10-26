@@ -12,9 +12,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useKarats } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
-import { useCreateStockEntry, useItemGroups, useItemNames } from '@/lib/inventoryQueries'
+import { useCreateStockEntry, useItemGroups, useItemNames, useNextTags } from '@/lib/inventoryQueries'
 import { ItemNameDialog } from '@/pages/app/inventory/ItemMasters'
-import { CHARGE_UNITS, STOCK_CLASSES, computeLine } from '@/shared'
+import { CHARGE_UNITS, STOCK_CLASSES, computeLine, type StockCodeType } from '@/shared'
+
+import { CODE_TYPE_LABEL, CODE_TYPES, isEpc } from './codeTypes'
 
 interface Row {
   itemNameId: string
@@ -33,16 +35,24 @@ interface Row {
   rate: string
   purchaseCost: string
   remarks: string
+  /** TASK-98: label code type (TAG rows) + RFID EPC */
+  codeType: StockCodeType
+  epcCode: string
 }
 /** Today in the browser's zone as YYYY-MM-DD (date input format). */
 const todayLocal = () => new Date().toLocaleDateString('en-CA')
-const blank = (): Row => ({ itemNameId: '', tagNo: '', huid: '', karatCode: '', pcs: '1', gross: '', less: '0', tunch: '', wastage: '0', stoneCharge: '0', other: '0', labour: '0', labourUnit: 'PER_GRAM', rate: '', purchaseCost: '', remarks: '' })
+const blank = (codeType: StockCodeType = 'BARCODE'): Row => ({ itemNameId: '', tagNo: '', huid: '', karatCode: '', pcs: '1', gross: '', less: '0', tunch: '', wastage: '0', stoneCharge: '0', other: '0', labour: '0', labourUnit: 'PER_GRAM', rate: '', purchaseCost: '', remarks: '', codeType, epcCode: '' })
+/** A copied row keeps everything except its EPC (unique per business). */
+const copyRow = (r: Row): Row => ({ ...r, epcCode: '' })
+const epcBad = (r: Row) => r.codeType === 'RFID' && r.epcCode.trim() !== '' && !isEpc(r.epcCode)
 
 export function NewStock() {
   const t = useT()
   const navigate = useNavigate()
   const [stockClass, setStockClass] = useState('GOLD')
   const [method, setMethod] = useState('LOOSE')
+  // TASK-98: entry-level default code type; changing it re-applies to every row (rows can still override).
+  const [defaultCode, setDefaultCode] = useState<StockCodeType>('BARCODE')
   const [rows, setRows] = useState<Row[]>([blank()])
   const [repeat, setRepeat] = useState('1') // Item Repeat (Many): duplicate the last row N times
   const { data: names } = useItemNames({ stockClass, page: 1, pageSize: 100 })
@@ -71,7 +81,18 @@ export function NewStock() {
       }),
     )
 
-  const valid = rows.every((r) => r.itemNameId && Number(r.gross) > 0)
+  const valid = rows.every((r) => r.itemNameId && Number(r.gross) > 0 && (method !== 'TAG' || !epcBad(r)))
+
+  // Live tag-no preview (TAG): peek each item name's next number; later blank-tag rows of the same item get +1, +2… (preview only).
+  const autoNameIds = method === 'TAG' ? [...new Set(rows.filter((r) => r.itemNameId && !r.tagNo).map((r) => Number(r.itemNameId)))] : []
+  const nextTags = useNextTags(autoNameIds, method === 'TAG')
+  const previewTag = (i: number): string | null => {
+    const r = rows[i]!
+    const dto = r.itemNameId && !r.tagNo ? nextTags.get(Number(r.itemNameId)) : undefined
+    if (!dto?.tagNo || dto.prefix == null || dto.next == null) return null
+    const offset = rows.slice(0, i).filter((x) => x.itemNameId === r.itemNameId && !x.tagNo).length
+    return `${dto.prefix}${String(dto.next + offset).padStart(dto.tagNo.length - dto.prefix.length, '0')}`
+  }
 
   const payload = () => ({
     stockClass,
@@ -95,17 +116,19 @@ export function NewStock() {
       rate: r.rate ? Number(r.rate) : undefined,
       purchaseCost: r.purchaseCost ? Number(r.purchaseCost) : undefined,
       remarks: r.remarks || undefined,
+      codeType: method === 'TAG' ? r.codeType : undefined,
+      epcCode: method === 'TAG' && r.codeType === 'RFID' && r.epcCode.trim() ? r.epcCode.trim().toUpperCase() : undefined,
     })),
   })
 
   const submit = async () => {
     await create.mutateAsync(payload())
-    if (clearAfterSave) setRows([blank()])
+    if (clearAfterSave) setRows([blank(defaultCode)])
   }
   // Save & Print (TAG only): save, then jump to Tags with the new items preselected for label printing.
   const saveAndPrint = async () => {
     const res = await create.mutateAsync(payload())
-    setRows([blank()])
+    setRows([blank(defaultCode)])
     navigate('/app/inventory/tags', { state: { ids: res.items.map((i) => i.id) } })
   }
 
@@ -150,7 +173,7 @@ export function NewStock() {
         <CardContent className="flex flex-wrap items-end gap-3 pt-6">
           <div className="space-y-1.5">
             <Label>{t('bill.stock_class')}</Label>
-            <Select value={stockClass} onValueChange={(v) => { setStockClass(v); setRows([blank()]) }}>
+            <Select value={stockClass} onValueChange={(v) => { setStockClass(v); setRows([blank(defaultCode)]) }}>
               <SelectTrigger className="w-40" aria-label="Stock class">
                 <SelectValue />
               </SelectTrigger>
@@ -175,6 +198,21 @@ export function NewStock() {
               </SelectContent>
             </Select>
           </div>
+          {method === 'TAG' && (
+            <div className="space-y-1.5">
+              <Label>{t('inv.code.code_type')}</Label>
+              <Select value={defaultCode} onValueChange={(v) => { const c = v as StockCodeType; setDefaultCode(c); setRows((rs) => rs.map((r) => ({ ...r, codeType: c }))) }}>
+                <SelectTrigger className="w-36" aria-label="Default code type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CODE_TYPES.map((c) => (
+                    <SelectItem key={c} value={c}>{t(CODE_TYPE_LABEL[c])}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label htmlFor="ns-date">{t('inv.newstock.entry_date')}</Label>
             <Input id="ns-date" type="date" className="w-40" max={todayLocal()} value={txnDate} onChange={(e) => setTxnDate(e.target.value)} />
@@ -193,6 +231,8 @@ export function NewStock() {
               <TableRow>
                 <TableHead className="min-w-40">{t('bill.col_item')}</TableHead>
                 {method === 'TAG' && <TableHead>{t('inv.newstock.tag')}</TableHead>}
+                {method === 'TAG' && <TableHead>{t('inv.code.code_type')}</TableHead>}
+                {method === 'TAG' && <TableHead>{t('inv.code.epc')}</TableHead>}
                 <TableHead>HUID</TableHead>
                 <TableHead>{t('stock.col_karat')}</TableHead>
                 <TableHead>{t('stock.col_pcs')}</TableHead>
@@ -240,7 +280,36 @@ export function NewStock() {
                     </TableCell>
                     {method === 'TAG' && (
                       <TableCell>
-                        <Input className="w-24" placeholder={t('inv.newstock.tag_auto')} value={r.tagNo} onChange={(e) => set(i, 'tagNo', e.target.value.toUpperCase())} />
+                        <Input className="w-24" placeholder={previewTag(i) ?? t('inv.newstock.tag_auto')} title={previewTag(i) ? t('inv.newstock.next_tag', { tag: previewTag(i) as string }) : undefined} value={r.tagNo} onChange={(e) => set(i, 'tagNo', e.target.value.toUpperCase())} />
+                      </TableCell>
+                    )}
+                    {method === 'TAG' && (
+                      <TableCell>
+                        <Select value={r.codeType} onValueChange={(v) => set(i, 'codeType', v)}>
+                          <SelectTrigger className="w-28" aria-label="Code type">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {CODE_TYPES.map((c) => (
+                              <SelectItem key={c} value={c}>{t(CODE_TYPE_LABEL[c])}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                    )}
+                    {method === 'TAG' && (
+                      <TableCell>
+                        <Input
+                          className="w-40 font-mono"
+                          aria-label="EPC code"
+                          maxLength={64}
+                          disabled={r.codeType !== 'RFID'}
+                          placeholder={r.codeType === 'RFID' ? t('inv.code.epc_ph') : '—'}
+                          title={epcBad(r) ? t('inv.code.epc_invalid') : undefined}
+                          aria-invalid={epcBad(r) || undefined}
+                          value={r.codeType === 'RFID' ? r.epcCode : ''}
+                          onChange={(e) => set(i, 'epcCode', e.target.value.toUpperCase())}
+                        />
                       </TableCell>
                     )}
                     <TableCell><Input className="w-24" placeholder={t('inv.newstock.huid_ph')} aria-label="HUID" value={r.huid} maxLength={6} onChange={(e) => set(i, 'huid', e.target.value.toUpperCase())} /></TableCell>
@@ -286,7 +355,7 @@ export function NewStock() {
                     <TableCell><Input className="w-24" type="number" value={r.purchaseCost} onChange={(e) => set(i, 'purchaseCost', e.target.value)} /></TableCell>
                     <TableCell><Input className="w-28" aria-label="Remark" value={r.remarks} onChange={(e) => set(i, 'remarks', e.target.value)} /></TableCell>
                     <TableCell className="whitespace-nowrap">
-                      <Button variant="ghost" size="sm" aria-label="Duplicate row" onClick={() => setRows((rs) => [...rs.slice(0, i + 1), { ...r }, ...rs.slice(i + 1)])} title={t('inv.newstock.duplicate')}>⧉</Button>
+                      <Button variant="ghost" size="sm" aria-label="Duplicate row" onClick={() => setRows((rs) => [...rs.slice(0, i + 1), copyRow(r), ...rs.slice(i + 1)])} title={t('inv.newstock.duplicate')}>⧉</Button>
                       <Button variant="ghost" size="sm" aria-label="Remove row" disabled={rows.length === 1} onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} title={t('inv.newstock.remove')}>✕</Button>
                     </TableCell>
                   </TableRow>
@@ -297,12 +366,12 @@ export function NewStock() {
         </Card>
 
         <div className="flex flex-wrap items-center gap-3">
-          <Button variant="outline" onClick={() => setRows((rs) => [...rs, blank()])}>
+          <Button variant="outline" onClick={() => setRows((rs) => [...rs, blank(defaultCode)])}>
             {t('inv.newstock.add_row')}
           </Button>
           <div className="flex items-center gap-1">
             <Input className="w-16" type="number" min={1} aria-label="Repeat count" value={repeat} onChange={(e) => setRepeat(e.target.value)} />
-            <Button variant="outline" onClick={() => setRows((rs) => [...rs, ...Array.from({ length: Math.max(1, Number(repeat) || 1) }, () => ({ ...rs[rs.length - 1]! }))])} title={t('inv.newstock.repeat_hint')}>
+            <Button variant="outline" onClick={() => setRows((rs) => [...rs, ...Array.from({ length: Math.max(1, Number(repeat) || 1) }, () => copyRow(rs[rs.length - 1]!))])} title={t('inv.newstock.repeat_hint')}>
               {t('inv.newstock.repeat_last')}
             </Button>
           </div>

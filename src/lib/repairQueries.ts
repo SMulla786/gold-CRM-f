@@ -20,6 +20,10 @@ export const useCreateRepair = () =>
 export const useRepairStatus = () =>
   useApiMutation(({ id, body }: { id: number; body: Record<string, unknown> }) => api.post<RepairTicketDto>(`/app/repairs/${id}/status`, body), { invalidate: REPAIR_KEYS, success: 'Status updated' })
 
+/** QA "return to bench": IN_REVIEW → IN_PROGRESS with a required reason (appended to the remarks). */
+export const useRepairReject = () =>
+  useApiMutation(({ id, remarks }: { id: number; remarks: string }) => api.post<RepairTicketDto>(`/app/repairs/${id}/reject`, { remarks }), { invalidate: REPAIR_KEYS, success: 'Status updated' })
+
 export const useRepairDeliver = () =>
   useApiMutation(({ id, body }: { id: number; body: Record<string, unknown> }) => api.post<RepairTicketDto>(`/app/repairs/${id}/deliver`, body), { invalidate: REPAIR_KEYS, success: 'Delivered' })
 
