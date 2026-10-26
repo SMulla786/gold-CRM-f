@@ -56,7 +56,7 @@ function RatesMini({ rates }: { rates: CurrentRatesDto }) {
   const group = (metal: 'gold' | 'silver', label: string) => (
     <div className="space-y-3">
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label} <span className="normal-case tracking-normal">· {UNIT[rates[metal].rateUnit]}</span></p>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="stagger grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {rates[metal].rows.map((r) => (
           <div key={`${metal}-${r.karatCode}`} className="rounded-2xl border bg-card p-4 shadow-sm transition-transform duration-300 hover:-translate-y-1">
             <p className="text-sm font-medium">{label} {r.title}</p>
@@ -95,7 +95,7 @@ export function AdminDashboard() {
         <h1>Business overview</h1>
         <p className="mt-1 text-sm text-muted-foreground">All branches at a glance — sales, stock, receivables and today's rates.</p>
       </header>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {tile('Sales today', inr(t.salesToday), undefined, BadgeIndianRupee)}
         {tile('Stock value', inr(t.stock.value), `${grams(t.stock.goldFine)} Au · ${grams(t.stock.silverFine)} Ag · ${t.stock.items} items`, Boxes)}
         {tile('Receivable', inr(t.udhariReceivable.amount), `${grams(t.udhariReceivable.gold)} Au · ${grams(t.udhariReceivable.silver)} Ag`, HandCoins)}
@@ -120,7 +120,7 @@ export function AdminDashboard() {
                 <p className="text-xs font-semibold uppercase tracking-widest text-white/60">{m.label}</p>
                 <p className="text-3xl font-extrabold tabular-nums">{Number(m.g).toFixed(3)} <span className="text-base font-medium text-white/60">g</span></p>
                 <div className="h-3 rounded-full bg-white/10 shadow-[inset_0_2px_4px_rgb(0_0_0/0.3)]">
-                  <div className={`h-3 rounded-full bg-gradient-to-r ${m.bar} shadow-[0_0_10px_rgb(212_175_55/0.5)]`} style={{ width: `${Math.max(4, (Number(m.g) / total) * 100)}%` }} />
+                  <div className={`bar-grow h-3 rounded-full bg-gradient-to-r ${m.bar} shadow-[0_0_10px_rgb(212_175_55/0.5)]`} style={{ width: `${Math.max(4, (Number(m.g) / total) * 100)}%` }} />
                 </div>
               </div>
             )
