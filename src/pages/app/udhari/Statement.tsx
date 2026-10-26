@@ -77,7 +77,7 @@ export function Statement() {
                   <TableCell>{date(r.txnDate)}</TableCell>
                   {!thermal && <TableCell>{r.source}</TableCell>}
                   <TableCell>{(() => {
-                    const href = sourceHref(r.source, r.sourceId)
+                    const href = sourceHref(r.source === 'BHAV_CUT' ? 'UDHAR' : r.source, r.sourceId) // a bhav cut is part of its udhar txn
                     return href ? <Link to={href} className="font-medium text-brand-strong hover:underline print:text-foreground print:no-underline">{r.reference}</Link> : r.reference
                   })()}</TableCell>
                   {!thermal && <TableCell>{r.narration ?? '—'}</TableCell>}

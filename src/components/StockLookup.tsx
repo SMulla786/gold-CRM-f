@@ -6,14 +6,16 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { useT } from '@/lib/i18n'
 import { useStock } from '@/lib/inventoryQueries'
 
 // Mounted only while a search term exists, so the header never fetches stock on its own.
 function Results({ q, onLeave }: { q: string; onLeave: () => void }) {
+  const t = useT()
   const { data, isLoading } = useStock({ page: 1, q, status: 'AVAILABLE' })
-  if (isLoading) return <p className="text-sm text-muted-foreground">Searching…</p>
+  if (isLoading) return <p className="text-sm text-muted-foreground">{t('comp.searching')}</p>
   const rows = data?.items ?? []
-  if (!rows.length) return <p className="text-sm text-muted-foreground">No available stock matches “{q}”.</p>
+  if (!rows.length) return <p className="text-sm text-muted-foreground">{t('comp.no_stock_match', { q })}</p>
   return (
     <ul className="divide-y text-sm">
       {rows.map((i) => (
@@ -32,8 +34,8 @@ function Results({ q, onLeave }: { q: string; onLeave: () => void }) {
       ))}
       {data && data.total > rows.length && (
         <li className="py-2 text-xs text-muted-foreground">
-          Showing {rows.length} of {data.total} —{' '}
-          <Link to="/app/inventory/stock" className="underline" onClick={onLeave}>open All Stock</Link>
+          {t('comp.showing_of', { n: rows.length, total: data.total })}{' '}
+          <Link to="/app/inventory/stock" className="underline" onClick={onLeave}>{t('comp.open_all_stock')}</Link>
         </li>
       )}
     </ul>
@@ -42,6 +44,7 @@ function Results({ q, onLeave }: { q: string; onLeave: () => void }) {
 
 /** Header quick lookup (Alt+S): find available stock by tag, HUID or name without leaving the current screen. */
 export function StockLookup() {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
 
@@ -69,11 +72,11 @@ export function StockLookup() {
       <Dialog open={open} onOpenChange={(o) => (o ? setOpen(true) : close())}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Stock lookup</DialogTitle>
-            <DialogDescription>Available stock in the active branch — search by tag, HUID or item name.</DialogDescription>
+            <DialogTitle>{t('comp.stock_lookup')}</DialogTitle>
+            <DialogDescription>{t('comp.stock_lookup_desc')}</DialogDescription>
           </DialogHeader>
-          <Input autoFocus aria-label="Search stock" placeholder="Tag no, HUID or item name…" value={q} onChange={(e) => setQ(e.target.value)} />
-          {needle ? <Results q={needle} onLeave={close} /> : <p className="text-sm text-muted-foreground">Start typing to search.</p>}
+          <Input autoFocus aria-label="Search stock" placeholder={t('comp.stock_lookup_ph')} value={q} onChange={(e) => setQ(e.target.value)} />
+          {needle ? <Results q={needle} onLeave={close} /> : <p className="text-sm text-muted-foreground">{t('comp.start_typing')}</p>}
         </DialogContent>
       </Dialog>
     </>

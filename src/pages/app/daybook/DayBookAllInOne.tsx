@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useDayBookAllInOne } from '@/lib/accountsQueries'
-import { sourceHref } from '@/lib/sourceLinks'
+import { sourceHref, sourceLabel } from '@/lib/sourceLinks'
 import { useT } from '@/lib/i18n'
 import { fetchAllPaged } from '@/lib/queries'
 import { LEDGER_ASSETS, LEDGER_SOURCES, businessDayISO, type DayBookAllInOneRowDto } from '@/shared'
@@ -45,7 +45,7 @@ export function DayBookAllInOne() {
             <SelectTrigger className="w-full sm:w-48" aria-label="Source"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{t('daybook.all_sources')}</SelectItem>
-              {LEDGER_SOURCES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              {LEDGER_SOURCES.map((s) => <SelectItem key={s} value={s}>{sourceLabel(t, s)}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -67,7 +67,8 @@ export function DayBookAllInOne() {
                   <TableCell className="whitespace-nowrap">{new Date(r.txnDate).toLocaleDateString('en-IN')}</TableCell>
                   <TableCell className="whitespace-nowrap text-sm">{(() => {
                     const href = sourceHref(r.source, r.sourceId)
-                    return href ? <Link to={href} className="font-medium text-brand-strong hover:underline">{r.source} #{r.sourceId}</Link> : `${r.source} #${r.sourceId}`
+                    const label = `${sourceLabel(t, r.source)} #${r.sourceId}`
+                    return href ? <Link to={href} className="font-medium text-brand-strong hover:underline">{label}</Link> : label
                   })()}</TableCell>
                   <TableCell className="text-sm">{r.party?.name ?? '—'}</TableCell>
                   {LEDGER_ASSETS.map((a) => (

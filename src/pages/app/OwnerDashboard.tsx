@@ -15,7 +15,6 @@ import { ShopRateCard } from '@/pages/app/ShopRateCard'
 import { useOccasions } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
-import { plural } from '@/lib/plural'
 import { useActivity, useDashboard } from '@/lib/reportsQueries'
 import { ACTIVITY_ACTIONS, MODULES } from '@/shared'
 
@@ -50,8 +49,8 @@ function MonthlyChart({ data: monthly }: { data: MonthRow[] }) {
           <Select value={range} onValueChange={(v) => setRange(v as 'month' | 'quarter')}>
             <SelectTrigger className="h-8 w-28 rounded-xl" aria-label="Chart range"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="month">Month</SelectItem>
-              <SelectItem value="quarter">Quarter</SelectItem>
+              <SelectItem value="month">{t('gst.month')}</SelectItem>
+              <SelectItem value="quarter">{t('gst.quarter')}</SelectItem>
             </SelectContent>
           </Select>
         </>
@@ -99,7 +98,7 @@ function ActivityFeed() {
       title={t('dash.recent_activity')}
       actions={
         <>
-          <Input className="h-8 w-44 rounded-xl" aria-label="Search activity" placeholder="Search…" value={q} onChange={(e) => reset(setQ)(e.target.value)} />
+          <Input className="h-8 w-44 rounded-xl" aria-label="Search activity" placeholder={t('dash.search_ph')} value={q} onChange={(e) => reset(setQ)(e.target.value)} />
           <Input type="date" className="h-8 w-36 rounded-xl" aria-label="Activity from" value={from} onChange={(e) => reset(setFrom)(e.target.value)} />
           <Input type="date" className="h-8 w-36 rounded-xl" aria-label="Activity to" value={to} onChange={(e) => reset(setTo)(e.target.value)} />
           <Select value={module || 'all'} onValueChange={(v) => reset(setModule)(v === 'all' ? '' : v)}>
@@ -121,7 +120,7 @@ function ActivityFeed() {
     >
       <Table>
         <TableHeader>
-          <TableRow><TableHead>{t('dash.when')}</TableHead><TableHead>{t('dash.col_module')}</TableHead><TableHead>{t('dash.col_action')}</TableHead><TableHead>{t('dash.col_summary')}</TableHead><TableHead>Party</TableHead><TableHead>{t('dash.col_by')}</TableHead></TableRow>
+          <TableRow><TableHead>{t('dash.when')}</TableHead><TableHead>{t('dash.col_module')}</TableHead><TableHead>{t('dash.col_action')}</TableHead><TableHead>{t('dash.col_summary')}</TableHead><TableHead>{t('udhari.party')}</TableHead><TableHead>{t('dash.col_by')}</TableHead></TableRow>
         </TableHeader>
         <TableBody>
           {data?.items.length ? data.items.map((a) => (
@@ -140,9 +139,9 @@ function ActivityFeed() {
       </Table>
       {data && data.total > pageSize && (
         <div className="flex items-center justify-end gap-2 border-t px-6 py-3 text-xs text-muted-foreground">
-          <span>Page {page} of {pages} · {data.total} entries</span>
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
-          <Button variant="outline" size="sm" disabled={page >= pages} onClick={() => setPage(page + 1)}>Next</Button>
+          <span>{t('dash.page_entries', { page, pages, total: data.total })}</span>
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>{t('table.previous')}</Button>
+          <Button variant="outline" size="sm" disabled={page >= pages} onClick={() => setPage(page + 1)}>{t('table.next')}</Button>
         </div>
       )}
     </SectionCard>
@@ -177,14 +176,14 @@ function StockHero({ stock }: { stock: Array<{ stockClass: string; items: number
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h2 className="text-xl">{t('dash.stock_on_hand')}</h2>
-          {stock.length > 0 && <div className="mt-1 text-sm text-white/70">Total value {inr(String(total))}</div>}
+          {stock.length > 0 && <div className="mt-1 text-sm text-white/70">{t('dash.total_value', { amt: inr(String(total)) })}</div>}
         </div>
         <div className="flex gap-2">
           {can('inventory.import_stock', 'edit') && (
-            <Link to="/app/inventory/import" className="rounded-full border border-white/25 px-3 py-1 text-xs font-medium text-white hover:bg-white/10">Import</Link>
+            <Link to="/app/inventory/import" className="rounded-full border border-white/25 px-3 py-1 text-xs font-medium text-white hover:bg-white/10">{t('girvi.tab_import')}</Link>
           )}
           {can('inventory.new_stock', 'edit') && (
-            <Link to="/app/inventory/new" className="rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white hover:bg-white/25">+ Add new</Link>
+            <Link to="/app/inventory/new" className="rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white hover:bg-white/25">{t('dash.add_new')}</Link>
           )}
         </div>
       </div>
@@ -194,7 +193,7 @@ function StockHero({ stock }: { stock: Array<{ stockClass: string; items: number
             {canList ? (
               <Link to={`/app/inventory/stock?class=${s.stockClass}`} className="hover:text-white hover:underline">{CLASS_LABEL[s.stockClass] ? t(`class.${s.stockClass}`) : s.stockClass}</Link>
             ) : CLASS_LABEL[s.stockClass] ? t(`class.${s.stockClass}`) : s.stockClass}
-            <span className="ml-2 normal-case tracking-normal">· {s.items} items</span>
+            <span className="ml-2 normal-case tracking-normal">{t('dash.items_count', { n: s.items })}</span>
           </div>
           <div className="text-3xl font-extrabold">{s.net} <span className="text-base font-medium text-white/60">g</span></div>
           <div className="h-3 rounded-full bg-white/10 shadow-[inset_0_2px_4px_rgb(0_0_0/0.3)]">
@@ -203,7 +202,7 @@ function StockHero({ stock }: { stock: Array<{ stockClass: string; items: number
               style={{ width: `${Math.max(4, (Number(s.value) / max) * 100)}%` }}
             />
           </div>
-          <div className="text-sm text-white/70">{plural(s.pcs, 'pc')} · {inr(s.value)}</div>
+          <div className="text-sm text-white/70">{t(s.pcs === 1 ? 'dash.pcs_one' : 'dash.pcs_other', { n: s.pcs })} · {inr(s.value)}</div>
         </div>
       ))}
       {stock.length === 0 && <p className="text-sm text-white/70">{t('dash.no_stock')}</p>}

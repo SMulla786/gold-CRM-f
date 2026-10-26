@@ -15,7 +15,7 @@ import { useLedger } from '@/lib/accountsQueries'
 import { useBankAccounts } from '@/lib/appQueries'
 import { useT } from '@/lib/i18n'
 import { fetchAllPaged } from '@/lib/queries'
-import { sourceHref } from '@/lib/sourceLinks'
+import { sourceHref, sourceLabel } from '@/lib/sourceLinks'
 import { businessDayISO, LEDGER_ASSETS, LEDGER_SOURCES, type LedgerRowDto } from '@/shared'
 
 const today = businessDayISO
@@ -63,7 +63,7 @@ export function AssetLedger() {
   const columns: ColumnDef<LedgerRowDto, unknown>[] = [
     { id: 'sn', header: '#', cell: ({ row }) => <span className="text-muted-foreground tabular-nums">{(page - 1) * pageSize + row.index + 1}</span> },
     { accessorKey: 'txnDate', header: t('udhari.date'), cell: ({ row }) => <div className="whitespace-nowrap">{date(row.original.txnDate)}<div className="text-xs text-muted-foreground tabular-nums">{time(row.original.createdAt)}</div></div> },
-    { accessorKey: 'source', header: t('daybook.col_source') },
+    { accessorKey: 'source', header: t('daybook.col_source'), cell: ({ row }) => sourceLabel(t, row.original.source) },
     {
       header: t('udhari.col_ref'),
       cell: ({ row }) => {
@@ -121,7 +121,7 @@ export function AssetLedger() {
             <SelectTrigger className="w-44" aria-label="Source"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{t('daybook.all_sources')}</SelectItem>
-              {LEDGER_SOURCES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              {LEDGER_SOURCES.map((s) => <SelectItem key={s} value={s}>{sourceLabel(t, s)}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -173,7 +173,7 @@ export function AssetLedger() {
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm tabular-nums">
               {([
                 [t('udhari.date'), `${date(detail.txnDate)} ${time(detail.createdAt)}`],
-                [t('daybook.col_source'), `${detail.source} #${detail.sourceId}`],
+                [t('daybook.col_source'), `${sourceLabel(t, detail.source)} #${detail.sourceId}`],
                 [t('daybook.col_dir'), detail.direction],
                 [t('dash.branch'), detail.branch.name],
                 [t('udhari.party'), detail.party?.name],

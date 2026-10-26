@@ -83,7 +83,7 @@ export function Shell({ area, nav, showBranch }: ShellProps) {
       {me?.impersonatedBy && (
         <div className="flex items-center justify-center gap-3 bg-amber-500 px-4 py-1.5 text-center text-sm font-medium text-black">
           {t('shell.viewing_as', { name: me.name })}
-          {me.business ? ` · ${me.business.name}` : ''} — support session by {me.impersonatedBy.name}
+          {me.business ? ` · ${me.business.name}` : ''} {t('nav.support_session', { name: me.impersonatedBy.name })}
           <Button variant="outline" size="sm" className="h-6 border-black/30 bg-transparent text-black hover:bg-black/10" onClick={() => void onEndImpersonation()}>
             {t('shell.end')}
           </Button>

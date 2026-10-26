@@ -40,9 +40,15 @@ export function UdharLedger() {
   const exportCsv = async () => {
     setExporting(true)
     try {
-      const all = await fetchAllPaged<PartyBalanceRowDto>('/app/udhar/ledger', { type: type || undefined, nonZero, q: q || undefined })
-      const header = ['Party', 'Mobile', 'Amount', 'Gold', 'Silver', 'Last txn']
-      const body = all.map((r) => [r.party.name, r.party.mobile, r.amount, r.gold, r.silver, r.lastTxnDate ? new Date(r.lastTxnDate).toLocaleDateString('en-IN') : ''])
+      const all = await fetchAllPaged<PartyBalanceRowDto>('/app/udhar/ledger', { type: type || undefined, nonZero, q: q || undefined, from: from || undefined, to: to || undefined })
+      // with a period set, export its Old/In/Out/Final for all three units too
+      const units = ['amount', 'gold', 'silver'] as const
+      const parts = ['old', 'in', 'out', 'final'] as const
+      const header = ['Party', 'Mobile', 'Amount', 'Gold', 'Silver', 'Last txn', ...(period ? parts.flatMap((p) => units.map((u) => `${p} ${u}`)) : [])]
+      const body = all.map((r) => [
+        r.party.name, r.party.mobile, r.amount, r.gold, r.silver, r.lastTxnDate ? new Date(r.lastTxnDate).toLocaleDateString('en-IN') : '',
+        ...(period ? parts.flatMap((p) => units.map((u) => r[p]?.[u] ?? '')) : []),
+      ])
       downloadCsv('udhar-ledger.csv', [header, ...body])
     } finally {
       setExporting(false)

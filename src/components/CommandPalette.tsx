@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { useT } from '@/lib/i18n'
 import type { NavItem } from '@/lib/nav'
 
 /** Ctrl/Cmd+K palette over the nav items the current area already filtered by permission. */
 export function CommandPalette({ nav }: { nav: NavItem[] }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
 
@@ -26,14 +28,14 @@ export function CommandPalette({ nav }: { nav: NavItem[] }) {
   return (
     <>
       <Button variant="outline" size="sm" className="gap-2 text-muted-foreground" onClick={() => setOpen(true)}>
-        Search
+        {t('common.search')}
         <kbd className="rounded border px-1 text-[10px]">Ctrl K</kbd>
       </Button>
       <CommandDialog open={open} onOpenChange={setOpen}>
-        <CommandInput placeholder="Go to…" />
+        <CommandInput placeholder={t('comp.goto')} />
         <CommandList>
-          <CommandEmpty>No matches.</CommandEmpty>
-          <CommandGroup heading="Navigate">
+          <CommandEmpty>{t('comp.no_matches')}</CommandEmpty>
+          <CommandGroup heading={t('comp.navigate')}>
             {nav.map((item) => (
               <CommandItem key={item.to} value={item.label} onSelect={() => go(item.to)}>{item.label}</CommandItem>
             ))}

@@ -1,4 +1,4 @@
-import { FileDown, Printer } from 'lucide-react'
+import { FileDown, Pencil, Printer } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
@@ -53,6 +53,9 @@ export function UdharView() {
         <div className="flex flex-wrap items-center gap-2">
           {can('udhari.entry', 'delete') && !txn.isDeleted && (
             <Button variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDeleting(true)}>{t('common.delete')}</Button>
+          )}
+          {can('udhari.entry', 'edit') && !txn.isDeleted && (
+            <Button asChild variant="outline"><Link to={`/app/udhari?edit=${txn.id}`}><Pencil aria-hidden />{t('common.edit')}</Link></Button>
           )}
           <Select value={thermal ? 'THERMAL_80' : 'A4'} onValueChange={(v) => setThermal(v === 'THERMAL_80')}>
             <SelectTrigger className="w-40" aria-label="Print layout"><SelectValue /></SelectTrigger>

@@ -9,25 +9,27 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useAuth } from '@/lib/auth'
+import { useT } from '@/lib/i18n'
 import { useSchemeDayBook, useSchemeDues, useSchemes } from '@/lib/schemesQueries'
 import { businessDayISO, type DashboardDto } from '@/shared'
 
-// TASK-97 dashboard gaps. New strings are English-only until the next i18n pass.
+// TASK-97 dashboard gaps.
 const inr = (n: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
 
 // ───── Display settings (show/hide blocks), per user in this browser ─────
 
+// label = i18n key, translated at render.
 export const DASHBOARD_BLOCKS = [
-  { key: 'kpis', label: 'Sales & purchase tiles' },
-  { key: 'secondary', label: 'Udhari, cash & party tiles' },
-  { key: 'today', label: "Today's activity" },
-  { key: 'chart', label: 'Monthly chart' },
-  { key: 'rates', label: "Today's rates" },
-  { key: 'stock', label: 'Stock on hand' },
-  { key: 'schemes', label: 'Schemes overview' },
-  { key: 'branches', label: 'By branch' },
-  { key: 'occasions', label: 'Upcoming occasions' },
-  { key: 'activity', label: 'Recent activity' },
+  { key: 'kpis', label: 'dash.block_kpis' },
+  { key: 'secondary', label: 'dash.block_secondary' },
+  { key: 'today', label: 'dash.today_activity' },
+  { key: 'chart', label: 'dash.block_chart' },
+  { key: 'rates', label: 'rates.today' },
+  { key: 'stock', label: 'dash.stock_on_hand' },
+  { key: 'schemes', label: 'dash.schemes_overview' },
+  { key: 'branches', label: 'dash.by_branch' },
+  { key: 'occasions', label: 'dash.occasions' },
+  { key: 'activity', label: 'dash.recent_activity' },
 ] as const
 export type DashboardBlock = (typeof DASHBOARD_BLOCKS)[number]['key']
 
@@ -58,28 +60,29 @@ export function useDashboardPrefs() {
 }
 
 export function DisplaySettings({ prefs }: { prefs: ReturnType<typeof useDashboardPrefs> }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   return (
     <>
       <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-        <Settings2 className="size-4" aria-hidden /> Display settings
+        <Settings2 className="size-4" aria-hidden /> {t('dash.display_settings')}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Dashboard display settings</DialogTitle>
-            <DialogDescription>Choose which blocks appear on your dashboard (saved for you on this device).</DialogDescription>
+            <DialogTitle>{t('dash.display_title')}</DialogTitle>
+            <DialogDescription>{t('dash.display_desc')}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-2 sm:grid-cols-2">
             {DASHBOARD_BLOCKS.map((b) => (
               <label key={b.key} className="flex items-center gap-2 text-sm">
                 <Checkbox checked={prefs.show(b.key)} onCheckedChange={() => prefs.toggle(b.key)} />
-                {b.label}
+                {t(b.label)}
               </label>
             ))}
           </div>
           <div className="flex justify-end">
-            <Button variant="ghost" size="sm" onClick={prefs.reset}>Show all</Button>
+            <Button variant="ghost" size="sm" onClick={prefs.reset}>{t('dash.show_all')}</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -90,13 +93,14 @@ export function DisplaySettings({ prefs }: { prefs: ReturnType<typeof useDashboa
 // ───── Today's activity counters (DashboardDto.activityToday) ─────
 
 export function TodayActivity({ counts }: { counts: DashboardDto['activityToday'] }) {
+  const t = useT()
   const entries = Object.entries(counts) as [string, number][]
   const total = entries.reduce((s, [, n]) => s + n, 0)
   const label = (a: string) => a.charAt(0) + a.slice(1).toLowerCase()
   return (
-    <SectionCard title="Today's activity" bodyClassName="flex flex-wrap gap-3 p-6" actions={<Link to="/app/daybook" className="text-xs font-medium text-brand hover:underline">View Day Book</Link>}>
+    <SectionCard title={t('dash.today_activity')} bodyClassName="flex flex-wrap gap-3 p-6" actions={<Link to="/app/daybook" className="text-xs font-medium text-brand hover:underline">{t('dash.view_daybook')}</Link>}>
       <div className="min-w-28 rounded-2xl bg-brand/10 px-4 py-3">
-        <div className="text-xs font-semibold text-muted-foreground">Total</div>
+        <div className="text-xs font-semibold text-muted-foreground">{t('oldmetal.total')}</div>
         <div className="text-2xl font-extrabold">{total}</div>
       </div>
       {entries.map(([action, n]) => (
@@ -112,18 +116,21 @@ export function TodayActivity({ counts }: { counts: DashboardDto['activityToday'
 // ───── Schemes overview (from the scheme APIs; each figure only if the user may read it) ─────
 
 function DueNow() {
+  const t = useT()
   const { data } = useSchemeDues({})
   const amount = (data ?? []).reduce((s, r) => s + Number(r.dueAmount), 0)
-  return <KpiTile size="sm" icon={CalendarClock} tone="slate" label="Due now" value={data ? inr(amount) : '—'} sub={data ? `${data.length} member(s) with unpaid EMIs` : undefined} />
+  return <KpiTile size="sm" icon={CalendarClock} tone="slate" label={t('dash.due_now')} value={data ? inr(amount) : '—'} sub={data ? t('dash.due_members', { n: data.length }) : undefined} />
 }
 
 function CollectedToday() {
+  const t = useT()
   const day = businessDayISO()
   const { data } = useSchemeDayBook({ from: day, to: day })
-  return <KpiTile size="sm" icon={HandCoins} label="Collected today" value={data ? inr(Number(data.moneyIn)) : '—'} sub={data ? `${data.rows.length} payment(s)` : undefined} />
+  return <KpiTile size="sm" icon={HandCoins} label={t('dash.collected_today')} value={data ? inr(Number(data.moneyIn)) : '—'} sub={data ? t('dash.payments_count', { n: data.rows.length }) : undefined} />
 }
 
 export function SchemesOverview() {
+  const t = useT()
   const { can } = useAuth()
   // shortcut: first 100 active schemes; Active-schemes/members undercount past that (no count endpoint).
   const { data } = useSchemes({ active: 'true', pageSize: 100 })
@@ -131,15 +138,15 @@ export function SchemesOverview() {
   const members = schemes.reduce((s, x) => s + x.memberCount, 0)
   return (
     <SectionCard
-      title="Schemes overview"
+      title={t('dash.schemes_overview')}
       actions={can('schemes.add_money', 'edit') && can('schemes.all', 'view') ? (
-        <Button asChild size="sm" variant="outline"><Link to="/app/schemes/members">Collect payment</Link></Button>
+        <Button asChild size="sm" variant="outline"><Link to="/app/schemes/members">{t('dash.collect_payment')}</Link></Button>
       ) : undefined}
       bodyClassName="space-y-4 p-6"
     >
       <div className="grid gap-3 sm:grid-cols-2">
-        <KpiTile size="sm" icon={Gem} label="Active schemes" value={data ? String(data.total) : '—'} />
-        <KpiTile size="sm" icon={Users} tone="slate" label="Enrolled members" value={data ? String(members) : '—'} />
+        <KpiTile size="sm" icon={Gem} label={t('dash.active_schemes')} value={data ? String(data.total) : '—'} />
+        <KpiTile size="sm" icon={Users} tone="slate" label={t('dash.enrolled_members')} value={data ? String(members) : '—'} />
         {can('schemes.due_list', 'view') && <DueNow />}
         {can('schemes.daybook', 'view') && <CollectedToday />}
       </div>
@@ -149,15 +156,15 @@ export function SchemesOverview() {
             <li key={s.id} className="flex items-center gap-2 py-2">
               <Link to={`/app/schemes/members?schemeId=${s.id}${s.kind === 'ANJUMAN' ? '&kind=ANJUMAN' : ''}`} className="font-medium hover:underline">{s.name}</Link>
               {s.kind === 'ANJUMAN' && <Badge variant="secondary">Anjuman</Badge>}
-              <span className="ml-auto text-muted-foreground">{s.memberCount} members · {inr(Number(s.emiAmount))}/EMI</span>
+              <span className="ml-auto text-muted-foreground">{t('dash.scheme_meta', { n: s.memberCount, amt: inr(Number(s.emiAmount)) })}</span>
             </li>
           ))}
           {schemes.length > 5 && (
-            <li className="py-2 text-xs"><Link to="/app/schemes" className="text-brand hover:underline">All {schemes.length} schemes</Link></li>
+            <li className="py-2 text-xs"><Link to="/app/schemes" className="text-brand hover:underline">{t('dash.all_schemes', { n: schemes.length })}</Link></li>
           )}
         </ul>
       )}
-      {data && !schemes.length && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Activity className="size-4" aria-hidden /> No active schemes yet.</p>}
+      {data && !schemes.length && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Activity className="size-4" aria-hidden /> {t('dash.no_schemes')}</p>}
     </SectionCard>
   )
 }

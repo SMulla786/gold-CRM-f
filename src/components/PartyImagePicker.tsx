@@ -5,6 +5,7 @@ import { AuthedImage } from '@/components/AuthedImage'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { api } from '@/lib/api'
+import { useT } from '@/lib/i18n'
 
 export type PartyImageKind = 'photo' | 'shop-logo'
 
@@ -17,7 +18,9 @@ export const uploadPartyImage = (partyId: number, kind: PartyImageKind, file: Fi
 
 /** Webcam capture (original 'Capture Photo' modal): live preview, snap to a JPEG File. */
 export function CaptureDialog({ onCapture, onClose }: { onCapture: (f: File) => void; onClose: () => void }) {
+  const t = useT()
   const video = useRef<HTMLVideoElement>(null)
+  // holds an i18n key, translated at render
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -28,9 +31,9 @@ export function CaptureDialog({ onCapture, onClose }: { onCapture: (f: File) => 
         stream = s
         if (video.current) video.current.srcObject = s
       })
-      .catch(() => setError('Camera not available. Allow camera access in the browser, or upload a file instead.'))
-    if (!navigator.mediaDevices) setError('This browser has no camera access (needs https or localhost).')
-    return () => stream?.getTracks().forEach((t) => t.stop())
+      .catch(() => setError('comp.camera_unavailable'))
+    if (!navigator.mediaDevices) setError('comp.camera_none')
+    return () => stream?.getTracks().forEach((tr) => tr.stop())
   }, [])
 
   const snap = () => {
@@ -51,13 +54,13 @@ export function CaptureDialog({ onCapture, onClose }: { onCapture: (f: File) => 
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Capture photo</DialogTitle>
-          <DialogDescription>Position the face in the frame, then capture.</DialogDescription>
+          <DialogTitle>{t('comp.capture_photo')}</DialogTitle>
+          <DialogDescription>{t('comp.capture_desc')}</DialogDescription>
         </DialogHeader>
-        {error ? <p className="text-sm text-destructive">{error}</p> : <video ref={video} autoPlay playsInline muted className="w-full rounded-xl bg-black" />}
+        {error ? <p className="text-sm text-destructive">{t(error)}</p> : <video ref={video} autoPlay playsInline muted className="w-full rounded-xl bg-black" />}
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-          <Button type="button" disabled={!!error} onClick={snap}><Camera className="size-4" aria-hidden /> Capture</Button>
+          <Button type="button" variant="outline" onClick={onClose}>{t('common.cancel')}</Button>
+          <Button type="button" disabled={!!error} onClick={snap}><Camera className="size-4" aria-hidden /> {t('comp.capture')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -74,6 +77,7 @@ export function PartyImagePicker({ label, kind, value, onChange, existingPath, c
   existingPath?: string
   camera?: boolean
 }) {
+  const t = useT()
   const [capturing, setCapturing] = useState(false)
   const [preview, setPreview] = useState<string | null>(null)
   const input = useRef<HTMLInputElement>(null)
@@ -102,8 +106,8 @@ export function PartyImagePicker({ label, kind, value, onChange, existingPath, c
             data-kind={kind}
             onChange={(e) => onChange(e.target.files?.[0] ?? null)}
           />
-          <Button type="button" variant="outline" size="sm" onClick={() => input.current?.click()}>Upload</Button>
-          {camera && <Button type="button" variant="outline" size="sm" onClick={() => setCapturing(true)}><Camera className="size-4" aria-hidden /> Capture</Button>}
+          <Button type="button" variant="outline" size="sm" onClick={() => input.current?.click()}>{t('comp.upload')}</Button>
+          {camera && <Button type="button" variant="outline" size="sm" onClick={() => setCapturing(true)}><Camera className="size-4" aria-hidden /> {t('comp.capture')}</Button>}
           {value && (
             <Button type="button" variant="ghost" size="sm" aria-label={`Clear ${label}`} onClick={() => { onChange(null); if (input.current) input.current.value = '' }}>
               <X className="size-4" aria-hidden />

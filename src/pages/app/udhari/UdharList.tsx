@@ -52,7 +52,8 @@ export function UdharList() {
     {
       id: 'actions', header: '',
       // manual udhar entries open their receipt (print / MPIN delete); other sources live in their own module
-      cell: ({ row }) => (row.original.source === 'UDHAR' && !row.original.isReversal
+      // BHAV_CUT rows belong to the same udhar txn (sourceId = udhar id)
+      cell: ({ row }) => ((row.original.source === 'UDHAR' || row.original.source === 'BHAV_CUT') && !row.original.isReversal
         ? <Button asChild variant="outline" size="sm"><Link to={`/app/udhari/txn/${row.original.sourceId}`}>{t('udhari.view')}</Link></Button>
         : null),
     },

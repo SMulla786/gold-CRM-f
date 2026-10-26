@@ -157,6 +157,14 @@ export function NewUdhar() {
         <p className="text-sm text-muted-foreground">{t('udhari.new_intro')}</p>
         <Button variant="outline" size="sm" onClick={startNew}><RotateCcw aria-hidden />{t('udhari.new_entry')}</Button>
       </div>
+      {isEdit && (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
+          <Pencil className="size-4 text-amber-600 dark:text-amber-500" aria-hidden />
+          <span>Editing udhar #{editing.txnNo} ({editing.branch.name}). Saving reverses the old entry and posts this one (MPIN).</span>
+          <Link to={`/app/udhari/txn/${editing.id}`} className="ml-auto font-semibold text-brand-strong hover:underline">{t('common.cancel')}</Link>
+        </div>
+      )}
+      {editing?.isDeleted && <p className="text-sm text-destructive">Udhar #{editing.txnNo} is deleted and cannot be edited.</p>}
       {saved && (
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-green-600/30 bg-green-500/10 px-4 py-3 text-sm">
           <CheckCircle2 className="size-4 text-green-600 dark:text-green-500" aria-hidden />
@@ -164,7 +172,7 @@ export function NewUdhar() {
           <Link to={`/app/udhari/txn/${saved.id}`} className="ml-auto font-semibold text-brand-strong hover:underline">{t('udhari.view_receipt')}</Link>
         </div>
       )}
-      {!branchReady && <SelectBranchForTxn note={t('udhari.branch_note')} />}
+      {!branchReady && !isEdit && <SelectBranchForTxn note={t('udhari.branch_note')} />}
 
       <Card className="grid gap-4 p-6 sm:grid-cols-2">
         <div className="space-y-1.5">
@@ -259,29 +267,49 @@ export function NewUdhar() {
                 <SelectContent><SelectItem value="1">1 g</SelectItem><SelectItem value="10">10 g</SelectItem><SelectItem value="1000">1 kg</SelectItem></SelectContent>
               </Select>
             </div>
-            <NumField id="u-bhavamt" label={t('udhari.amount')} value={bhav.amount} onChange={(v) => setB('amount', v)} />
+            <div className="space-y-1.5">
+              <Label>Enter by</Label>
+              <Select value={bhavBy} onValueChange={(v) => setBhavBy(v as 'AMOUNT' | 'WEIGHT')}>
+                <SelectTrigger className="w-full" aria-label="Bhav entry by"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="AMOUNT">{t('udhari.amount')} (₹)</SelectItem><SelectItem value="WEIGHT">Weight (g)</SelectItem></SelectContent>
+              </Select>
+            </div>
+            {bhavBy === 'AMOUNT'
+              ? <NumField id="u-bhavamt" label={t('udhari.amount')} value={bhav.amount} onChange={(v) => setB('amount', v)} />
+              : <NumField id="u-bhavwt" label="Weight (g)" value={bhav.weight} onChange={(v) => setB('weight', v)} step="0.001" />}
             <NumField id="u-bhavrate" label={t('udhari.rate')} value={bhav.rate} onChange={(v) => setB('rate', v)} />
-            {n(bhav.amount) > 0 && n(bhav.rate) > 0 && (
-              <span className="pb-2 text-sm font-semibold text-brand-strong">≈ {moneyToMetal(n(bhav.amount), n(bhav.rate), n(bhav.unitGrams))} g {bhav.metal}</span>
+            {bhavAmount > 0 && n(bhav.rate) > 0 && (
+              <span className="pb-2 text-sm font-semibold text-brand-strong">
+                ≈ {bhavBy === 'WEIGHT' && `₹${bhavAmount.toFixed(2)} · `}{moneyToMetal(bhavAmount, n(bhav.rate), n(bhav.unitGrams))} g {bhav.metal}
+              </span>
             )}
+            <p className="text-xs text-muted-foreground sm:col-span-3">Balance before cut: <span className="font-medium tabular-nums text-foreground">{beforeCut}</span></p>
           </div>
         )}
       </fieldset>
       </Card>
 
       <Card className="space-y-4 p-6">
-      {pending && pending.items.length > 0 && (
+      {((pending && pending.items.length > 0) || editBill) && (
         <div className="space-y-1.5">
           <Label>{t('udhari.settle')}</Label>
-          <Select value={settleBillId || 'none'} onValueChange={(v) => setSettleBillId(v === 'none' ? '' : v)}>
-            <SelectTrigger className="w-full sm:max-w-md" aria-label="Settle bill"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">{t('udhari.none')}</SelectItem>
-              {pending.items.filter((b) => b.kind === 'SELL' && Number(b.balance) > 0).map((b) => (
-                <SelectItem key={b.id} value={String(b.id)}>{t('udhari.settle_option', { billNo: b.billNo, balance: b.balance })}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex flex-wrap gap-2">
+            <div className="relative w-full sm:w-56">
+              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+              <Input className="pl-9" placeholder="Search bill # or item" aria-label="Search settle bill" value={billQ} onChange={(e) => setBillQ(e.target.value)} />
+            </div>
+            <Select value={settleBillId || 'none'} onValueChange={(v) => setSettleBillId(v === 'none' ? '' : v)}>
+              <SelectTrigger className="w-full sm:max-w-md sm:flex-1" aria-label="Settle bill"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">{t('udhari.none')}</SelectItem>
+                {editBill && <SelectItem value={String(editBill.id)}>{editBill.billNo}</SelectItem>}
+                {settleBills.map((b) => (
+                  <SelectItem key={b.id} value={String(b.id)}>{t('udhari.settle_option', { billNo: b.billNo, balance: b.balance })}{b.itemsSummary ? ` · ${b.itemsSummary}` : ''}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {kw && settleBills.length === 0 && <p className="text-xs text-muted-foreground">No open bill matches “{billQ}”.</p>}
         </div>
       )}
 
@@ -298,10 +326,19 @@ export function NewUdhar() {
           <div className="text-2xl font-extrabold break-words sm:text-3xl">{bal(amount, gold, silver)}</div>
           <div className="text-xs text-white/60">{t('udhari.sign_hint')}</div>
         </div>
-        <Button size="lg" className="ml-auto" disabled={!valid || create.isPending} onClick={submit}>
-          {create.isPending ? t('party.saving') : t('udhari.save')}
+        <Button size="lg" className="ml-auto" disabled={!valid || create.isPending || update.isPending} onClick={submit}>
+          {create.isPending || update.isPending ? t('party.saving') : t('udhari.save')}
         </Button>
       </div>
+
+      {isEdit && (
+        <MpinDialog
+          open={confirmEdit}
+          title={`Update udhar #${editing.txnNo}`}
+          onConfirm={async (mpin) => { await update.mutateAsync({ id: editing.id, mpin, body: body() }); navigate(`/app/udhari/txn/${editing.id}`) }}
+          onClose={() => setConfirmEdit(false)}
+        />
+      )}
     </div>
   )
 }
