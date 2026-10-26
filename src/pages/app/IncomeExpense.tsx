@@ -298,8 +298,13 @@ export function IncomeExpense() {
                       <TableCell className="text-right tabular-nums">{inr(d.cashIn)}</TableCell>
                       <TableCell className="text-right tabular-nums">{inr(d.cashOut)}</TableCell>
                       <TableCell className={`text-right tabular-nums font-medium ${Number(d.profit) < 0 ? 'text-destructive' : ''}`}>{inr(d.profit)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{Number(d.goldNet) ? `${d.goldNet}g` : '—'}</TableCell>
-                      <TableCell className="pr-6 text-right tabular-nums">{Number(d.silverNet) ? `${d.silverNet}g` : '—'}</TableCell>
+                      {([['goldNet', d.goldIn, d.goldOut, ''], ['silverNet', d.silverIn, d.silverOut, 'pr-6']] as const).map(([k, inG, outG, pad]) => (
+                        <TableCell key={k} className={`${pad} text-right tabular-nums`}>
+                          {Number(d[k]) ? `${d[k]}g` : '—'}
+                          {/* in / out split (net = in − out) */}
+                          {(Number(inG) || Number(outG)) ? <div className="text-xs text-muted-foreground">{t('ie.in_out', { in: inG ?? '0', out: outG ?? '0' })}</div> : null}
+                        </TableCell>
+                      ))}
                     </TableRow>
                   )) : <TableRow><TableCell colSpan={6} className="h-16 text-center text-muted-foreground">{t('dash.no_activity')}</TableCell></TableRow>}
               </TableBody>

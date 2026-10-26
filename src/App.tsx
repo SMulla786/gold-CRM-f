@@ -242,6 +242,7 @@ export default function App() {
               <Route path="enroll" element={<EnrollMember />} />
               <Route path="bulk-enroll" element={<BulkEnroll />} />
               <Route path="members" element={<MemberList />} />
+              <Route path="add-money" element={<MemberList collect />} />
               <Route path="members/:id" element={<MemberDetail />} />
               <Route path="dues" element={<SchemeDues />} />
               <Route path="transactions" element={<SchemeTransactions />} />

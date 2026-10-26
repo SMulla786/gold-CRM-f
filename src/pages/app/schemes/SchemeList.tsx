@@ -41,13 +41,16 @@ function NewSchemeDialog({ kind }: { kind: SchemeKind }) {
   const [f, setF] = useState({ type: 'CASH', name: '', description: '', emiAmount: '', tenureMonths: '12', bonusType: 'NONE', bonusValue: '0', startDate: today(), validityDate: '' })
   const set = (k: keyof typeof f, v: string) => setF((s) => ({ ...s, [k]: v }))
   const needsBonusValue = f.bonusType === 'PERCENT' || f.bonusType === 'FIXED'
+  // Anjuman may run without a fixed EMI: no EMI / tenure, deposits are ad-hoc (contract allows tenure 0 for ANJUMAN)
+  const [hasEmi, setHasEmi] = useState(true)
+  const emiOn = kind !== 'ANJUMAN' || hasEmi
 
-  const valid = branchReady && f.name.trim().length >= 2 && n(f.tenureMonths) >= 1
-    && (f.bonusType !== 'ONE_EMI' || n(f.emiAmount) > 0) && (!needsBonusValue || n(f.bonusValue) > 0)
+  const valid = branchReady && f.name.trim().length >= 2 && (!emiOn || n(f.tenureMonths) >= 1)
+    && (f.bonusType !== 'ONE_EMI' || (emiOn && n(f.emiAmount) > 0)) && (!needsBonusValue || n(f.bonusValue) > 0)
   const submit = async () => {
     await create.mutateAsync({
       kind, type: f.type, name: f.name.trim(), description: f.description.trim() || undefined,
-      emiAmount: n(f.emiAmount), tenureMonths: n(f.tenureMonths), bonusType: f.bonusType, bonusValue: n(f.bonusValue),
+      emiAmount: emiOn ? n(f.emiAmount) : 0, tenureMonths: emiOn ? n(f.tenureMonths) : 0, bonusType: f.bonusType, bonusValue: n(f.bonusValue),
       startDate: f.startDate, validityDate: f.validityDate || undefined,
     })
     setOpen(false)
@@ -65,11 +68,17 @@ function NewSchemeDialog({ kind }: { kind: SchemeKind }) {
             <Select value={f.type} onValueChange={(v) => set('type', v)}><SelectTrigger aria-label="Scheme type"><SelectValue /></SelectTrigger>
               <SelectContent>{SCHEME_TYPES.map((t) => <SelectItem key={t} value={t}>{t === 'GOLD' ? 'Gold (grams)' : 'Cash (₹)'}</SelectItem>)}</SelectContent></Select>
           </div>
-          <div className="space-y-1.5"><Label htmlFor="sc-emi">EMI ₹</Label><Input id="sc-emi" type="number" value={f.emiAmount} onChange={(e) => set('emiAmount', e.target.value)} /></div>
-          <div className="space-y-1.5"><Label htmlFor="sc-tenure">Tenure (months)</Label><Input id="sc-tenure" type="number" value={f.tenureMonths} onChange={(e) => set('tenureMonths', e.target.value)} /></div>
+          {kind === 'ANJUMAN' && (
+            <div className="space-y-1.5"><Label>EMI</Label>
+              <Select value={hasEmi ? 'YES' : 'NO'} onValueChange={(v) => { setHasEmi(v === 'YES'); if (v === 'NO' && f.bonusType === 'ONE_EMI') set('bonusType', 'NONE') }}><SelectTrigger aria-label="Has EMI"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="YES">Yes, fixed monthly EMI</SelectItem><SelectItem value="NO">No, ad-hoc deposits</SelectItem></SelectContent></Select>
+            </div>
+          )}
+          {emiOn && <div className="space-y-1.5"><Label htmlFor="sc-emi">EMI ₹</Label><Input id="sc-emi" type="number" value={f.emiAmount} onChange={(e) => set('emiAmount', e.target.value)} /></div>}
+          {emiOn && <div className="space-y-1.5"><Label htmlFor="sc-tenure">Tenure (months)</Label><Input id="sc-tenure" type="number" value={f.tenureMonths} onChange={(e) => set('tenureMonths', e.target.value)} /></div>}
           <div className="space-y-1.5"><Label>Bonus</Label>
             <Select value={f.bonusType} onValueChange={(v) => set('bonusType', v)}><SelectTrigger aria-label="Bonus type"><SelectValue /></SelectTrigger>
-              <SelectContent>{SCHEME_BONUS_TYPES.map((b) => <SelectItem key={b} value={b}>{BONUS_LABEL[b]}</SelectItem>)}</SelectContent></Select>
+              <SelectContent>{SCHEME_BONUS_TYPES.filter((b) => emiOn || b !== 'ONE_EMI').map((b) => <SelectItem key={b} value={b}>{BONUS_LABEL[b]}</SelectItem>)}</SelectContent></Select>
           </div>
           {needsBonusValue && <div className="space-y-1.5"><Label htmlFor="sc-bv">Bonus {f.bonusType === 'PERCENT' ? '%' : f.type === 'GOLD' ? 'grams' : '₹'}</Label><Input id="sc-bv" type="number" value={f.bonusValue} onChange={(e) => set('bonusValue', e.target.value)} /></div>}
           <div className="space-y-1.5"><Label htmlFor="sc-start">Start date</Label><Input id="sc-start" type="date" value={f.startDate} onChange={(e) => set('startDate', e.target.value)} /></div>
@@ -125,7 +134,13 @@ export function SchemeList({ kind = 'SAVING' }: { kind?: SchemeKind }) {
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
-  const { data, isLoading } = useSchemes({ kind, type: type || undefined, active: active || undefined, q: q.trim() || undefined, page, pageSize })
+  const [dateField, setDateField] = useState<'startDate' | 'createdAt'>('startDate')
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const { data, isLoading } = useSchemes({
+    kind, type: type || undefined, active: active || undefined, q: q.trim() || undefined, page, pageSize,
+    ...(from || to ? { dateField, from: from || undefined, to: to || undefined } : {}),
+  })
   const patch = usePatchScheme()
   const [editing, setEditing] = useState<SchemeDto | null>(null)
   // Drill-down: a scheme's members (Anjuman rows keep the kind preset too).
@@ -137,7 +152,7 @@ export function SchemeList({ kind = 'SAVING' }: { kind?: SchemeKind }) {
       : <span className="font-medium">{row.original.name}</span>) },
     { header: 'Type', cell: ({ row }) => row.original.type },
     { header: 'EMI', cell: ({ row }) => inr(row.original.emiAmount) },
-    { header: 'Tenure', cell: ({ row }) => `${row.original.tenureMonths} mo` },
+    { header: 'Tenure', cell: ({ row }) => (row.original.tenureMonths ? `${row.original.tenureMonths} mo` : 'No EMI') },
     { header: 'Bonus', cell: ({ row }) => (row.original.bonusType === 'NONE' ? '—' : `${BONUS_LABEL[row.original.bonusType]}${row.original.bonusType === 'PERCENT' ? ` ${row.original.bonusValue}%` : ''}`) },
     { header: 'Start', cell: ({ row }) => date(row.original.startDate) },
     { header: 'Validity', cell: ({ row }) => (row.original.validityDate ? date(row.original.validityDate) : '—') },
@@ -198,6 +213,12 @@ export function SchemeList({ kind = 'SAVING' }: { kind?: SchemeKind }) {
           <SelectTrigger className="w-36" aria-label="Status"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="all">All</SelectItem><SelectItem value="true">Active</SelectItem><SelectItem value="false">Inactive</SelectItem></SelectContent>
         </Select>
+        <Select value={dateField} onValueChange={(v) => { setDateField(v as typeof dateField); setPage(1) }}>
+          <SelectTrigger className="w-40" aria-label="Filter by"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="startDate">Start date</SelectItem><SelectItem value="createdAt">Launch (created) date</SelectItem></SelectContent>
+        </Select>
+        <Input className="w-40" type="date" aria-label="From" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1) }} />
+        <Input className="w-40" type="date" aria-label="To" value={to} onChange={(e) => { setTo(e.target.value); setPage(1) }} />
         </CardContent>
       </Card>
 

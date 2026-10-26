@@ -61,4 +61,15 @@ describe('reconcile', () => {
     expect(r.invalidGstin.map((x) => x.billId)).toEqual([5])
     expect(r.noGstin).toBe(1)
   })
+
+  it('matches on the supplier invoice no. when recorded, else our bill no.', () => {
+    const twoB = parse2b({ b2b: [{ ctin: A, inv: [{ inum: 'SUP/77', items: [{ txval: 100, igst: 3 }] }, { inum: 'P-2', items: [{ txval: 50 }] }] }] })
+    const r = reconcile(twoB, [
+      { ...book('P-1', A, 100, 3), supplierInvoiceNo: 'sup-77' },
+      book('P-2', A, 50, 0, 2), // no supplier inv no. → falls back to bill no.
+      { ...book('SUP/77', A, 1, 0, 3), supplierInvoiceNo: 'OTHER' }, // our bill no. is ignored once a supplier inv no. exists
+    ])
+    expect(r.matched.map((p) => p.book.billId)).toEqual([1, 2])
+    expect(r.onlyBooks.map((x) => x.billId)).toEqual([3])
+  })
 })

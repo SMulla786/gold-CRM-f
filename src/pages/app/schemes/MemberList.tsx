@@ -19,7 +19,8 @@ const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = { ACTIVE: 'default', WON: 'secondary', WITHDRAWN: 'outline', CLOSED: 'outline' }
 const KIND_LABEL: Record<string, string> = { SAVING: 'Saving', ANJUMAN: 'Anjuman' }
 
-export function MemberList() {
+/** `collect` = the standalone Add Money tab (schemes.add_money): same list, preset to members who can still pay. */
+export function MemberList({ collect = false }: { collect?: boolean }) {
   const navigate = useNavigate()
   const { can } = useAuth()
   const canCollect = can('schemes.add_money', 'edit')
@@ -28,16 +29,18 @@ export function MemberList() {
   const [kind, setKind] = useState(sp.get('kind') ?? '')
   const [schemeId, setSchemeId] = useState(sp.get('schemeId') ?? '')
   const [groupId, setGroupId] = useState(sp.get('groupId') ?? '')
-  const [status, setStatus] = useState('')
+  const [status, setStatus] = useState(collect ? 'ACTIVE,WON' : '')
   const [due, setDue] = useState(false)
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
   const { data: schemes } = useSchemes({ kind: kind || undefined, pageSize: 100 })
   const { data: groups } = useSchemeGroups(schemeId ? Number(schemeId) : undefined)
   const { data, isLoading } = useEnrollments({
     kind: kind || undefined, schemeId: schemeId ? Number(schemeId) : undefined, groupId: groupId ? Number(groupId) : undefined,
-    status: status || undefined, due: due ? 'true' : undefined, q: q.trim() || undefined, page, pageSize,
+    status: status || undefined, due: due ? 'true' : undefined, q: q.trim() || undefined, from: from || undefined, to: to || undefined, page, pageSize,
   })
   const [paying, setPaying] = useState<EnrollmentDto | null>(null)
 
@@ -50,7 +53,7 @@ export function MemberList() {
     { header: 'Enrolled', cell: ({ row }) => date(row.original.startDate) },
     { header: 'Paid', cell: ({ row }) => (
       <div>
-        <div>{`${row.original.emisPaid}/${row.original.scheme.tenureMonths}`}</div>
+        <div>{row.original.scheme.tenureMonths ? `${row.original.emisPaid}/${row.original.scheme.tenureMonths}` : 'No EMI'}</div>
         <div className="text-xs text-muted-foreground tabular-nums">{inr(row.original.maturity.paid)}</div>
       </div>
     ) },
@@ -87,6 +90,12 @@ export function MemberList() {
 
   return (
     <div className="space-y-8">
+      {collect && (
+        <div>
+          <h2 className="text-xl">Add money</h2>
+          <p className="text-sm text-muted-foreground">Find the member, then click Add money to collect an instalment or deposit.</p>
+        </div>
+      )}
       <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {tile('Members', data ? String(data.total) : '—', 'Matching current filters', Users)}
         {tile('Due on this page', data ? String(dueRows.length) : '—', data ? `${dueEmis} EMIs pending` : undefined, CalendarClock)}
@@ -111,8 +120,10 @@ export function MemberList() {
           </Select>
           <Select value={status || 'all'} onValueChange={(v) => { setStatus(v === 'all' ? '' : v); setPage(1) }}>
             <SelectTrigger className="w-40" aria-label="Status"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="all">All statuses</SelectItem>{ENROLLMENT_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+            <SelectContent><SelectItem value="all">All statuses</SelectItem>{ENROLLMENT_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}<SelectItem value="ACTIVE,WON">ACTIVE + WON</SelectItem><SelectItem value="WON,WITHDRAWN">WON + WITHDRAWN</SelectItem></SelectContent>
           </Select>
+          <Input className="w-40" type="date" aria-label="Enrolled from" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1) }} />
+          <Input className="w-40" type="date" aria-label="Enrolled to" value={to} onChange={(e) => { setTo(e.target.value); setPage(1) }} />
           <Button variant={due ? 'default' : 'outline'} size="sm" onClick={() => { setDue((d) => !d); setPage(1) }}>Due today</Button>
         </CardContent>
       </Card>

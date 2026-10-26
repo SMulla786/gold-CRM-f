@@ -97,6 +97,29 @@ export function SchemeDayBook() {
         {tile('Reversed', data ? String(reversedCount) : '—', 'Shown struck through below', Undo2)}
       </div>
 
+      {!!data?.days?.length && (
+        <section className="space-y-3">
+          <h2 className="text-xl">Day-wise summary</h2>
+          <Card className="overflow-x-auto p-2">
+            <Table>
+              <TableHeader><TableRow><TableHead>S.N.</TableHead><TableHead>Date</TableHead><TableHead>Opening</TableHead><TableHead>In</TableHead><TableHead>Out</TableHead><TableHead>Closing</TableHead><TableHead>TXNs</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {data.days.map((d, i) => (
+                  <TableRow key={d.date}>
+                    <TableCell className="tabular-nums text-muted-foreground">{i + 1}</TableCell><TableCell>{date(d.date)}</TableCell>
+                    <TableCell className="tabular-nums">{inr(d.opening)}</TableCell>
+                    <TableCell className="tabular-nums text-green-600 dark:text-green-500">{inr(d.moneyIn)}</TableCell>
+                    <TableCell className="tabular-nums text-destructive">{inr(d.moneyOut)}</TableCell>
+                    <TableCell className="tabular-nums font-medium">{inr(d.closing)}</TableCell>
+                    <TableCell className="tabular-nums">{d.txnCount}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        </section>
+      )}
+
       <section className="space-y-3">
         <h2 className="text-xl">Movements</h2>
         <Card className="overflow-x-auto p-2">

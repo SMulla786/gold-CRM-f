@@ -6,7 +6,7 @@ import { ApiException } from '@/lib/errors'
 import { qs, useApiMutation } from '@/lib/queries'
 import type {
   EnrollmentDetailDto, EnrollmentDto, Paged, SchemeDayBookDto, SchemeDto,
-  SchemeDueRowDto, SchemeGroupDto, SchemeTxnRowDto,
+  SchemeDueMonthRowDto, SchemeDueRowDto, SchemeGroupDto, SchemeTxnRowDto,
 } from '@/shared'
 
 const KEYS = [['schemes'], ['scheme-groups'], ['enrollments'], ['enrollment'], ['scheme-dues'], ['scheme-txns'], ['scheme-daybook'], ['ledger'], ['day-book'], ['party-balance'], ['dashboard']]
@@ -60,6 +60,9 @@ export const useReversePayment = () =>
 // ── Reports ──
 export const useSchemeDues = (params: Record<string, string | number | undefined>) =>
   useQuery({ queryKey: ['scheme-dues', params], queryFn: () => api.get<SchemeDueRowDto[]>(`/app/schemes/dues${qs(params)}`) })
+/** One row per unpaid due EMI month (dues?perMonth=true). */
+export const useSchemeDueMonths = (params: Record<string, string | number | undefined>, enabled = true) =>
+  useQuery({ queryKey: ['scheme-dues', 'months', params], queryFn: () => api.get<SchemeDueMonthRowDto[]>(`/app/schemes/dues${qs({ ...params, perMonth: 'true' })}`), enabled })
 export const useSchemeTransactions = (params: Record<string, string | number | undefined>) =>
   useQuery({ queryKey: ['scheme-txns', params], queryFn: () => api.get<Paged<SchemeTxnRowDto>>(`/app/schemes/transactions${qs(params)}`) })
 export const useSchemeDayBook = (params: Record<string, string | number | undefined>) =>

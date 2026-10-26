@@ -26,11 +26,11 @@ export function DayBookSummary() {
   const canManageDay = can('daybook.all_in_one', 'edit')
   const [from, setFrom] = useState(today())
   const [to, setTo] = useState(today())
-  const { data, isLoading } = useDayBook({ from, to })
+  const singleDay = from === to // status + open/close only make sense for one day
+  const { data, isLoading } = useDayBook({ from, to, groupBy: singleDay ? undefined : 'DATE' })
   const openDay = useOpenDay()
   const closeDay = useCloseDay()
   const [confirm, setConfirm] = useState<'open' | 'close' | null>(null)
-  const singleDay = from === to // status + open/close only make sense for one day
 
   return (
     <div className="space-y-6">
@@ -103,6 +103,38 @@ export function DayBookSummary() {
                 </TableBody>
               </Table>
           </SectionCard>
+
+          {!!data.days?.length && (
+            <SectionCard title={t('daybook.by_date')}>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t('daybook.col_date')}</TableHead>
+                      <TableHead>{t('daybook.col_status')}</TableHead>
+                      {data.days[0]!.totals.map((a) => <TableHead key={a.asset} className="text-right whitespace-nowrap">{a.asset}</TableHead>)}
+                      <TableHead />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {data.days.map((d) => (
+                      <TableRow key={d.date}>
+                        <TableCell className="whitespace-nowrap font-medium">{new Date(d.date).toLocaleDateString('en-IN')}</TableCell>
+                        <TableCell>{d.status ? <Badge variant={d.status === 'OPEN' ? 'secondary' : 'destructive'}>{d.status}</Badge> : '—'}</TableCell>
+                        {/* opening → closing per asset; in/out on hover */}
+                        {d.totals.map((a) => (
+                          <TableCell key={a.asset} className="text-right whitespace-nowrap tabular-nums" title={`+${a.in} / −${a.out}`}>
+                            <span className="text-muted-foreground">{a.opening}</span> → <span className="font-medium">{a.closing}</span>
+                          </TableCell>
+                        ))}
+                        <TableCell><Button variant="ghost" size="sm" onClick={() => { setFrom(d.date); setTo(d.date) }}>{t('daybook.open_day')}</Button></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </SectionCard>
+          )}
 
           <SectionCard title={t('daybook.by_source')}>
               <Table>

@@ -2,7 +2,7 @@
 import type { GstRegisterRowDto } from '@/shared'
 
 export interface TwoBInvoice { gstin: string; inv: string; date: string; value: number; taxable: number; tax: number }
-export interface BookRow { billId: number; billNo: string; billDate: string; party: string; gstin: string | null; taxable: number; tax: number; total: number }
+export interface BookRow { billId: number; billNo: string; billDate: string; party: string; gstin: string | null; taxable: number; tax: number; total: number; supplierInvoiceNo?: string | null }
 export interface Pair { b2: TwoBInvoice; book: BookRow }
 export interface Reconciliation {
   matched: Pair[]
@@ -68,16 +68,16 @@ export function isValidGstin(g: string): boolean {
 
 export const fromRegister = (rows: GstRegisterRowDto[]): BookRow[] =>
   rows.map((x) => ({
-    billId: x.billId, billNo: x.billNo, billDate: x.billDate, party: x.party.name, gstin: x.party.gstin,
+    billId: x.billId, billNo: x.billNo, billDate: x.billDate, party: x.party.name, gstin: x.party.gstin, supplierInvoiceNo: x.supplierInvoiceNo,
     taxable: Number(x.taxable), tax: r2(Number(x.cgst) + Number(x.sgst) + Number(x.igst)), total: Number(x.total),
   }))
 
-/** Match by supplier GSTIN + invoice no.; amounts agree when taxable and total tax are each within `tol` rupees. */
+/** Match by supplier GSTIN + the supplier's invoice no. (our bill no. when it wasn't recorded); amounts agree when taxable and total tax are each within `tol` rupees. */
 export function reconcile(twoB: TwoBInvoice[], books: BookRow[], tol = 1): Reconciliation {
   const registered = books.filter((b) => b.gstin)
   const byKey = new Map<string, BookRow[]>()
   for (const b of registered) {
-    const k = keyOf(b.gstin!, b.billNo)
+    const k = keyOf(b.gstin!, b.supplierInvoiceNo || b.billNo)
     byKey.set(k, [...(byKey.get(k) ?? []), b])
   }
   const out: Reconciliation = {

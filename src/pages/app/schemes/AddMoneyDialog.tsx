@@ -11,6 +11,8 @@ import { businessDayISO, SCHEME_PAY_MEDIUMS, type EnrollmentDetailDto, type Enro
 import { SchemeReceiptDialog } from './SchemeReceipt'
 
 const n = (s: string) => Number(s) || 0
+/** media that move money into a bank account (CHEQUE posts like ONLINE) */
+export const bankMedium = (m: string) => m === 'ONLINE' || m === 'CHEQUE'
 
 /** Collect a scheme installment. Reused by Members list and the enrolment detail. */
 export function AddMoneyDialog({ enrollment, onClose }: { enrollment: EnrollmentDto; onClose: () => void }) {
@@ -19,14 +21,14 @@ export function AddMoneyDialog({ enrollment, onClose }: { enrollment: Enrollment
   const gold = enrollment.scheme.type === 'GOLD'
   const [f, setF] = useState({ emiNo: enrollment.nextEmiNo ? String(enrollment.nextEmiNo) : '', txnDate: businessDayISO(), amount: enrollment.emiAmount, medium: 'CASH', bankAccountId: '', rate: '', remark: '' })
   const set = (k: keyof typeof f, v: string) => setF((s) => ({ ...s, [k]: v }))
-  const valid = n(f.amount) > 0 && (f.medium !== 'ONLINE' || f.bankAccountId)
+  const valid = n(f.amount) > 0 && (!bankMedium(f.medium) || f.bankAccountId)
 
   const [saved, setSaved] = useState<EnrollmentDetailDto | null>(null)
 
   const submit = async () => {
     const res = await add.mutateAsync({
       enrollmentId: enrollment.id, emiNo: f.emiNo ? n(f.emiNo) : undefined, txnDate: f.txnDate || undefined, amount: n(f.amount), medium: f.medium,
-      bankAccountId: f.medium === 'ONLINE' ? Number(f.bankAccountId) : undefined, rate: gold && f.rate ? n(f.rate) : undefined, remark: f.remark || undefined,
+      bankAccountId: bankMedium(f.medium) ? Number(f.bankAccountId) : undefined, rate: gold && f.rate ? n(f.rate) : undefined, remark: f.remark || undefined,
     })
     setSaved(res) // payments come back id-ascending, so the new one is last
   }
@@ -47,7 +49,7 @@ export function AddMoneyDialog({ enrollment, onClose }: { enrollment: Enrollment
               <SelectContent>{SCHEME_PAY_MEDIUMS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select>
           </div>
           {gold && <div className="space-y-1.5"><Label htmlFor="am-rate">Gold rate /10g (blank = today)</Label><Input id="am-rate" type="number" value={f.rate} onChange={(e) => set('rate', e.target.value)} /></div>}
-          {f.medium === 'ONLINE' && (
+          {bankMedium(f.medium) && (
             <div className="space-y-1.5 sm:col-span-2"><Label>Bank</Label>
               <Select value={f.bankAccountId} onValueChange={(v) => set('bankAccountId', v)}><SelectTrigger aria-label="Bank account"><SelectValue placeholder="Bank" /></SelectTrigger>
                 <SelectContent>{banks?.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.bankName} · {b.accountNo}</SelectItem>)}</SelectContent></Select>

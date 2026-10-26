@@ -13,6 +13,7 @@ import { useBankAccounts } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { useEnroll, useSchemeGroups, useSchemes } from '@/lib/schemesQueries'
 import { businessDayISO, SCHEME_PAY_MEDIUMS, type PartyRefDto, type SchemeDto } from '@/shared'
+import { bankMedium } from './AddMoneyDialog'
 
 const today = businessDayISO
 const n = (s: string) => Number(s) || 0
@@ -31,7 +32,7 @@ export function EnrollMember() {
   const scheme: SchemeDto | undefined = schemes?.items.find((s) => String(s.id) === schemeId)
   const gold = scheme?.type === 'GOLD'
 
-  const [f, setF] = useState({ groupId: '', assignId: '', displayName: '', emiAmount: '', startDate: today(), tokenAmount: '0' })
+  const [f, setF] = useState({ groupId: '', assignId: '', displayName: '', emiAmount: '', startDate: today(), tokenAmount: '0', tokenMedium: 'TOKEN', tokenBankAccountId: '' })
   const set = (k: keyof typeof f, v: string) => setF((s) => ({ ...s, [k]: v }))
   const [payFirst, setPayFirst] = useState(false)
   const [pay, setPay] = useState({ txnDate: today(), amount: '', medium: 'CASH', bankAccountId: '', rate: '' })
@@ -40,18 +41,21 @@ export function EnrollMember() {
   const pickParty = (p: PartyRefDto | null) => { setParty(p); if (p && !f.displayName) set('displayName', p.name) }
   const emi = f.emiAmount || scheme?.emiAmount || ''
 
-  const payValid = !payFirst || (n(pay.amount || emi) > 0 && (pay.medium !== 'ONLINE' || pay.bankAccountId))
-  const valid = branchReady && !!schemeId && !!party && f.assignId.trim() && f.displayName.trim() && payValid
+  const payValid = !payFirst || (n(pay.amount || emi) > 0 && (!bankMedium(pay.medium) || pay.bankAccountId))
+  const tokenValid = n(f.tokenAmount) <= 0 || !bankMedium(f.tokenMedium) || !!f.tokenBankAccountId
+  const valid = branchReady && !!schemeId && !!party && f.assignId.trim() && f.displayName.trim() && payValid && tokenValid
 
   const submit = async () => {
     const firstPayment = payFirst
-      ? { txnDate: pay.txnDate || undefined, amount: n(pay.amount || emi), medium: pay.medium, bankAccountId: pay.medium === 'ONLINE' ? Number(pay.bankAccountId) : undefined, rate: gold && pay.rate ? n(pay.rate) : undefined }
+      ? { txnDate: pay.txnDate || undefined, amount: n(pay.amount || emi), medium: pay.medium, bankAccountId: bankMedium(pay.medium) ? Number(pay.bankAccountId) : undefined, rate: gold && pay.rate ? n(pay.rate) : undefined }
       : undefined
     const saved = await enroll.mutateAsync({
       schemeId: Number(schemeId), groupId: f.groupId ? Number(f.groupId) : undefined, partyId: party!.id,
       assignId: f.assignId.trim(), displayName: f.displayName.trim(),
       emiAmount: f.emiAmount ? n(f.emiAmount) : undefined, startDate: f.startDate,
       tokenAmount: n(f.tokenAmount), firstPayment,
+      // omit tokenMedium for the default so the request stays as before
+      ...(n(f.tokenAmount) > 0 && f.tokenMedium !== 'TOKEN' ? { tokenMedium: f.tokenMedium, tokenBankAccountId: bankMedium(f.tokenMedium) ? Number(f.tokenBankAccountId) : undefined } : {}),
     })
     // with a first EMI, member detail opens that payment's receipt (payments are id-ascending, first EMI posts after the token)
     navigate(`/app/schemes/members/${saved.id}`, { state: payFirst ? { receiptPaymentId: saved.payments.at(-1)?.id } : undefined })
@@ -95,6 +99,18 @@ export function EnrollMember() {
           <div className="space-y-1.5"><Label htmlFor="en-emi">EMI ₹ {scheme ? `(default ${scheme.emiAmount})` : ''}</Label><Input id="en-emi" type="number" placeholder={scheme?.emiAmount} value={f.emiAmount} onChange={(e) => set('emiAmount', e.target.value)} /></div>
           <div className="space-y-1.5"><Label htmlFor="en-start">Start date</Label><Input id="en-start" type="date" value={f.startDate} onChange={(e) => set('startDate', e.target.value)} /></div>
           <div className="space-y-1.5"><Label htmlFor="en-token">Joining token ₹</Label><Input id="en-token" type="number" value={f.tokenAmount} onChange={(e) => set('tokenAmount', e.target.value)} /></div>
+          {n(f.tokenAmount) > 0 && (
+            <div className="space-y-1.5"><Label>Token paid by</Label>
+              <Select value={f.tokenMedium} onValueChange={(v) => set('tokenMedium', v)}><SelectTrigger aria-label="Token medium"><SelectValue /></SelectTrigger>
+                <SelectContent>{SCHEME_PAY_MEDIUMS.map((m) => <SelectItem key={m} value={m}>{m === 'TOKEN' ? 'TOKEN (cash)' : m}</SelectItem>)}</SelectContent></Select>
+            </div>
+          )}
+          {n(f.tokenAmount) > 0 && bankMedium(f.tokenMedium) && (
+            <div className="space-y-1.5"><Label>Token bank</Label>
+              <Select value={f.tokenBankAccountId} onValueChange={(v) => set('tokenBankAccountId', v)}><SelectTrigger aria-label="Token bank account"><SelectValue placeholder="Bank" /></SelectTrigger>
+                <SelectContent>{banks?.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.bankName} · {b.accountNo}</SelectItem>)}</SelectContent></Select>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -110,7 +126,7 @@ export function EnrollMember() {
               <Select value={pay.medium} onValueChange={(v) => setPayF('medium', v)}><SelectTrigger aria-label="Medium"><SelectValue /></SelectTrigger>
                 <SelectContent>{SCHEME_PAY_MEDIUMS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select>
             </div>
-            {pay.medium === 'ONLINE' && (
+            {bankMedium(pay.medium) && (
               <div className="space-y-1.5"><Label>Bank</Label>
                 <Select value={pay.bankAccountId} onValueChange={(v) => setPayF('bankAccountId', v)}><SelectTrigger aria-label="Bank account"><SelectValue placeholder="Bank" /></SelectTrigger>
                   <SelectContent>{banks?.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.bankName} · {b.accountNo}</SelectItem>)}</SelectContent></Select>

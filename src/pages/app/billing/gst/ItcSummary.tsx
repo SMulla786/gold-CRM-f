@@ -1,4 +1,4 @@
-import { Info, Landmark, Receipt, UserX } from 'lucide-react'
+import { Landmark, Receipt, UserX } from 'lucide-react'
 
 import { KpiTile } from '@/components/KpiTile'
 import { SectionCard } from '@/components/SectionCard'
@@ -28,15 +28,18 @@ function group(rows: GstRegisterRowDto[], keyOf: (r: GstRegisterRowDto) => [stri
 const cells = (b: Bucket) => [b.bills, r2(b.taxable), r2(b.cgst), r2(b.sgst), r2(b.igst), r2(b.cgst + b.sgst + b.igst)]
 
 /**
- * TASK-97 ITC summary: eligible ITC = ACTIVE GST purchase bills from suppliers with a GSTIN (the GSTR-3B rule),
- * broken down by month and supplier from the purchase register. Blocked/ineligible ITC needs a per-bill flag (not tracked).
+ * TASK-97 ITC summary: claimable = ACTIVE GST purchase bills from suppliers with a GSTIN (or reverse charge) — the GSTR-3B rule;
+ * split by the bill's ITC eligibility into eligible (by month / supplier), blocked u/s 17(5) (by reason) and ineligible (by supplier).
  */
 export function ItcSummary({ from, to }: { from: string; to: string }) {
   const t = useT()
   const range = { from: from || undefined, to: to || undefined }
   const g3b = useGstr3b(range)
   const reg = useGstRegisterAll({ ...range, kind: 'PURCHASE' })
-  const eligible = (reg.data ?? []).filter((r) => r.party.gstin)
+  const claimable = (reg.data ?? []).filter((r) => r.party.gstin || r.reverseCharge)
+  const eligible = claimable.filter((r) => (r.itcEligibility ?? 'ELIGIBLE') === 'ELIGIBLE')
+  const blocked = group(claimable.filter((r) => r.itcEligibility === 'BLOCKED_17_5'), (r) => [r.itcBlockReason || '', r.itcBlockReason || 'No reason given', '']).sort((a, b) => a.label.localeCompare(b.label))
+  const ineligible = group(claimable.filter((r) => r.itcEligibility === 'INELIGIBLE'), (r) => [String(r.party.id), r.party.name, r.party.gstin ?? '']).sort((a, b) => a.label.localeCompare(b.label))
   const byMonth = group(eligible, (r) => [r.billDate.slice(0, 7), r.billDate.slice(0, 7), '']).sort((a, b) => a.key.localeCompare(b.key))
   const bySupplier = group(eligible, (r) => [String(r.party.id), r.party.name, r.party.gstin ?? '']).sort((a, b) => b.cgst + b.sgst + b.igst - (a.cgst + a.sgst + a.igst))
   const taxable = eligible.reduce((a, r) => a + Number(r.taxable), 0)
@@ -46,6 +49,10 @@ export function ItcSummary({ from, to }: { from: string; to: string }) {
     ['Month', ...HEAD], ...byMonth.map((b) => [b.label, ...cells(b)]),
     [],
     ['Supplier', 'GSTIN', ...HEAD], ...bySupplier.map((b) => [b.label, b.gstin, ...cells(b)]),
+    [],
+    ['Blocked ITC reason', ...HEAD], ...blocked.map((b) => [b.label, ...cells(b)]),
+    [],
+    ['Ineligible ITC supplier', 'GSTIN', ...HEAD], ...ineligible.map((b) => [b.label, b.gstin, ...cells(b)]),
   ])
 
   const table = (first: string[], rows: Bucket[], lead: (b: Bucket) => React.ReactNode[]) => (
@@ -69,19 +76,20 @@ export function ItcSummary({ from, to }: { from: string; to: string }) {
         <KpiTile label="Eligible ITC" icon={Landmark} value={itc ? inr(Number(itc.cgst) + Number(itc.sgst) + Number(itc.igst)) : '—'}
           sub={itc ? `CGST ${inr(itc.cgst)} · SGST ${inr(itc.sgst)} · IGST ${inr(itc.igst)}` : undefined} />
         <KpiTile tone="slate" label="ITC taxable value" icon={Receipt} value={reg.data ? inr(taxable) : '—'} sub={reg.data ? `${eligible.length} bills` : undefined} />
-        <KpiTile tone="slate" label="Purchases without GSTIN" icon={UserX} value={reg.data ? reg.data.length - eligible.length : '—'} sub="No ITC: supplier is unregistered" />
+        <KpiTile tone="slate" label="Purchases without GSTIN" icon={UserX} value={reg.data ? reg.data.length - claimable.length : '—'} sub="No ITC: supplier is unregistered" />
       </div>
 
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <p className="flex items-start gap-2 text-sm text-muted-foreground">
-          <Info className="mt-0.5 size-4 shrink-0" aria-hidden />Blocked / ineligible ITC is not tracked per bill yet, so all ITC from registered suppliers is shown as eligible.
-        </p>
-        <Button className="print:hidden" variant="outline" size="sm" disabled={!eligible.length} onClick={exportCsv}>{t('common.export_csv')}</Button>
+      <div className="flex justify-end">
+        <Button className="print:hidden" variant="outline" size="sm" disabled={!claimable.length} onClick={exportCsv}>{t('common.export_csv')}</Button>
       </div>
 
       <SectionCard title="Eligible ITC by month">{table(['Month'], byMonth, (b) => [b.label])}</SectionCard>
       <SectionCard title="Eligible ITC by supplier">
         {table(['Supplier', 'GSTIN'], bySupplier, (b) => [b.label, <span key="g" className="font-mono text-xs">{b.gstin}</span>])}
+      </SectionCard>
+      <SectionCard title="Blocked ITC breakdown · section 17(5)">{table(['Reason'], blocked, (b) => [b.label])}</SectionCard>
+      <SectionCard title="Ineligible ITC">
+        {table(['Supplier', 'GSTIN'], ineligible, (b) => [b.label, <span key="g" className="font-mono text-xs">{b.gstin}</span>])}
       </SectionCard>
     </div>
   )

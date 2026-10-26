@@ -10,13 +10,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { downloadCsv } from '@/lib/csv'
 import { downloadPdf } from '@/lib/share'
-import { useSchemeDues, useSchemeGroups, useSchemes } from '@/lib/schemesQueries'
+import { useSchemeDueMonths, useSchemeDues, useSchemeGroups, useSchemes } from '@/lib/schemesQueries'
 import { businessDayISO, SCHEME_KINDS, type SchemeDueRowDto } from '@/shared'
 
 const inr = (s: string | number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
 const KIND_LABEL: Record<string, string> = { SAVING: 'Saving', ANJUMAN: 'Anjuman' }
-type View = 'flat' | 'group' | 'scheme'
+type View = 'flat' | 'group' | 'scheme' | 'month'
 
 function DueRow({ d, sn }: { d: SchemeDueRowDto; sn: number }) {
   return (
@@ -47,13 +47,9 @@ export function SchemeDues() {
   const [view, setView] = useState<View>('flat')
   const { data: schemes } = useSchemes({ active: 'true', kind: kind || undefined, pageSize: 100 })
   const { data: groups } = useSchemeGroups(schemeId ? Number(schemeId) : undefined)
-  const { data: allDues, isLoading } = useSchemeDues({ kind: kind || undefined, schemeId: schemeId ? Number(schemeId) : undefined, groupId: groupId ? Number(groupId) : undefined })
-  // Customer filter is client-side: /schemes/dues returns the full (unpaged) list and has no text query.
-  const dues = useMemo(() => {
-    const kw = customer.trim().toLowerCase()
-    if (!kw || !allDues) return allDues
-    return allDues.filter((d) => [d.displayName, d.assignId, d.party?.name ?? '', d.party?.mobile ?? ''].some((s) => s.toLowerCase().includes(kw)))
-  }, [allDues, customer])
+  const filters = { kind: kind || undefined, schemeId: schemeId ? Number(schemeId) : undefined, groupId: groupId ? Number(groupId) : undefined, q: customer.trim() || undefined }
+  const { data: dues, isLoading } = useSchemeDues(filters)
+  const { data: months, isLoading: monthsLoading } = useSchemeDueMonths(filters, view === 'month')
   const grouped = useMemo(() => bucket(dues ?? [], (d) => d.group?.name ?? 'No group'), [dues])
   const bySchemes = useMemo(() => bucket(dues ?? [], (d) => d.scheme.name), [dues])
 
@@ -128,13 +124,30 @@ export function SchemeDues() {
           </Select>
           <Button variant="outline" size="sm" onClick={() => setView((v) => (v === 'group' ? 'flat' : 'group'))}>{view === 'group' ? 'Flat list' : 'Group-wise'}</Button>
           <Button variant="outline" size="sm" onClick={() => setView((v) => (v === 'scheme' ? 'flat' : 'scheme'))}>{view === 'scheme' ? 'Flat list' : 'Scheme-wise'}</Button>
+          <Button variant="outline" size="sm" onClick={() => setView((v) => (v === 'month' ? 'flat' : 'month'))}>{view === 'month' ? 'Flat list' : 'Per month'}</Button>
           <Button className="ml-auto" variant="outline" size="sm" disabled={!dues?.length} onClick={exportCsv}>Export CSV</Button>
           <Button variant="outline" size="sm" disabled={!dues?.length} onClick={exportPdf}>Export PDF</Button>
         </CardContent>
       </Card>
 
       <Card className="overflow-x-auto p-2">
-        {view === 'scheme' ? (
+        {view === 'month' ? (
+          <Table>
+            <TableHeader><TableRow><TableHead>S.N.</TableHead><TableHead>Assign</TableHead><TableHead>Member</TableHead><TableHead>Contact</TableHead><TableHead>Scheme</TableHead><TableHead>Group</TableHead><TableHead>EMI #</TableHead><TableHead>EMI date</TableHead><TableHead>Amount</TableHead></TableRow></TableHeader>
+            <TableBody>
+              {monthsLoading ? <TableRow><TableCell colSpan={9} className="h-16 text-center text-muted-foreground">Loading…</TableCell></TableRow>
+                : !months?.length ? empty(9)
+                : months.map((m, i) => (
+                    <TableRow key={`${m.enrollmentId}-${m.emiNo}`}>
+                      <TableCell className="tabular-nums text-muted-foreground">{i + 1}</TableCell><TableCell className="font-medium">{m.assignId}</TableCell>
+                      <TableCell>{m.party?.name}</TableCell><TableCell className="tabular-nums">{m.party?.mobile || '—'}</TableCell>
+                      <TableCell>{m.scheme.name}</TableCell><TableCell>{m.group?.name ?? '—'}</TableCell>
+                      <TableCell className="tabular-nums">{m.emiNo}</TableCell><TableCell>{date(m.emiDate)}</TableCell><TableCell className="tabular-nums font-medium">{inr(m.amount)}</TableCell>
+                    </TableRow>
+                  ))}
+            </TableBody>
+          </Table>
+        ) : view === 'scheme' ? (
           <Table>
             <TableHeader><TableRow><TableHead>Scheme</TableHead><TableHead>Members</TableHead><TableHead>EMIs due</TableHead><TableHead>Amount</TableHead></TableRow></TableHeader>
             <TableBody>
