@@ -3,7 +3,11 @@ import { cloneElement, isValidElement, useEffect, useId, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
+import { useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+
 import { PartyCombobox } from '@/components/PartyCombobox'
+import { PartyImagePicker, uploadPartyImage } from '@/components/PartyImagePicker'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -11,6 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useCreateParty, useUpdateParty } from '@/lib/appQueries'
+import { ApiException } from '@/lib/errors'
 import { useT } from '@/lib/i18n'
 import { useStates, useDistricts } from '@/lib/queries'
 import { PARTY_TYPES, partyBody, type PartyDto, type PartyRefDto, type PartyType } from '@/shared'
@@ -46,7 +51,10 @@ export function NewPartyDialog({ open, onClose, defaultType = 'CUSTOMER', defaul
   const t = useT()
   const create = useCreateParty()
   const update = useUpdateParty()
+  const qc = useQueryClient()
   const { data: states } = useStates()
+  const [photo, setPhoto] = useState<File | null>(null)
+  const [logo, setLogo] = useState<File | null>(null)
 
   const {
     register,
@@ -93,6 +101,18 @@ export function NewPartyDialog({ open, onClose, defaultType = 'CUSTOMER', defaul
   const onSubmit = handleSubmit(async (values) => {
     const body = { ...values, parentId: isSub ? parent?.id : undefined, birthday: birthday || undefined, anniversary: anniversary || undefined }
     const saved = party ? await update.mutateAsync({ id: party.id, body }) : await create.mutateAsync(body)
+    // Images go up after the party exists (the upload routes are per party id); a failure keeps the saved party.
+    for (const [kind, file] of [['photo', photo], ['shop-logo', logo]] as const) {
+      if (!file) continue
+      try {
+        await uploadPartyImage((saved as PartyDto).id, kind, file)
+      } catch (e) {
+        toast.error(`${kind === 'photo' ? 'Photo' : 'Shop logo'} not uploaded: ${e instanceof ApiException ? e.message : 'try again from Edit'}`)
+      }
+    }
+    if (photo || logo) void qc.invalidateQueries({ queryKey: ['parties'] })
+    setPhoto(null)
+    setLogo(null)
     reset()
     setIsSub(false)
     setParent(null)
@@ -219,7 +239,10 @@ export function NewPartyDialog({ open, onClose, defaultType = 'CUSTOMER', defaul
           </div>
           <Field label={t('party.shop_address')}><Input {...register('shopAddress')} /></Field>
 
-          <p className="text-xs text-muted-foreground">{t('party.photo_note')}</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <PartyImagePicker label="Profile photo" kind="photo" camera value={photo} onChange={setPhoto} existingPath={party?.photoUrl ? `/app/files/parties/${party.id}/photo` : undefined} />
+            <PartyImagePicker label="Shop logo" kind="shop-logo" value={logo} onChange={setLogo} existingPath={party?.shopLogoUrl ? `/app/files/parties/${party.id}/shop-logo` : undefined} />
+          </div>
 
           <DialogFooter>
             <Button type="submit" disabled={busy}>

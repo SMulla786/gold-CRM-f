@@ -28,14 +28,14 @@ export const useCreateJewelleryType = () =>
 export const useItemGroups = (params: { page?: number; pageSize?: number; q?: string; stockClass?: string; jewelleryTypeId?: number }) =>
   useQuery({ queryKey: ['item-groups', params], queryFn: () => api.get<Paged<ItemGroupDto>>(`/app/item-groups${qs(params)}`) })
 export const useCreateItemGroup = () =>
-  useApiMutation((body: Record<string, unknown>) => api.post('/app/item-groups', body), { invalidate: [['item-groups']], success: 'Groups created' })
+  useApiMutation((body: Record<string, unknown>) => api.post<ItemGroupDto[]>('/app/item-groups', body), { invalidate: [['item-groups']], success: 'Groups created' })
 export const useUpdateItemGroup = () =>
   useApiMutation(({ id, body }: { id: number; body: Record<string, unknown> }) => api.patch(`/app/item-groups/${id}`, body), { invalidate: [['item-groups']], success: 'Group updated' })
 
 export const useItemNames = (params: { page?: number; pageSize?: number; q?: string; stockClass?: string; groupId?: number }) =>
   useQuery({ queryKey: ['item-names', params], queryFn: () => api.get<Paged<ItemNameDto>>(`/app/item-names${qs(params)}`) })
 export const useCreateItemName = () =>
-  useApiMutation((body: Record<string, unknown>) => api.post('/app/item-names', body), { invalidate: [['item-names']], success: 'Item name created' })
+  useApiMutation((body: Record<string, unknown>) => api.post<ItemNameDto>('/app/item-names', body), { invalidate: [['item-names']], success: 'Item name created' })
 export const useUpdateItemName = () =>
   useApiMutation(({ id, body }: { id: number; body: Record<string, unknown> }) => api.patch(`/app/item-names/${id}`, body), { invalidate: [['item-names']], success: 'Item name updated' })
 

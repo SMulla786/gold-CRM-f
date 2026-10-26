@@ -15,7 +15,8 @@ export function Hsn() {
   const canEdit = can('settings.misc', 'edit')
   const [q, setQ] = useState('')
   const [category, setCategory] = useState('')
-  const { data, isLoading } = useHsn({ q: q || undefined, category: category || undefined })
+  const [onlyActive, setOnlyActive] = useState(false)
+  const { data, isLoading } = useHsn({ q: q || undefined, category: category || undefined, onlyActive: onlyActive ? 'true' : undefined })
   const toggle = useToggleHsn()
 
   // Summary numbers derived from the list already fetched (no extra requests).
@@ -62,6 +63,10 @@ export function Hsn() {
               ))}
             </SelectContent>
           </Select>
+          <label className="flex h-9 items-center gap-2 text-sm">
+            <Checkbox checked={onlyActive} onCheckedChange={(v) => setOnlyActive(Boolean(v))} />
+            Show active (ON) HSN codes only
+          </label>
         </CardContent>
       </Card>
 

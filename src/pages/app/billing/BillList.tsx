@@ -1,7 +1,7 @@
 import type { ColumnDef } from '@tanstack/react-table'
 import { Download, Search } from 'lucide-react'
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { DataTable } from '@/components/DataTable'
 import { Badge } from '@/components/ui/badge'
@@ -18,7 +18,7 @@ import { useT } from '@/lib/i18n'
 import { downloadCsv } from '@/lib/csv'
 import { fetchAllPaged } from '@/lib/queries'
 import { shareOnWhatsApp } from '@/lib/share'
-import { businessDayISO, BILL_KINDS, type BillKind, type BillListItemDto } from '@/shared'
+import { businessDayISO, BILL_KINDS, BILL_TYPES, type BillKind, type BillListItemDto } from '@/shared'
 
 const todayISO = businessDayISO
 
@@ -68,22 +68,35 @@ export function BillList() {
   const t = useT()
   const { can } = useAuth()
   const navigate = useNavigate()
-  const [kind, setKind] = useState<BillKind>('SELL')
+  // ?kind=PURCHASE opens the purchase list (links / bookmarks)
+  const [params] = useSearchParams()
+  const [kind, setKind] = useState<BillKind>(params.get('kind') === 'PURCHASE' ? 'PURCHASE' : 'SELL')
   const [status, setStatus] = useState('ACTIVE')
+  const [billType, setBillType] = useState('')
   const [q, setQ] = useState('')
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const [minTotal, setMinTotal] = useState('')
+  const [maxTotal, setMaxTotal] = useState('')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
   const [exporting, setExporting] = useState(false)
   const permKey = kind === 'SELL' ? 'billing.sell_bill' : 'billing.purchase_bill'
   const canEdit = can(permKey, 'edit')
   const canDelete = can(permKey, 'delete')
-  const { data, isLoading } = useBills({ kind, status, q: q || undefined, page })
+  const filters = {
+    kind, status, q: q || undefined, billType: billType || undefined, from: from || undefined, to: to || undefined,
+    minTotal: minTotal || undefined, maxTotal: maxTotal || undefined,
+  }
+  const { data, isLoading } = useBills({ ...filters, page, pageSize })
+  const reset = (set: (v: string) => void) => (v: string) => { set(v); setPage(1) }
   const [paying, setPaying] = useState<BillListItemDto | null>(null)
   const [deleting, setDeleting] = useState<BillListItemDto | null>(null)
 
   const exportCsv = async () => {
     setExporting(true)
     try {
-      const all = await fetchAllPaged<BillListItemDto>('/app/bills', { kind, status, q: q || undefined })
+      const all = await fetchAllPaged<BillListItemDto>('/app/bills', filters)
       const header = ['Bill', 'Date', 'Party', 'Mobile', 'Type', 'Items', 'Final', 'Paid', 'Balance', 'Status']
       const body = all.map((b) => [b.billNo, date(b.billDate), b.party.name, b.party.mobile, b.billType, b.itemCount, b.final, b.paid, b.balance, b.status])
       downloadCsv(`bills-${kind.toLowerCase()}-${status.toLowerCase()}.csv`, [header, ...body])
@@ -101,6 +114,7 @@ export function BillList() {
     { header: t('bill.final'), cell: ({ row }) => inr(row.original.final) },
     { header: t('bill.paid'), cell: ({ row }) => inr(row.original.paid) },
     { header: t('bill.balance'), cell: ({ row }) => <span className={Number(row.original.balance) < 0 ? 'text-green-600 dark:text-green-500' : Number(row.original.balance) > 0 ? 'text-destructive' : ''}>{inr(row.original.balance)}</span> },
+    { header: t('bill.col_created_by'), cell: ({ row }) => <span className="text-sm text-muted-foreground">{row.original.createdBy ?? '—'}</span> },
     {
       id: 'actions', header: '',
       cell: ({ row }) =>
@@ -134,6 +148,17 @@ export function BillList() {
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
           <Input className="pl-9" placeholder={t('bill.search_ph')} value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
         </div>
+        <Select value={billType || 'all'} onValueChange={(v) => reset(setBillType)(v === 'all' ? '' : v)}>
+          <SelectTrigger className="w-full sm:w-32" aria-label="Bill type filter"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t('bill.all_types')}</SelectItem>
+            {BILL_TYPES.map((bt) => <SelectItem key={bt} value={bt}>{bt}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Input className="w-full sm:w-40" type="date" aria-label="From date" value={from} onChange={(e) => reset(setFrom)(e.target.value)} />
+        <Input className="w-full sm:w-40" type="date" aria-label="To date" value={to} onChange={(e) => reset(setTo)(e.target.value)} />
+        <Input className="w-full sm:w-28" type="number" min="0" placeholder={t('bill.min_total')} aria-label="Minimum total" value={minTotal} onChange={(e) => reset(setMinTotal)(e.target.value)} />
+        <Input className="w-full sm:w-28" type="number" min="0" placeholder={t('bill.max_total')} aria-label="Maximum total" value={maxTotal} onChange={(e) => reset(setMaxTotal)(e.target.value)} />
       </Card>
 
       <DataTable
@@ -141,7 +166,7 @@ export function BillList() {
         data={data?.items ?? []}
         isLoading={isLoading}
         emptyText={t('bill.no_bills')}
-        pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined}
+        pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: setPageSize } : undefined}
       />
 
       {paying && <AddPaymentDialog bill={paying} onClose={() => setPaying(null)} />}

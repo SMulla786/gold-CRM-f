@@ -103,7 +103,8 @@ function StockEditDialog({ item, onClose }: { item: StockItemDto; onClose: () =>
   )
 }
 
-function BulkEditDialog({ ids, onClose }: { ids: number[]; onClose: () => void }) {
+/** Also reused by GroupStock for its selected groups' items. */
+export function BulkEditDialog({ ids, onClose }: { ids: number[]; onClose: () => void }) {
   const bulk = useBulkEditStock()
   const [form, setForm] = useState<Record<string, string>>({})
   const [labourUnit, setLabourUnit] = useState('')

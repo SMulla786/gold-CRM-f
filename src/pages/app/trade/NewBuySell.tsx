@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useState } from 'react'
 
 import { PartyPicker } from '@/components/PartyPicker'
@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useBankAccounts, useCurrentRates, useSettings } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { metalRateUnitGrams } from '@/lib/billingQueries'
-import { useBhavBookings, useCreateBuySell } from '@/lib/tradeQueries'
+import { useBhavBooking, useBhavBookings, useCreateBuySell } from '@/lib/tradeQueries'
 import { businessDayISO, METALS, TRADE_SIDES, metalToMoney, type BhavBookingDto, type PartyRefDto } from '@/shared'
 
 import { fineRate } from './tradeRates'
@@ -43,6 +43,22 @@ export function NewBuySell() {
   const [booking, setBooking] = useState<BhavBookingDto | null>(null)
   const [f, setF] = useState({ discount: '0', cash: '0', online: '0', bankAccountId: '', narration: '' })
   const set = (key: keyof typeof f, v: string) => setF((s) => ({ ...s, [key]: v }))
+
+  // "Deliver" from the bhav booking list opens this page with ?booking=<id>: prefill side, metal, party and
+  // the locked rate once, with the pending weight as the first line. Everything stays editable as usual.
+  const [params] = useSearchParams()
+  const bookingParam = Number(params.get('booking'))
+  const preId = Number.isInteger(bookingParam) && bookingParam > 0 ? bookingParam : undefined
+  const { data: preBooking } = useBhavBooking(preId)
+  const [prefilled, setPrefilled] = useState<number | null>(null)
+  if (preBooking && prefilled !== preBooking.id && (preBooking.status === 'PENDING' || preBooking.status === 'PARTIAL')) {
+    setPrefilled(preBooking.id)
+    setSide(preBooking.side)
+    setMetal(preBooking.metal)
+    setParty(preBooking.party)
+    setBooking(preBooking)
+    setRows([{ ...blankRow(preBooking.rate), weight: preBooking.pendingWeight }])
+  }
 
   // open bookings for the picker: same side/metal/party, PENDING+PARTIAL
   const { data: bookings } = useBhavBookings({ open: 'true', side, metal, partyId: party?.id })

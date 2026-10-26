@@ -1,6 +1,7 @@
 import type { ColumnDef } from '@tanstack/react-table'
 import { Network, UserCheck, UserX, Users, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { DataTable } from '@/components/DataTable'
@@ -18,7 +19,17 @@ export function Parties() {
   const { can } = useAuth()
   const canEdit = can('settings.parties', 'edit')
   const canDelete = can('settings.parties', 'delete')
-  const [type, setType] = useState('')
+  // Type filter lives in the URL (?type=SUPPLIER) so Customers / Suppliers / Karigars can be deep-linked.
+  const [params, setParams] = useSearchParams()
+  const rawType = params.get('type')?.toUpperCase() ?? ''
+  const type = (PARTY_TYPES as readonly string[]).includes(rawType) ? rawType : ''
+  const setType = (t: string) =>
+    setParams((p) => {
+      const n = new URLSearchParams(p)
+      if (t) n.set('type', t)
+      else n.delete('type')
+      return n
+    }, { replace: true })
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
   const { data, isLoading } = useParties({ page, q: q || undefined, type: type || undefined })

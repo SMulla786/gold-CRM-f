@@ -1,5 +1,5 @@
 import type { ColumnDef } from '@tanstack/react-table'
-import { ClipboardList, Flame, IndianRupee, Printer, Wallet, type LucideIcon } from 'lucide-react'
+import { ClipboardList, Flame, IndianRupee, Printer, ReceiptText, UserPlus, Wallet, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -9,17 +9,35 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAuth } from '@/lib/auth'
-import { useBulkCancelOrders, useOrders } from '@/lib/ordersQueries'
+import { useBulkCancelOrders, useOrder, useOrders } from '@/lib/ordersQueries'
 import { ORDER_STATUSES, type OrderDto } from '@/shared'
 
+import { IssueDialog } from './IssueDialog'
 import { cancellable, karigarStatus, sumOf } from './orderUtils'
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
 const VARIANT: Record<string, 'default' | 'secondary' | 'destructive'> = { READY: 'default', PENDING: 'secondary', IN_PROCESS: 'secondary', DELIVERED: 'default', CANCELLED: 'destructive' }
+const hasPending = (o: OrderDto) => o.items.some((it) => it.status === 'PENDING')
+
+/** Row action: loads the order fresh (same hook as Order Detail) and opens the shared issue dialog with all its PENDING items. */
+function AssignOrderDialog({ orderId, onClose }: { orderId: number; onClose: () => void }) {
+  const { data: order, isLoading } = useOrder(orderId)
+  const pending = order?.items.filter((it) => it.status === 'PENDING') ?? []
+  if (order && pending.length > 0) return <IssueDialog items={pending} onClose={onClose} />
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>{order ? `Order #${order.orderNo}` : 'Loading order…'}</DialogTitle></DialogHeader>
+        <p className="text-sm text-muted-foreground">{isLoading || !order ? 'Loading…' : 'Every item on this order is already with a karigar or done.'}</p>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 export function OrderList() {
   const { can } = useAuth()
@@ -31,6 +49,9 @@ export function OrderList() {
   const [sel, setSel] = useState<Set<number>>(new Set())
   const [cancelling, setCancelling] = useState(false)
   const canCancel = can('orders.create', 'delete')
+  const canIssue = can('orders.karigar_list', 'edit')
+  const canBill = can('billing.sell_bill', 'edit')
+  const [assigning, setAssigning] = useState<number | null>(null)
 
   // Summary numbers derived from the page already fetched (no extra requests).
   const items = data?.items ?? []
@@ -59,7 +80,23 @@ export function OrderList() {
     { header: 'Balance due', cell: ({ row }) => <span className="tabular-nums">{inr(String(Number(row.original.estTotal) - Number(row.original.advance)))}</span> },
     { header: 'Status', cell: ({ row }) => <Badge variant={VARIANT[row.original.status] ?? 'secondary'}>{row.original.status}</Badge> },
     { header: 'Karigar status', cell: ({ row }) => <span className="text-xs text-muted-foreground">{karigarStatus(row.original)}</span> },
-    { id: 'print', header: '', cell: ({ row }) => <Button asChild size="sm" variant="ghost"><Link to={`/app/orders/${row.original.id}/print`} aria-label={`Print order slip ${row.original.orderNo}`}><Printer className="size-4" aria-hidden /></Link></Button> },
+    {
+      id: 'print',
+      header: '',
+      cell: ({ row }) => (
+        <div className="flex justify-end gap-1">
+          {canBill && row.original.status === 'READY' && (
+            <Button asChild size="sm" variant="ghost" title="Bill this ready order"><Link to={`/app/billing?orderId=${row.original.id}`} aria-label={`Bill order ${row.original.orderNo}`}><ReceiptText className="size-4" aria-hidden /></Link></Button>
+          )}
+          {canIssue && hasPending(row.original) && (
+            <Button size="sm" variant="ghost" title="Assign pending items to a karigar" aria-label={`Assign order ${row.original.orderNo} to karigar`} onClick={() => setAssigning(row.original.id)}>
+              <UserPlus className="size-4" aria-hidden />
+            </Button>
+          )}
+          <Button asChild size="sm" variant="ghost"><Link to={`/app/orders/${row.original.id}/print`} aria-label={`Print order slip ${row.original.orderNo}`}><Printer className="size-4" aria-hidden /></Link></Button>
+        </div>
+      ),
+    },
   ]
 
   const urgentRows = items.filter((o) => o.isUrgent).length
@@ -119,6 +156,7 @@ export function OrderList() {
         }}
         onClose={() => setCancelling(false)}
       />
+      {assigning != null && <AssignOrderDialog orderId={assigning} onClose={() => setAssigning(null)} />}
     </div>
   )
 }

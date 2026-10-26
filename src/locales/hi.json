@@ -678,5 +678,10 @@
   "daybook.shop_cash": "दुकान नकद",
   "daybook.all_accounts": "सभी खाते",
   "daybook.col_total_cost": "कुल लागत",
-  "daybook.search_ref": "Ref / ID, विवरण खोजें…"
+  "daybook.search_ref": "Ref / ID, विवरण खोजें…",
+
+  "bill.col_created_by": "बनाने वाला",
+  "bill.all_types": "सभी प्रकार",
+  "bill.min_total": "न्यूनतम ₹",
+  "bill.max_total": "अधिकतम ₹"
 }

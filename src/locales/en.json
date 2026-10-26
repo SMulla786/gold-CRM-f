@@ -678,5 +678,10 @@
   "daybook.shop_cash": "Shop cash",
   "daybook.all_accounts": "All accounts",
   "daybook.col_total_cost": "Total cost",
-  "daybook.search_ref": "Search Ref / ID, narration…"
+  "daybook.search_ref": "Search Ref / ID, narration…",
+
+  "bill.col_created_by": "Created by",
+  "bill.all_types": "All types",
+  "bill.min_total": "Min ₹",
+  "bill.max_total": "Max ₹"
 }

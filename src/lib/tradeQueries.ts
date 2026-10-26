@@ -1,7 +1,9 @@
 // Phase 10 — exchange, kacha processing, bullion buy-sell, bhav booking. Routes /app/exchange|kacha|buy-sell|bhav-booking.
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 
 import { api } from '@/lib/api'
+import { ApiException } from '@/lib/errors'
 import { qs, useApiMutation } from '@/lib/queries'
 import type { BhavBookingDto, BuySellDto, ExchangeDto, KachaBalanceDto, KachaProcessDto, Paged } from '@/shared'
 
@@ -36,9 +38,39 @@ export const useDeleteBuySell = () =>
 // ── Bhav booking ──
 export const useBhavBookings = (params: Record<string, string | number | undefined>) =>
   useQuery({ queryKey: ['bhav-booking', params], queryFn: () => api.get<Paged<BhavBookingDto>>(`/app/bhav-booking${qs(params)}`) })
+export const useBhavBooking = (id?: number) =>
+  useQuery({ queryKey: ['bhav-booking', 'one', id], queryFn: () => api.get<BhavBookingDto>(`/app/bhav-booking/${id}`), enabled: !!id })
 export const useCreateBhav = () =>
   useApiMutation((body: Record<string, unknown>) => api.post<BhavBookingDto>('/app/bhav-booking', body), { invalidate: TRADE_KEYS, success: 'Booking saved' })
 export const useCancelBhav = () =>
   useApiMutation(({ id, mpin }: { id: number; mpin: string }) => api.post(`/app/bhav-booking/${id}/cancel`, undefined, { mpin }), { invalidate: TRADE_KEYS, success: 'Booking cancelled' })
 export const useDeleteBhav = () =>
   useApiMutation(({ id, mpin }: { id: number; mpin: string }) => api.del(`/app/bhav-booking/${id}`, { mpin }), { invalidate: TRADE_KEYS, success: 'Booking deleted' })
+/**
+ * Bulk delete = the single delete endpoint called once per booking with the same MPIN (no bulk endpoint).
+ * A wrong MPIN rethrows so MpinDialog stays open; any other per-booking failure is collected and reported.
+ */
+export const useBulkDeleteBhav = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ bookings, mpin }: { bookings: Array<{ id: number; bookingNo: number }>; mpin: string }) => {
+      const failed: string[] = []
+      let done = 0
+      for (const b of bookings) {
+        try {
+          await api.del(`/app/bhav-booking/${b.id}`, { mpin })
+          done++
+        } catch (e) {
+          if (e instanceof ApiException && e.code === 'MPIN_REQUIRED') throw e
+          failed.push(`#${b.bookingNo}: ${e instanceof ApiException ? e.message : 'failed'}`)
+        }
+      }
+      return { done, failed }
+    },
+    onSuccess: ({ done, failed }) => {
+      if (done) toast.success(`${done} booking${done === 1 ? '' : 's'} deleted`)
+      if (failed.length) toast.error(`Not deleted: ${failed.join('; ')}`)
+    },
+    onSettled: () => TRADE_KEYS.forEach((key) => qc.invalidateQueries({ queryKey: key })),
+  })
+}

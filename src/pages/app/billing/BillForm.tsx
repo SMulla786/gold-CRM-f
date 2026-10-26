@@ -570,7 +570,9 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
                   <Input className="w-16" type="number" placeholder={t('bill.col_less')} aria-label="Less" value={p.less} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, less: e.target.value } : x))} />
                   <Input className="w-16" type="number" placeholder={t('bill.col_tunch')} aria-label="Tunch" value={p.tunch} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, tunch: e.target.value } : x))} />
                   <Input className="w-24" type="number" placeholder={t('udhari.rate')} aria-label="Rate" value={p.rate} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, rate: e.target.value } : x))} />
-                  <span className="text-sm">= {inr(payAmount(p))}</span>
+                  <span className="text-sm tabular-nums">
+                    <span className="text-muted-foreground">{t('bill.pay_fine', { g: (((Number(p.gross) || 0) - (Number(p.less) || 0)) * (Number(p.tunch) || 0) / 100).toFixed(3) })}</span> = {inr(payAmount(p))}
+                  </span>
                 </>
               ) : (
                 <>
@@ -583,6 +585,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
                   )}
                 </>
               )}
+              <Input className="w-full sm:w-40" placeholder={t('bill.pay_remark')} aria-label="Payment remark" value={p.remark} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, remark: e.target.value } : x))} />
               <Button variant="ghost" size="sm" className="ml-auto" aria-label="Remove payment" onClick={() => setPays((ps) => ps.filter((_, j) => j !== i))}>✕</Button>
             </div>
           ))}

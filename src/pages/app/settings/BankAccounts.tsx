@@ -169,6 +169,7 @@ export function BankAccounts() {
             {data?.map((a) => (
               <div key={a.id} className="flex flex-wrap items-center gap-3 rounded-xl p-3 text-sm transition-colors hover:bg-muted/50">
                 <span className="font-medium">{a.bankName}</span>
+                {a.bankBranchName && <span className="text-muted-foreground">{a.bankBranchName}</span>}
                 <span className="text-muted-foreground tabular-nums">{a.accountNo} · {a.ifsc}</span>
                 <Badge variant="secondary">{APPLY_LABEL[a.applyTo]}</Badge>
                 <span className="text-muted-foreground">{a.branchId === 0 ? 'All branches' : a.branchName ?? `Branch ${a.branchId}`}</span>

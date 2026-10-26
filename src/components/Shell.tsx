@@ -11,6 +11,8 @@ import { BranchSwitcher } from '@/components/BranchSwitcher'
 import { CommandPalette } from '@/components/CommandPalette'
 import { NewPartyDialog } from '@/components/NewPartyDialog'
 import { QuickBilling } from '@/components/QuickBilling'
+import { ShortcutsHelp } from '@/components/ShortcutsHelp'
+import { StockLookup } from '@/components/StockLookup'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth'
 import { LOCALES, useLocale, useT } from '@/lib/i18n'
@@ -61,7 +63,7 @@ interface ShellProps {
 }
 
 export function Shell({ area, nav, showBranch }: ShellProps) {
-  const { me, can, logout, readOnly, endImpersonation } = useAuth()
+  const { me, can, hasModule, logout, readOnly, endImpersonation } = useAuth()
   const t = useT()
   const navigate = useNavigate()
   const { pathname } = useLocation()
@@ -69,7 +71,7 @@ export function Shell({ area, nav, showBranch }: ShellProps) {
   const isStore = area === 'Store'
   const canBill = can('billing.sell_bill', 'view') || can('billing.purchase_bill', 'view')
   const canAddParty = can('settings.parties', 'edit')
-  const canSeeStock = can('inventory.all_stock', 'view')
+  const canSeeStock = hasModule('inventory') && can('inventory.all_stock', 'view')
 
   const onEndImpersonation = async () => {
     await endImpersonation()

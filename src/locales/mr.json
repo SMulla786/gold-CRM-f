@@ -678,5 +678,10 @@
   "daybook.shop_cash": "दुकान रोख",
   "daybook.all_accounts": "सर्व खाती",
   "daybook.col_total_cost": "एकूण किंमत",
-  "daybook.search_ref": "Ref / ID, तपशील शोधा…"
+  "daybook.search_ref": "Ref / ID, तपशील शोधा…",
+
+  "bill.col_created_by": "तयार करणारा",
+  "bill.all_types": "सर्व प्रकार",
+  "bill.min_total": "किमान ₹",
+  "bill.max_total": "कमाल ₹"
 }

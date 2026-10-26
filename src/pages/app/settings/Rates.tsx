@@ -8,10 +8,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useCurrentRates, useRateHistory, useRateLimits, useSaveRateLimits, useSetRates } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
-import { rateLimitsBody, setRatesBody, type Metal, type RateRowDto, type RateUnitKey } from '@/shared'
+import { RATE_UNIT_GRAMS, rateLimitsBody, setRatesBody, type Metal, type RateRowDto, type RateUnitKey } from '@/shared'
 
 type MpinAction = { title: string; run: (mpin: string) => Promise<unknown> }
 type EditRow = { karatCode: string; title: string; touch: string; sell: string; buy: string }
@@ -19,6 +20,9 @@ const toEdit = (r: RateRowDto): EditRow => ({ karatCode: r.karatCode, title: r.t
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(Number(s))
 // Purest row (highest touch) of a metal's current rates, for the summary tiles.
 const purest = (rows: RateRowDto[]) => rows.reduce<RateRowDto | undefined>((a, b) => (!a || Number(b.touch) > Number(a.touch) ? b : a), undefined)
+// Units offered per metal when adding a limit (same choices as General -> Rate units).
+const LIMIT_UNITS: Record<Metal, RateUnitKey[]> = { GOLD: ['GRAM_1', 'GRAM_10', 'TOLA'], SILVER: ['GRAM_1', 'KG_1'] }
+const UNIT_LABEL: Record<RateUnitKey, string> = { GRAM_1: 'Per 1 gram', GRAM_10: 'Per 10 gram', TOLA: 'Per tola', KG_1: 'Per 1 kg' }
 
 export function Rates() {
   const { data } = useCurrentRates()
@@ -156,6 +160,28 @@ function LimitsCard({ ask }: { ask: (a: MpinAction) => void }) {
   useEffect(() => { if (data) setRows(data.map((l) => ({ metal: l.metal, rateUnit: l.rateUnit, min: l.minRate, max: l.maxRate }))) }, [data])
 
   const set = (i: number, k: 'min' | 'max', v: string) => setRows((r) => r.map((row, j) => (j === i ? { ...row, [k]: v } : row)))
+  // New limit rows: one per metal + unit (the server keys limits on business/metal/unit).
+  const [addMetal, setAddMetal] = useState<Metal>('GOLD')
+  const [addUnit, setAddUnit] = useState<RateUnitKey>('GRAM_10')
+  const unitsFor = (m: Metal) => LIMIT_UNITS[m]
+  const exists = rows.some((r) => r.metal === addMetal && r.rateUnit === addUnit)
+  const addRow = () => {
+    if (exists) return toast.error('A limit for this metal and unit already exists')
+    setRows((r) => [...r, { metal: addMetal, rateUnit: addUnit, min: '', max: '' }])
+  }
+  const removeRow = (i: number) => setRows((r) => r.filter((_, j) => j !== i))
+  // Fill every other unit of a metal from its 1 gm row (min/max x grams per unit).
+  const syncFrom1g = () => {
+    if (!rows.some((r) => r.rateUnit === 'GRAM_1' && r.min !== '' && r.max !== '')) return toast.error('Enter a 1 gm limit first')
+    setRows(
+      rows.map((row) => {
+        const base = rows.find((b) => b.metal === row.metal && b.rateUnit === 'GRAM_1')
+        if (!base || row.rateUnit === 'GRAM_1' || base.min === '' || base.max === '') return row
+        const g = RATE_UNIT_GRAMS[row.rateUnit]
+        return { ...row, min: String(Math.round(Number(base.min) * g)), max: String(Math.round(Number(base.max) * g)) }
+      }),
+    )
+  }
   const onSave = () => {
     // rateLimitsBody enforces max > min and rejects blanks via shared zod
     const parsed = rateLimitsBody.safeParse({ limits: rows.map((r) => ({ metal: r.metal, rateUnit: r.rateUnit, minRate: r.min, maxRate: r.max })) })
@@ -168,9 +194,14 @@ function LimitsCard({ ask }: { ask: (a: MpinAction) => void }) {
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
         <CardTitle>Rate limits (min / max guard)</CardTitle>
         {canEdit && (
-          <Button size="sm" onClick={onSave} disabled={!rows.length || save.isPending}>
-            Save limits
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={syncFrom1g} disabled={!rows.length}>
+              Sync from 1 gm
+            </Button>
+            <Button size="sm" onClick={onSave} disabled={!rows.length || save.isPending}>
+              Save limits
+            </Button>
+          </div>
         )}
       </CardHeader>
       <CardContent className="space-y-3">
@@ -181,6 +212,11 @@ function LimitsCard({ ask }: { ask: (a: MpinAction) => void }) {
             <Input className="w-32" type="number" aria-label={`${r.metal} ${r.rateUnit} min`} disabled={!canEdit} value={r.min} onChange={(e) => set(i, 'min', e.target.value)} />
             <Label className="text-xs">Max</Label>
             <Input className="w-32" type="number" aria-label={`${r.metal} ${r.rateUnit} max`} disabled={!canEdit} value={r.max} onChange={(e) => set(i, 'max', e.target.value)} />
+            {canEdit && (
+              <Button size="sm" variant="ghost" className="ml-auto" aria-label={`Remove ${r.metal} ${r.rateUnit} limit`} onClick={() => removeRow(i)}>
+                Remove
+              </Button>
+            )}
           </div>
         ))}
         {!rows.length && (
@@ -189,17 +225,64 @@ function LimitsCard({ ask }: { ask: (a: MpinAction) => void }) {
             <p className="text-sm text-muted-foreground">No limits configured</p>
           </div>
         )}
+        {canEdit && (
+          <div className="flex flex-wrap items-end gap-3 border-t pt-4">
+            <div className="space-y-1">
+              <Label className="text-xs">Metal</Label>
+              <Select value={addMetal} onValueChange={(v) => { setAddMetal(v as Metal); setAddUnit(unitsFor(v as Metal)[0]) }}>
+                <SelectTrigger className="w-28" aria-label="Limit metal">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="GOLD">Gold</SelectItem>
+                  <SelectItem value="SILVER">Silver</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Rate unit</Label>
+              <Select value={addUnit} onValueChange={(v) => setAddUnit(v as RateUnitKey)}>
+                <SelectTrigger className="w-36" aria-label="Limit rate unit">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {unitsFor(addMetal).map((u) => (
+                    <SelectItem key={u} value={u}>
+                      {UNIT_LABEL[u]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button size="sm" variant="outline" onClick={addRow} disabled={exists}>
+              Add limit
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   )
 }
 
 function HistoryCard() {
-  const { data } = useRateHistory({ page: 1 })
+  const [page, setPage] = useState(1)
+  const [metal, setMetal] = useState<Metal | ''>('')
+  const { data } = useRateHistory({ page, metal: metal || undefined })
+  const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
         <CardTitle>Rate history</CardTitle>
+        <Select value={metal || 'all'} onValueChange={(v) => { setMetal(v === 'all' ? '' : (v as Metal)); setPage(1) }}>
+          <SelectTrigger className="w-36" aria-label="History metal">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All metals</SelectItem>
+            <SelectItem value="GOLD">Gold</SelectItem>
+            <SelectItem value="SILVER">Silver</SelectItem>
+          </SelectContent>
+        </Select>
       </CardHeader>
       <CardContent>
         <Table>
@@ -237,6 +320,19 @@ function HistoryCard() {
             )}
           </TableBody>
         </Table>
+        {data && data.total > data.pageSize && (
+          <div className="flex items-center justify-end gap-2 pt-3 text-sm text-muted-foreground">
+            <span>
+              Page {data.page} of {pages} · {data.total} entries
+            </span>
+            <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+              Previous
+            </Button>
+            <Button size="sm" variant="outline" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>
+              Next
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   )

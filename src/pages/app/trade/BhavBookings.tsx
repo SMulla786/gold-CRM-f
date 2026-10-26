@@ -1,6 +1,7 @@
 import type { ColumnDef } from '@tanstack/react-table'
-import { Hourglass, Lock, Scale, Wallet, type LucideIcon } from 'lucide-react'
+import { Hourglass, Lock, Scale, Truck, Wallet, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { DataTable } from '@/components/DataTable'
 import { MpinDialog } from '@/components/MpinDialog'
@@ -9,6 +10,7 @@ import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useBankAccounts, useSettings } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { metalRateUnitGrams } from '@/lib/billingQueries'
-import { useBhavBookings, useCancelBhav, useCreateBhav, useDeleteBhav } from '@/lib/tradeQueries'
+import { useBhavBookings, useBulkDeleteBhav, useCancelBhav, useCreateBhav, useDeleteBhav } from '@/lib/tradeQueries'
 import { BHAV_STATUSES, businessDayISO, METALS, TRADE_SIDES, metalToMoney, type BhavBookingDto, type PartyRefDto } from '@/shared'
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
@@ -91,9 +93,10 @@ function NewBookingDialog() {
 }
 
 export function BhavBookings() {
-  const { can } = useAuth()
+  const { can, activeBranch } = useAuth()
   const canEdit = can('buy_sell.bhav_booking', 'edit')
   const canDelete = can('buy_sell.bhav_booking', 'delete')
+  const canDeliver = can('buy_sell.entry', 'edit')
   const [side, setSide] = useState('')
   const [metal, setMetal] = useState('')
   // 'open' = PENDING + PARTIAL (the default view: bookings still to be delivered); 'all' = no status filter.
@@ -106,8 +109,23 @@ export function BhavBookings() {
   const del = useDeleteBhav()
   const [cancelling, setCancelling] = useState<BhavBookingDto | null>(null)
   const [deleting, setDeleting] = useState<BhavBookingDto | null>(null)
+  const bulkDelete = useBulkDeleteBhav()
+  const [sel, setSel] = useState<Set<number>>(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+  const clearSel = () => setSel(new Set())
+
+  // Only an untouched PENDING booking can be deleted, so only those rows are selectable.
+  const selectable = (data?.items ?? []).filter((b) => b.status === 'PENDING')
+  const selected = selectable.filter((b) => sel.has(b.id))
+  const allSelected = selectable.length > 0 && selected.length === selectable.length
+  const toggle = (id: number) => setSel((s) => { const x = new Set(s); if (x.has(id)) x.delete(id); else x.add(id); return x })
 
   const columns: ColumnDef<BhavBookingDto, unknown>[] = [
+    ...(canDelete ? [{
+      id: 'select',
+      header: () => <Checkbox aria-label="Choose all pending bookings on this page" checked={allSelected} disabled={selectable.length === 0} onCheckedChange={(c) => setSel(c ? new Set(selectable.map((b) => b.id)) : new Set())} />,
+      cell: ({ row }) => row.original.status === 'PENDING' ? <Checkbox aria-label={`Choose booking ${row.original.bookingNo}`} checked={sel.has(row.original.id)} onCheckedChange={() => toggle(row.original.id)} /> : null,
+    } satisfies ColumnDef<BhavBookingDto, unknown>] : []),
     { header: 'No', cell: ({ row }) => <span className="font-medium">#{row.original.bookingNo}</span> },
     { header: 'Date', cell: ({ row }) => date(row.original.txnDate) },
     { header: 'Side', cell: ({ row }) => <Badge variant="secondary">{row.original.side}</Badge> },
@@ -124,6 +142,10 @@ export function BhavBookings() {
       const isOpen = b.status === 'PENDING' || b.status === 'PARTIAL'
       return (
         <div className="flex justify-end gap-1">
+          {/* deliver = a new Buy/Sell prefilled with this booking (same flow as picking it there); posts at the booking's branch */}
+          {canDeliver && isOpen && (activeBranch === String(b.branch.id)
+            ? <Button asChild variant="ghost" size="sm"><Link to={`/app/buy_sell/new?booking=${b.id}`}><Truck className="size-4" aria-hidden />Deliver</Link></Button>
+            : <Button variant="ghost" size="sm" disabled title={`Switch to branch ${b.branch.name} to deliver`}><Truck className="size-4" aria-hidden />Deliver</Button>)}
           {canEdit && isOpen && <Button variant="ghost" size="sm" onClick={() => setCancelling(b)}>Cancel</Button>}
           {/* only an untouched PENDING booking can be deleted (the server reverses its advance) */}
           {canDelete && b.status === 'PENDING' && <Button variant="ghost" size="sm" onClick={() => setDeleting(b)}>Delete</Button>}
@@ -171,16 +193,16 @@ export function BhavBookings() {
 
       <Card>
         <CardContent className="flex flex-wrap items-end gap-3 pt-6">
-          <Input className="max-w-xs" placeholder="Search no / party / mobile…" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
-          <Select value={side || 'all'} onValueChange={(v) => { setSide(v === 'all' ? '' : v); setPage(1) }}>
+          <Input className="max-w-xs" placeholder="Search no / party / mobile…" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); clearSel() }} />
+          <Select value={side || 'all'} onValueChange={(v) => { setSide(v === 'all' ? '' : v); setPage(1); clearSel() }}>
             <SelectTrigger className="w-32" aria-label="Side"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="all">All sides</SelectItem>{TRADE_SIDES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
           </Select>
-          <Select value={metal || 'all'} onValueChange={(v) => { setMetal(v === 'all' ? '' : v); setPage(1) }}>
+          <Select value={metal || 'all'} onValueChange={(v) => { setMetal(v === 'all' ? '' : v); setPage(1); clearSel() }}>
             <SelectTrigger className="w-32" aria-label="Metal"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="all">All metals</SelectItem>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
           </Select>
-          <Select value={status} onValueChange={(v) => { setStatus(v); setPage(1) }}>
+          <Select value={status} onValueChange={(v) => { setStatus(v); setPage(1); clearSel() }}>
             <SelectTrigger className="w-40" aria-label="Status"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="open">Open (pending)</SelectItem>
@@ -188,14 +210,28 @@ export function BhavBookings() {
               {BHAV_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
             </SelectContent>
           </Select>
+          {canDelete && selected.length > 0 && (
+            <Button variant="outline" className="ml-auto text-destructive hover:text-destructive" disabled={bulkDelete.isPending} onClick={() => setBulkDeleting(true)}>
+              Delete selected ({selected.length})
+            </Button>
+          )}
         </CardContent>
       </Card>
 
       <Card className="p-4">
-        <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} emptyText="No bookings" pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined} />
+        <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} emptyText="No bookings" pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: (p) => { setPage(p); clearSel() } } : undefined} />
       </Card>
       <MpinDialog open={!!cancelling} title={`Cancel booking #${cancelling?.bookingNo ?? ''}`} onConfirm={(mpin) => cancel.mutateAsync({ id: cancelling!.id, mpin })} onClose={() => setCancelling(null)} />
       <MpinDialog open={!!deleting} title={`Delete booking #${deleting?.bookingNo ?? ''}`} onConfirm={(mpin) => del.mutateAsync({ id: deleting!.id, mpin })} onClose={() => setDeleting(null)} />
+      <MpinDialog
+        open={bulkDeleting}
+        title={`Delete ${selected.length} booking${selected.length === 1 ? '' : 's'}`}
+        onConfirm={async (mpin) => {
+          await bulkDelete.mutateAsync({ bookings: selected.map((b) => ({ id: b.id, bookingNo: b.bookingNo })), mpin })
+          clearSel()
+        }}
+        onClose={() => setBulkDeleting(false)}
+      />
     </div>
   )
 }

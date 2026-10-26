@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { TableCard } from '@/components/SectionCard'
 import { Button } from '@/components/ui/button'
@@ -8,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useDayBookAllInOne } from '@/lib/accountsQueries'
+import { sourceHref } from '@/lib/sourceLinks'
 import { useT } from '@/lib/i18n'
 import { LEDGER_ASSETS, LEDGER_SOURCES, businessDayISO } from '@/shared'
 
@@ -52,7 +54,10 @@ export function DayBookAllInOne() {
               : data?.items.length ? data.items.map((r, i) => (
                 <TableRow key={`${r.source}-${r.sourceId}-${i}`}>
                   <TableCell className="whitespace-nowrap">{new Date(r.txnDate).toLocaleDateString('en-IN')}</TableCell>
-                  <TableCell className="whitespace-nowrap text-sm">{r.source}</TableCell>
+                  <TableCell className="whitespace-nowrap text-sm">{(() => {
+                    const href = sourceHref(r.source, r.sourceId)
+                    return href ? <Link to={href} className="font-medium text-brand-strong hover:underline">{r.source} #{r.sourceId}</Link> : `${r.source} #${r.sourceId}`
+                  })()}</TableCell>
                   <TableCell className="text-sm">{r.party?.name ?? '—'}</TableCell>
                   {LEDGER_ASSETS.map((a) => (
                     <TableCell key={a} className="whitespace-nowrap text-right tabular-nums">

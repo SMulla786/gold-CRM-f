@@ -210,13 +210,42 @@ function MoveDialog({ node, all, onClose }: { node: BranchNodeDto; all: BranchNo
   )
 }
 
-function TreeRow({ node, all, collapsed, toggle }: { node: BranchNodeDto; all: BranchNodeDto[]; collapsed: Set<number>; toggle: (id: number) => void }) {
+// Ids of nodes whose name matches `q`, plus every ancestor of a match (so the tree path stays visible).
+const matchTree = (n: BranchNodeDto, q: string, out: Set<number>): boolean => {
+  let hit = n.name.toLowerCase().includes(q)
+  for (const c of n.children) if (matchTree(c, q, out)) hit = true
+  if (hit) out.add(n.id)
+  return hit
+}
+
+function TreeRow({
+  node,
+  all,
+  collapsed,
+  toggle,
+  visible,
+  stateName,
+}: {
+  node: BranchNodeDto
+  all: BranchNodeDto[]
+  collapsed: Set<number>
+  toggle: (id: number) => void
+  visible?: Set<number> | null
+  stateName?: Map<number, string>
+}) {
   const { me } = useAuth()
   const add = useAddBranch()
   const update = useUpdateBranch()
   const [dialog, setDialog] = useState<'add' | 'edit' | 'move' | null>(null)
   const hasChildren = node.children.length > 0
-  const isCollapsed = collapsed.has(node.id)
+  // While searching, matches are always expanded so they can't hide under a collapsed parent.
+  const isCollapsed = !visible && collapsed.has(node.id)
+  const kids = visible ? node.children.filter((c) => visible.has(c.id)) : node.children
+  const contact = [
+    node.inchargeName,
+    node.mobile ? `${node.countryCode ?? ''} ${node.mobile}`.trim() : null,
+    node.stateId != null ? stateName?.get(node.stateId) : null,
+  ].filter(Boolean)
   // Can't toggle admin-node on the business root or on the caller's own node (API rejects both).
   const canToggleAdmin = node.parentId !== null && node.id !== me?.branch?.id
 
@@ -235,6 +264,7 @@ function TreeRow({ node, all, collapsed, toggle }: { node: BranchNodeDto; all: B
         {node.isAdminNode && <Badge variant="secondary">admin node</Badge>}
         {!node.isActive && <Badge variant="destructive">inactive</Badge>}
         <span className="text-xs text-muted-foreground">· {node.userCount} users</span>
+        {contact.length > 0 && <span className="text-xs text-muted-foreground">· {contact.join(' · ')}</span>}
         <div className="ml-auto">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -256,7 +286,7 @@ function TreeRow({ node, all, collapsed, toggle }: { node: BranchNodeDto; all: B
         </div>
       </div>
 
-      {!isCollapsed && node.children.map((c) => <TreeRow key={c.id} node={c} all={all} collapsed={collapsed} toggle={toggle} />)}
+      {!isCollapsed && kids.map((c) => <TreeRow key={c.id} node={c} all={all} collapsed={collapsed} toggle={toggle} visible={visible} stateName={stateName} />)}
 
       {dialog === 'add' && (
         <BranchDialog
@@ -284,6 +314,9 @@ export function Branches() {
   const [showOverview, setShowOverview] = useState(false)
   const { data: overview } = useAdminOverview()
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set())
+  const [search, setSearch] = useState('')
+  const { data: states } = useStates()
+  const stateName = new Map((states ?? []).map((s) => [s.id, s.name]))
   const toggle = (id: number) =>
     setCollapsed((s) => {
       const n = new Set(s)
@@ -294,6 +327,9 @@ export function Branches() {
 
   if (isLoading || !root) return <p className="text-sm text-muted-foreground">Loading…</p>
   const all = flatten(root)
+  const q = search.trim().toLowerCase()
+  const visible = q ? new Set<number>() : null
+  const anyMatch = visible ? matchTree(root, q, visible) : true
 
   return (
     <div className="space-y-8">
@@ -307,8 +343,13 @@ export function Branches() {
         </Button>
       </div>
       {showOverview && overview && <BranchOverviewTable rows={overview.branches} />}
+      <Input className="max-w-xs" placeholder="Search branch name…" aria-label="Search branch name" value={search} onChange={(e) => setSearch(e.target.value)} />
       <div className="rounded-md border">
-        <TreeRow node={root} all={all} collapsed={collapsed} toggle={toggle} />
+        {anyMatch ? (
+          <TreeRow node={root} all={all} collapsed={collapsed} toggle={toggle} visible={visible} stateName={stateName} />
+        ) : (
+          <p className="py-6 text-center text-sm text-muted-foreground">No branch matches “{search.trim()}”</p>
+        )}
       </div>
     </div>
   )

@@ -1,5 +1,5 @@
 import type { ColumnDef } from '@tanstack/react-table'
-import { Boxes, Gem, Hash, Layers, type LucideIcon } from 'lucide-react'
+import { Boxes, Gem, Hash, Layers, Plus, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 
 import { DataTable } from '@/components/DataTable'
@@ -66,11 +66,11 @@ function LimitFields({ prefix, value, onChange }: { prefix: string; value: Limit
 
 const EDIT_HINT = 'Blank fields keep their current value.'
 
-function GroupDialog({ group, onClose }: { group?: ItemGroupDto; onClose: () => void }) {
+function GroupDialog({ group, defaultClass, onCreated, onClose }: { group?: ItemGroupDto; defaultClass?: string; onCreated?: (groups: ItemGroupDto[]) => void; onClose: () => void }) {
   const editing = !!group
   const create = useCreateItemGroup()
   const update = useUpdateItemGroup()
-  const [stockClass, setStockClass] = useState<string>(group?.stockClass ?? 'GOLD')
+  const [stockClass, setStockClass] = useState<string>(group?.stockClass ?? defaultClass ?? 'GOLD')
   const { data: types } = useJewelleryTypes(stockClass)
   const [jewelleryTypeId, setJewelleryTypeId] = useState(str(group?.jewelleryType?.id))
   const [gstRate, setGstRate] = useState(group?.gstRate ?? '3')
@@ -185,7 +185,8 @@ function GroupDialog({ group, onClose }: { group?: ItemGroupDto; onClose: () => 
             <Button
               disabled={names.length === 0 || create.isPending}
               onClick={async () => {
-                await create.mutateAsync({ stockClass, names, gstRate: Number(gstRate), jewelleryTypeId: jewelleryTypeId ? Number(jewelleryTypeId) : undefined, ...extra })
+                const created = await create.mutateAsync({ stockClass, names, gstRate: Number(gstRate), jewelleryTypeId: jewelleryTypeId ? Number(jewelleryTypeId) : undefined, ...extra })
+                onCreated?.(created)
                 onClose()
               }}
             >
@@ -198,7 +199,8 @@ function GroupDialog({ group, onClose }: { group?: ItemGroupDto; onClose: () => 
   )
 }
 
-function ItemNameDialog({ groups, item, onClose }: { groups: ItemGroupDto[]; item?: ItemNameDto; onClose: () => void }) {
+/** Create/edit an item name. Exported for New Stock's inline 'New item'; `stockClass` seeds the inline new-group dialog. */
+export function ItemNameDialog({ groups, item, stockClass, onCreated, onClose }: { groups: ItemGroupDto[]; item?: ItemNameDto; stockClass?: string; onCreated?: (item: ItemNameDto) => void; onClose: () => void }) {
   const editing = !!item
   const create = useCreateItemName()
   const update = useUpdateItemName()
@@ -214,6 +216,7 @@ function ItemNameDialog({ groups, item, onClose }: { groups: ItemGroupDto[]; ite
   const [limits, setLimits] = useState<Limits>({ minWeight: str(item?.minWeight), maxWeight: str(item?.maxWeight), minPcs: str(item?.minPcs), maxPcs: str(item?.maxPcs) })
   const [def, setDef] = useState<Record<'karat' | 'tunch' | 'wastage' | 'labour' | 'labourUnit', string>>({ karat: item?.defKaratCode ?? '', tunch: str(item?.defTunch), wastage: str(item?.defWastage), labour: str(item?.defLabour), labourUnit: item?.defLabourUnit ?? '' })
   const needsTag = method === 'TAG' || method === 'BOTH'
+  const [newGroup, setNewGroup] = useState(false)
 
   // Active groups only, but keep the current group visible when editing.
   const groupOpts = groups.filter((g) => g.isActive || String(g.id) === groupId)
@@ -245,18 +248,26 @@ function ItemNameDialog({ groups, item, onClose }: { groups: ItemGroupDto[]; ite
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label>Group</Label>
-            <Select value={groupId} disabled={editing} onValueChange={setGroupId}>
-              <SelectTrigger aria-label="Group">
-                <SelectValue placeholder="Select group" />
-              </SelectTrigger>
-              <SelectContent>
-                {groupOpts.map((g) => (
-                  <SelectItem key={g.id} value={String(g.id)}>
-                    {CLASS_LABEL[g.stockClass]} · {g.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2">
+              <Select value={groupId} disabled={editing} onValueChange={setGroupId}>
+                <SelectTrigger aria-label="Group">
+                  <SelectValue placeholder="Select group" />
+                </SelectTrigger>
+                <SelectContent>
+                  {groupOpts.map((g) => (
+                    <SelectItem key={g.id} value={String(g.id)}>
+                      {CLASS_LABEL[g.stockClass]} · {g.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!editing && (
+                <Button type="button" variant="outline" className="shrink-0" onClick={() => setNewGroup(true)}>
+                  <Plus className="size-4" aria-hidden />
+                  New group
+                </Button>
+              )}
+            </div>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="n-name">Item name</Label>
@@ -380,7 +391,8 @@ function ItemNameDialog({ groups, item, onClose }: { groups: ItemGroupDto[]; ite
             <Button
               disabled={!groupId || !name.trim() || (needsTag && !tagPrefix) || create.isPending}
               onClick={async () => {
-                await create.mutateAsync({ groupId: Number(groupId), ...body() })
+                const created = await create.mutateAsync({ groupId: Number(groupId), ...body() })
+                onCreated?.(created)
                 onClose()
               }}
             >
@@ -388,6 +400,7 @@ function ItemNameDialog({ groups, item, onClose }: { groups: ItemGroupDto[]; ite
             </Button>
           )}
         </DialogFooter>
+        {newGroup && <GroupDialog defaultClass={groupClass ?? stockClass} onCreated={(gs) => gs[0] && setGroupId(String(gs[0].id))} onClose={() => setNewGroup(false)} />}
       </DialogContent>
     </Dialog>
   )

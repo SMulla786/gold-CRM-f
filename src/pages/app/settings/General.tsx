@@ -166,6 +166,7 @@ function KaratCard({ ask }: { ask: (a: MpinAction) => void }) {
   const del = useDeleteKarat()
   const [add, setAdd] = useState({ metal: 'GOLD', code: '', title: '', touch: '' })
   const [edit, setEdit] = useState<Record<number, string>>({}) // id -> touch being edited
+  const [editTitle, setEditTitle] = useState<Record<number, string>>({}) // id -> display title being edited
 
   // Validate with the shared schema (blank touch -> error, not 0).
   const submitAdd = () => {
@@ -174,17 +175,30 @@ function KaratCard({ ask }: { ask: (a: MpinAction) => void }) {
     create.mutate(parsed.data)
     setAdd({ metal: 'GOLD', code: '', title: '', touch: '' })
   }
-  const saveTouch = (id: number, value: string) => {
-    const parsed = karatBody.shape.touch.safeParse(value)
-    if (!parsed.success) return toast.error(parsed.error.issues[0]?.message ?? 'Invalid touch')
+  // Sends only the fields that changed (updateKaratBody accepts title and/or touch).
+  const saveTouch = (k: KaratDto) => {
+    const body: { title?: string; touch?: number } = {}
+    if (edit[k.id] !== undefined && edit[k.id] !== k.touch) {
+      const parsed = karatBody.shape.touch.safeParse(edit[k.id])
+      if (!parsed.success) return toast.error(parsed.error.issues[0]?.message ?? 'Invalid touch')
+      body.touch = parsed.data
+    }
+    if (editTitle[k.id] !== undefined && editTitle[k.id] !== k.title) {
+      const parsed = karatBody.shape.title.safeParse(editTitle[k.id])
+      if (!parsed.success) return toast.error(parsed.error.issues[0]?.message ?? 'Invalid title')
+      body.title = parsed.data
+    }
     ask({
       title: 'Save karat',
       run: async (mpin) => {
-        await update.mutateAsync({ id, body: { touch: parsed.data }, mpin })
-        setEdit((p) => { const n = { ...p }; delete n[id]; return n })
+        await update.mutateAsync({ id: k.id, body, mpin })
+        const drop = (p: Record<number, string>) => { const n = { ...p }; delete n[k.id]; return n }
+        setEdit(drop)
+        setEditTitle(drop)
       },
     })
   }
+  const isDirty = (k: KaratDto) => (edit[k.id] !== undefined && edit[k.id] !== k.touch) || (editTitle[k.id] !== undefined && editTitle[k.id] !== k.title)
 
   return (
     <Card>
@@ -194,7 +208,17 @@ function KaratCard({ ask }: { ask: (a: MpinAction) => void }) {
       <CardContent className="space-y-3">
         {karats?.map((k: KaratDto) => (
           <div key={k.id} className="flex flex-wrap items-center gap-3 rounded-xl border bg-muted/40 px-4 py-2 text-sm">
-            <span className="w-16 font-medium">{k.title}</span>
+            {canEdit ? (
+              <Input
+                className="w-24 font-medium"
+                aria-label={`${k.title} title`}
+                maxLength={30}
+                value={editTitle[k.id] ?? k.title}
+                onChange={(e) => setEditTitle({ ...editTitle, [k.id]: e.target.value })}
+              />
+            ) : (
+              <span className="w-16 font-medium">{k.title}</span>
+            )}
             <Badge variant="secondary">{k.metal}</Badge>
             <span className="text-muted-foreground">{k.code}</span>
             <Input
@@ -207,8 +231,8 @@ function KaratCard({ ask }: { ask: (a: MpinAction) => void }) {
               onChange={(e) => setEdit({ ...edit, [k.id]: e.target.value })}
             />
             <span className="text-muted-foreground">% touch</span>
-            {canEdit && edit[k.id] !== undefined && edit[k.id] !== k.touch && (
-              <Button size="sm" variant="outline" onClick={() => saveTouch(k.id, edit[k.id])}>
+            {canEdit && isDirty(k) && (
+              <Button size="sm" variant="outline" onClick={() => saveTouch(k)}>
                 Save
               </Button>
             )}

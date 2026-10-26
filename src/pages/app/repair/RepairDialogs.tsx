@@ -88,6 +88,14 @@ export function NewTicketDialog({ onClose }: { onClose: () => void }) {
   )
 }
 
+const QA_QUICK_REMARKS = ['Polish OK', 'Stone set checked', 'Solder joint OK', 'Weight verified', 'Clasp working', 'Rework needed']
+/** Appends a quick remark to the free-text remarks (comma separated), skipping duplicates and keeping the 300-character limit. */
+const appendRemark = (current: string, add: string) => {
+  const base = current.trim().replace(/[,.;]\s*$/, '')
+  if (base.toLowerCase().split(/,\s*/).includes(add.toLowerCase())) return current
+  return (base ? `${base}, ${add}` : add).slice(0, 300)
+}
+
 export function QADialog({ ticket, onClose }: { ticket: RepairTicketDto; onClose: () => void }) {
   const move = useRepairStatus()
   const [finalWeight, setFinalWeight] = useState(ticket.gross)
@@ -100,6 +108,14 @@ export function QADialog({ ticket, onClose }: { ticket: RepairTicketDto; onClose
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5"><Label htmlFor="qa-fw">Final weight (g)</Label><Input id="qa-fw" type="number" step="0.001" value={finalWeight} onChange={(e) => setFinalWeight(e.target.value)} /></div>
           <div className="col-span-2 space-y-1.5"><Label htmlFor="qa-rem">Remarks</Label><textarea id="qa-rem" rows={3} maxLength={300} className={TEXTAREA} value={remarks} onChange={(e) => setRemarks(e.target.value)} /></div>
+          <div className="col-span-2 space-y-1.5">
+            <p className="text-xs text-muted-foreground">Quick remarks (tap to add)</p>
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Quick remarks">
+              {QA_QUICK_REMARKS.map((r) => (
+                <Button key={r} type="button" size="sm" variant="outline" className="h-7 rounded-full px-3 text-xs" onClick={() => setRemarks((s) => appendRemark(s, r))}>{r}</Button>
+              ))}
+            </div>
+          </div>
         </div>
         <DialogFooter>
           <Button disabled={n(finalWeight) <= 0 || remarks.trim().length < 1 || move.isPending} onClick={async () => { await move.mutateAsync({ id: ticket.id, body: { status: 'READY', finalWeight: n(finalWeight), remarks: remarks.trim() } }); onClose() }}>Mark ready</Button>

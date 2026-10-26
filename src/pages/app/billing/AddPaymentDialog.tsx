@@ -13,17 +13,19 @@ import { businessDayISO, type BillListItemDto } from '@/shared'
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const today = businessDayISO
 
-/** Add a CASH/ONLINE payment to a bill. Reused by the bill list and the udhari pending-bills tab. */
+/** Add a payment to a bill — cash, online or both split in one go. Reused by the bill list and the udhari pending-bills tab. */
 export function AddPaymentDialog({ bill, onClose }: { bill: BillListItemDto; onClose: () => void }) {
   const t = useT()
   const add = useAddBillPayments()
   const { data: banks } = useBankAccounts()
-  const [mode, setMode] = useState('CASH')
-  const [amount, setAmount] = useState('')
+  const [cash, setCash] = useState('')
+  const [online, setOnline] = useState('')
   const [bankAccountId, setBank] = useState('')
   const [txnDate, setTxnDate] = useState(today())
   const [remark, setRemark] = useState('')
-  const ok = Number(amount) > 0 && (mode === 'CASH' || bankAccountId)
+  const cashAmt = Number(cash) || 0
+  const onlineAmt = Number(online) || 0
+  const ok = cashAmt >= 0 && onlineAmt >= 0 && cashAmt + onlineAmt > 0 && (onlineAmt === 0 || !!bankAccountId)
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
@@ -31,17 +33,14 @@ export function AddPaymentDialog({ bill, onClose }: { bill: BillListItemDto; onC
         <p className="text-sm text-muted-foreground">{t('bill.balance_amt', { amount: inr(bill.balance) })}</p>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label>{t('bill.mode')}</Label>
-            <Select value={mode} onValueChange={setMode}>
-              <SelectTrigger aria-label="Payment mode"><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="CASH">{t('bill.cash')}</SelectItem><SelectItem value="ONLINE">{t('bill.online')}</SelectItem></SelectContent>
-            </Select>
+            <Label htmlFor="ap-cash">{t('bill.cash')}</Label>
+            <Input id="ap-cash" type="number" min="0" value={cash} onChange={(e) => setCash(e.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="ap-amt">{t('bill.amount')}</Label>
-            <Input id="ap-amt" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            <Label htmlFor="ap-online">{t('bill.online')}</Label>
+            <Input id="ap-online" type="number" min="0" value={online} onChange={(e) => setOnline(e.target.value)} />
           </div>
-          {mode === 'ONLINE' && (
+          {onlineAmt > 0 && (
             <div className="col-span-2 space-y-1.5">
               <Label>{t('bill.bank_account')}</Label>
               <Select value={bankAccountId} onValueChange={setBank}>
@@ -63,10 +62,11 @@ export function AddPaymentDialog({ bill, onClose }: { bill: BillListItemDto; onC
           <Button
             disabled={!ok || add.isPending}
             onClick={async () => {
-              const payment = mode === 'ONLINE'
-                ? { mode: 'ONLINE', amount: Number(amount), bankAccountId: Number(bankAccountId), remark: remark || undefined }
-                : { mode: 'CASH', amount: Number(amount), remark: remark || undefined }
-              await add.mutateAsync({ id: bill.id, body: { payments: [payment], txnDate } })
+              const payments = [
+                ...(cashAmt > 0 ? [{ mode: 'CASH', amount: cashAmt, remark: remark || undefined }] : []),
+                ...(onlineAmt > 0 ? [{ mode: 'ONLINE', amount: onlineAmt, bankAccountId: Number(bankAccountId), remark: remark || undefined }] : []),
+              ]
+              await add.mutateAsync({ id: bill.id, body: { payments, txnDate } })
               onClose()
             }}
           >

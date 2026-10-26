@@ -1,8 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { ColumnDef } from '@tanstack/react-table'
-import { ArrowDownLeft, ArrowUpRight, Plus, TrendingUp } from 'lucide-react'
+import { ArrowDownLeft, ArrowUpRight, Plus, Search, TrendingUp } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
+import { Link } from 'react-router-dom'
 import { z } from 'zod'
 
 import { DataTable } from '@/components/DataTable'
@@ -20,6 +21,7 @@ import { useBankAccounts } from '@/lib/appQueries'
 import { useCreateIncomeExpense, useDeleteIncomeExpense, useIncomeExpense, useIncomeExpenseSummary, useUpdateIncomeExpense } from '@/lib/accountsQueries'
 import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
+import { sourceHref } from '@/lib/sourceLinks'
 import { businessDayISO, IE_SOURCE_TYPES, incomeExpenseBody, type IncomeExpenseDto } from '@/shared'
 
 type IEIn = z.input<typeof incomeExpenseBody>
@@ -153,8 +155,10 @@ export function IncomeExpense() {
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [summaryView, setSummaryView] = useState(false)
+  const [q, setQ] = useState('')
+  const [pageSize, setPageSize] = useState(20)
   const filters = { type: type || undefined, sourceType: sourceType || undefined, from: from || undefined, to: to || undefined }
-  const { data, isLoading } = useIncomeExpense({ page, ...filters }, canList && !summaryView)
+  const { data, isLoading } = useIncomeExpense({ page, pageSize, q: q || undefined, ...filters }, canList && !summaryView)
   const { data: summary, isLoading: summaryLoading } = useIncomeExpenseSummary(filters, canList && summaryView)
   const del = useDeleteIncomeExpense()
   const [creating, setCreating] = useState(false)
@@ -166,7 +170,15 @@ export function IncomeExpense() {
   const columns: ColumnDef<IncomeExpenseDto, unknown>[] = [
     { accessorKey: 'txnDate', header: t('udhari.date'), cell: ({ row }) => date(row.original.txnDate) },
     { accessorKey: 'type', header: t('bill.type'), cell: ({ row }) => <Badge variant={row.original.type === 'INCOME' ? 'default' : 'secondary'}>{row.original.type}</Badge> },
-    { accessorKey: 'reason', header: t('ie.reason') },
+    {
+      accessorKey: 'reason', header: t('ie.reason'),
+      // auto rows (sale/purchase/udhar…) link to their source document
+      cell: ({ row }) => {
+        const r = row.original
+        const href = r.sourceType && r.sourceType !== 'DIRECT' ? sourceHref(r.sourceType, String(r.id)) : null
+        return href ? <Link to={href} className="font-medium text-brand-strong hover:underline">{r.reason}</Link> : r.reason
+      },
+    },
     { header: t('ie.col_cash'), cell: ({ row }) => (Number(row.original.cash) ? inr(row.original.cash) : '—') },
     { header: t('ie.col_online'), cell: ({ row }) => (Number(row.original.online) ? inr(row.original.online) : '—') },
     { header: t('udhari.metal'), cell: ({ row }) => [Number(row.original.gold) ? `${row.original.gold}g Au` : '', Number(row.original.silver) ? `${row.original.silver}g Ag` : ''].filter(Boolean).join(' ') || '—' },
@@ -174,8 +186,9 @@ export function IncomeExpense() {
     {
       id: 'actions',
       header: '',
+      // only manual entries are editable here; auto rows belong to their module (their id is the source doc's, not an entry's)
       cell: ({ row }) =>
-        canEdit ? (
+        canEdit && (row.original.sourceType ?? 'DIRECT') === 'DIRECT' ? (
           <div className="flex gap-2">
             {isToday(row.original.txnDate) && (
               <Button variant="outline" size="sm" onClick={() => setEditing(row.original)}>
@@ -206,6 +219,12 @@ export function IncomeExpense() {
 
       {canList && (
         <Card className="flex flex-wrap items-center gap-3 p-4">
+          {!summaryView && (
+            <div className="relative w-full sm:max-w-xs sm:flex-1">
+              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+              <Input className="pl-9" placeholder={t('ie.search')} value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
+            </div>
+          )}
           <Select value={type || 'all'} onValueChange={(v) => { setType(v === 'all' ? '' : v); setPage(1) }}>
             <SelectTrigger className="w-36" aria-label="Filter by type">
               <SelectValue />
@@ -276,7 +295,7 @@ export function IncomeExpense() {
           data={data?.items ?? []}
           isLoading={isLoading}
           emptyText={t('ie.empty')}
-          pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined}
+          pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: setPageSize } : undefined}
         />
       )}
 

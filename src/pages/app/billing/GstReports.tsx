@@ -1,5 +1,7 @@
 import type { ColumnDef } from '@tanstack/react-table'
+import { Search } from 'lucide-react'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { DataTable } from '@/components/DataTable'
 import { TableCard } from '@/components/SectionCard'
@@ -14,7 +16,7 @@ import { useGstHsn, useGstRegister, useGstSummary } from '@/lib/reportsQueries'
 import { downloadCsv } from '@/lib/csv'
 import { useT } from '@/lib/i18n'
 import { fetchAllPaged } from '@/lib/queries'
-import type { GstRegisterRowDto } from '@/shared'
+import { businessDayISO, type GstRegisterRowDto } from '@/shared'
 
 import { Gstr1Report } from './Gstr1Report'
 import { Gstr3bReport } from './Gstr3bReport'
@@ -31,16 +33,19 @@ export function GstReports() {
   const [mode, setMode] = useState('register')
   const [kind, setKind] = useState('SELL')
   const [groupBy, setGroupBy] = useState('MONTH')
-  const [from, setFrom] = useState('')
-  const [to, setTo] = useState('')
+  // default period = current month (returns are filed monthly); clear the dates for all time
+  const [from, setFrom] = useState(() => `${businessDayISO().slice(0, 7)}-01`)
+  const [to, setTo] = useState(businessDayISO)
+  const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
   const [exporting, setExporting] = useState(false)
   const r = { from: from || undefined, to: to || undefined }
 
   const exportRegister = async () => {
     setExporting(true)
     try {
-      const all = await fetchAllPaged<GstRegisterRowDto>('/app/gst/register', { ...r, kind })
+      const all = await fetchAllPaged<GstRegisterRowDto>('/app/gst/register', { ...r, kind, q: q || undefined })
       const header = ['Bill', 'Date', 'Party', 'GSTIN', 'HSN', 'Taxable', 'CGST', 'SGST', 'IGST', 'Total']
       const body = all.map((x) => [x.billNo, date(x.billDate), x.party.name, x.party.gstin ?? '', x.hsnCodes.join(' '), x.taxable, x.cgst, x.sgst, x.igst, x.total])
       downloadCsv(`gst-register-${kind.toLowerCase()}.csv`, [header, ...body])
@@ -49,14 +54,16 @@ export function GstReports() {
     }
   }
 
-  const register = useGstRegister({ ...r, kind, page })
+  const register = useGstRegister({ ...r, kind, q: q || undefined, page, pageSize })
   const hsn = useGstHsn(r)
   const summary = useGstSummary({ ...r, groupBy })
 
   const regCols: ColumnDef<GstRegisterRowDto, unknown>[] = [
-    { header: t('bill.col_bill'), cell: ({ row }) => row.original.billNo },
+    { id: 'sn', header: '#', cell: ({ row }) => <span className="text-muted-foreground tabular-nums">{(page - 1) * pageSize + row.index + 1}</span> },
+    { header: t('bill.col_bill'), cell: ({ row }) => <Link to={`/app/billing/view/${row.original.billId}`} className="font-semibold text-brand-strong hover:underline">{row.original.billNo}</Link> },
     { header: t('udhari.date'), cell: ({ row }) => date(row.original.billDate) },
-    { header: t('udhari.party'), cell: ({ row }) => <span>{row.original.party.name}{row.original.party.gstin ? <span className="block text-xs text-muted-foreground">{row.original.party.gstin}</span> : null}</span> },
+    { header: t('udhari.party'), cell: ({ row }) => row.original.party.name },
+    { header: 'GSTIN', cell: ({ row }) => <span className="font-mono text-xs">{row.original.party.gstin ?? '—'}</span> },
     { header: 'HSN', cell: ({ row }) => row.original.hsnCodes.join(', ') || '—' },
     { header: t('gst.taxable'), cell: ({ row }) => inr(row.original.taxable) },
     { header: 'CGST', cell: ({ row }) => inr(row.original.cgst) },
@@ -82,6 +89,12 @@ export function GstReports() {
             </SelectContent>
           </Select>
         </div>
+        {mode === 'register' && (
+          <div className="relative w-full sm:max-w-xs sm:flex-1">
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+            <Input className="pl-9" placeholder={t('gst.search')} value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
+          </div>
+        )}
         {mode === 'register' && (
           <div className="space-y-1.5">
             <Label>{t('gst.kind')}</Label>
@@ -115,7 +128,7 @@ export function GstReports() {
           data={register.data?.items ?? []}
           isLoading={register.isLoading}
           emptyText={t('gst.no_bills')}
-          pagination={register.data ? { page: register.data.page, pageSize: register.data.pageSize, total: register.data.total, onPage: setPage } : undefined}
+          pagination={register.data ? { page: register.data.page, pageSize: register.data.pageSize, total: register.data.total, onPage: setPage, onPageSize: setPageSize } : undefined}
         />
       )}
 

@@ -1,4 +1,4 @@
-import { Check, CheckCircle2, X } from 'lucide-react'
+import { Check, CheckCircle2, Search, X } from 'lucide-react'
 import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -58,7 +58,11 @@ function RejectDialog({ draft, onClose }: { draft: SalesDraftDto; onClose: () =>
 
 export function DraftApprovals() {
   const t = useT()
-  const { data, isLoading } = useDrafts({ status: 'PENDING', page: 1, pageSize: 50 })
+  const [q, setQ] = useState('')
+  const [page, setPage] = useState(1)
+  const PAGE = 20
+  const { data, isLoading } = useDrafts({ status: 'PENDING', q: q || undefined, page, pageSize: PAGE })
+  const pages = data ? Math.max(1, Math.ceil(data.total / PAGE)) : 1
   const [approving, setApproving] = useState<SalesDraftDto | null>(null)
   const [rejecting, setRejecting] = useState<SalesDraftDto | null>(null)
 
@@ -68,6 +72,19 @@ export function DraftApprovals() {
         <h2 className="text-xl">{t('draft.pending_title')}</h2>
         <p className="mt-1 text-sm text-muted-foreground">{t('draft.approvals_subtitle')}</p>
       </div>
+      <Card className="flex flex-wrap items-center gap-3 p-4">
+        <div className="relative w-full sm:max-w-sm sm:flex-1">
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+          <Input className="pl-9" placeholder={t('draft.search')} value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
+        </div>
+        {data && data.total > PAGE && (
+          <div className="ml-auto flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">{t('table.page_of', { page, pages, total: data.total })}</span>
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>{t('table.previous')}</Button>
+            <Button variant="outline" size="sm" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>{t('table.next')}</Button>
+          </div>
+        )}
+      </Card>
       {isLoading ? (
         <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
       ) : data?.items.length ? (

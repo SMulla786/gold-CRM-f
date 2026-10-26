@@ -1,4 +1,4 @@
-import { Gem, Layers, Package, Scale, type LucideIcon } from 'lucide-react'
+import { Gem, Layers, Package, Plus, Scale, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
@@ -10,8 +10,10 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useKarats } from '@/lib/appQueries'
-import { useCreateStockEntry, useItemNames } from '@/lib/inventoryQueries'
+import { useAuth } from '@/lib/auth'
+import { useCreateStockEntry, useItemGroups, useItemNames } from '@/lib/inventoryQueries'
 import { plural } from '@/lib/plural'
+import { ItemNameDialog } from '@/pages/app/inventory/ItemMasters'
 import { CHARGE_UNITS, STOCK_CLASSES, computeLine } from '@/shared'
 
 const CLASS_LABEL: Record<string, string> = { GOLD: 'Gold', SILVER: 'Silver', STONE: 'Stone', ARTIFICIAL: 'Artificial', FRANCHISE: 'Franchise' }
@@ -49,6 +51,15 @@ export function NewStock() {
   const [clearAfterSave, setClearAfterSave] = useState(true)
   const { data: karats } = useKarats()
   const create = useCreateStockEntry()
+  const { can } = useAuth()
+  const canCreateItem = can('inventory.item_masters', 'edit')
+  // Inline 'New item': the row index whose picker gets the created item name.
+  const [newItemRow, setNewItemRow] = useState<number | null>(null)
+  const { data: groups } = useItemGroups({ stockClass, page: 1, pageSize: 100 })
+  // Apply rate: fill the rate input of blank rows (or every row when overwriting). Input convenience only.
+  const [bulkRate, setBulkRate] = useState('')
+  const [overwriteRate, setOverwriteRate] = useState(false)
+  const applyRate = () => setRows((rs) => rs.map((r) => (overwriteRate || r.rate === '' ? { ...r, rate: bulkRate } : r)))
 
   const set = (i: number, k: keyof Row, v: string) =>
     setRows((rs) =>
@@ -208,18 +219,25 @@ export function NewStock() {
                 return (
                   <TableRow key={i}>
                     <TableCell>
-                      <Select value={r.itemNameId} onValueChange={(v) => set(i, 'itemNameId', v)}>
-                        <SelectTrigger aria-label="Item name">
-                          <SelectValue placeholder="Item" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {names?.items.filter((n) => n.isActive || String(n.id) === r.itemNameId).map((n) => (
-                            <SelectItem key={n.id} value={String(n.id)}>
-                              {n.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex items-center gap-1">
+                        <Select value={r.itemNameId} onValueChange={(v) => set(i, 'itemNameId', v)}>
+                          <SelectTrigger aria-label="Item name">
+                            <SelectValue placeholder="Item" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {names?.items.filter((n) => n.isActive || String(n.id) === r.itemNameId).map((n) => (
+                              <SelectItem key={n.id} value={String(n.id)}>
+                                {n.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {canCreateItem && (
+                          <Button type="button" variant="ghost" size="icon" className="shrink-0" aria-label="New item name for this row" title="New item name" onClick={() => setNewItemRow(i)}>
+                            <Plus className="size-4" aria-hidden />
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                     {method === 'TAG' && (
                       <TableCell>
@@ -289,6 +307,14 @@ export function NewStock() {
               Repeat last
             </Button>
           </div>
+          <div className="flex items-center gap-2">
+            <Input className="w-24" type="number" min={0} placeholder="Rate" aria-label="Rate for rows" value={bulkRate} onChange={(e) => setBulkRate(e.target.value)} />
+            <Button variant="outline" disabled={bulkRate === ''} onClick={applyRate} title="Fill this rate into rows whose rate is blank">
+              Apply rate
+            </Button>
+            <Checkbox id="ns-rate-overwrite" checked={overwriteRate} onCheckedChange={(v) => setOverwriteRate(v === true)} />
+            <Label htmlFor="ns-rate-overwrite" className="font-normal">Overwrite filled rates</Label>
+          </div>
           <div className="ml-auto flex items-center gap-2">
             {method === 'TAG' && (
               <Button variant="outline" disabled={!valid || create.isPending} onClick={saveAndPrint}>
@@ -302,6 +328,14 @@ export function NewStock() {
         </div>
         <p className="text-xs text-muted-foreground">Net/Fine shown live; the server recomputes authoritatively on save.</p>
       </div>
+      {newItemRow !== null && (
+        <ItemNameDialog
+          groups={(groups?.items ?? []).filter((g) => g.stockClass === stockClass)}
+          stockClass={stockClass}
+          onCreated={(n) => { if (n.group.stockClass === stockClass) set(newItemRow, 'itemNameId', String(n.id)) }}
+          onClose={() => setNewItemRow(null)}
+        />
+      )}
     </div>
   )
 }
