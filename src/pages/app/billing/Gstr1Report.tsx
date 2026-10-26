@@ -1,3 +1,4 @@
+import { businessDayISO } from '@/shared'
 import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -8,7 +9,7 @@ import { DATE_LOCALE, useLocale, useT } from '@/lib/i18n'
 import { downloadGstr1Json, useGstr1 } from '@/lib/reportsQueries'
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
-const thisMonth = () => new Date().toISOString().slice(0, 7)
+const thisMonth = () => businessDayISO().slice(0, 7)
 /** "YYYY-MM" → first/last day of the month as ISO dates. */
 const monthRange = (m: string) => {
   const [y, mo] = m.split('-').map(Number)

@@ -11,11 +11,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useBankAccounts, useSettings } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { useCreateGirvi } from '@/lib/girviQueries'
-import type { PartyRefDto } from '@/shared'
+import { businessDayISO, type PartyRefDto } from '@/shared'
 
 let uid = 0
 const k = () => `g${uid++}`
-const today = () => new Date().toISOString().slice(0, 10)
+const today = businessDayISO
 const inr = (s: string | number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const n = (s: string) => Number(s) || 0
 

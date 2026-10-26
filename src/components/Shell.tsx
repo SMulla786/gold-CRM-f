@@ -1,9 +1,10 @@
 import {
-  ArrowLeftRight, BadgeIndianRupee, BarChart3, BookOpen, Boxes, Building2, ClipboardList,
+  ArrowLeftRight, Moon, Sun, BadgeIndianRupee, BarChart3, BookOpen, Boxes, Building2, ClipboardList,
   CreditCard, Gem, GitBranch, HandCoins, LayoutDashboard, LogOut, NotebookTabs, Package,
   PiggyBank, ReceiptText, Settings, ShieldCheck, Store, UserPlus, Users, Wrench,
 } from 'lucide-react'
 import { Suspense, useState, type ComponentType } from 'react'
+import { useTheme } from 'next-themes'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
 import { BranchSwitcher } from '@/components/BranchSwitcher'
@@ -15,6 +16,16 @@ import { useAuth } from '@/lib/auth'
 import { LOCALES, useLocale, useT } from '@/lib/i18n'
 import type { NavItem } from '@/lib/nav'
 import { cn } from '@/lib/utils'
+
+function ThemeToggle() {
+  const { resolvedTheme, setTheme } = useTheme()
+  const dark = resolvedTheme === 'dark'
+  return (
+    <Button variant="ghost" size="icon" onClick={() => setTheme(dark ? 'light' : 'dark')} aria-label={dark ? 'Light theme' : 'Dark theme'} title={dark ? 'Light theme' : 'Dark theme'}>
+      {dark ? <Sun className="text-brand" /> : <Moon />}
+    </Button>
+  )
+}
 
 function LanguageSwitch() {
   const { locale, setLocale } = useLocale()
@@ -76,7 +87,7 @@ export function Shell({ area, nav, showBranch }: ShellProps) {
         </div>
       )}
 
-      <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-4 border-b bg-card/85 px-4 backdrop-blur supports-[backdrop-filter]:bg-card/70">
+      <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-4 border-b bg-card/85 px-4 backdrop-blur supports-[backdrop-filter]:bg-card/70">
         <span className="flex items-center gap-2">
           <Gem className="size-5 text-brand" aria-hidden />
           <span className="wordmark font-serif text-lg font-semibold tracking-tight">Just Udhari</span>
@@ -88,6 +99,7 @@ export function Shell({ area, nav, showBranch }: ShellProps) {
           {isStore && canAddParty && <Button variant="outline" size="sm" onClick={() => setNewParty(true)}>{t('shell.new_party')}</Button>}
           {showBranch && <BranchSwitcher />}
           <LanguageSwitch />
+          <ThemeToggle />
           <span className="text-sm text-muted-foreground">{me?.name}</span>
           <Button variant="ghost" size="icon" onClick={() => void logout()} aria-label={t('shell.logout')}>
             <LogOut />
@@ -136,7 +148,7 @@ export function Shell({ area, nav, showBranch }: ShellProps) {
             )
           })}
         </nav>
-        <main className="flex-1 p-6">
+        <main className="flex-1 p-4 sm:p-8">
           <Suspense fallback={<p className="text-sm text-muted-foreground">{t('common.loading')}</p>}>
             <div key={pathname} className="animate-page-in">
               <Outlet />

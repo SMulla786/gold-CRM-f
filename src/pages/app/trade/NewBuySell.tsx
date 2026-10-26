@@ -12,11 +12,11 @@ import { useBankAccounts, useSettings } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { metalRateUnitGrams } from '@/lib/billingQueries'
 import { useBhavBookings, useCreateBuySell } from '@/lib/tradeQueries'
-import { METALS, TRADE_SIDES, metalToMoney, type BhavBookingDto, type PartyRefDto } from '@/shared'
+import { businessDayISO, METALS, TRADE_SIDES, metalToMoney, type BhavBookingDto, type PartyRefDto } from '@/shared'
 
 let uid = 0
 const k = () => `b${uid++}`
-const today = () => new Date().toISOString().slice(0, 10)
+const today = businessDayISO
 const inr = (s: string | number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const n = (s: string) => Number(s) || 0
 

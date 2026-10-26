@@ -1,8 +1,8 @@
 import type { ColumnDef } from '@tanstack/react-table'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
-import { api } from '@/lib/api'
+import { AuthedImage } from '@/components/AuthedImage'
 import { DataTable } from '@/components/DataTable'
 import { MpinDialog } from '@/components/MpinDialog'
 import { Badge } from '@/components/ui/badge'
@@ -22,19 +22,6 @@ import { CheckoutDraftDialog } from '@/pages/app/billing/CheckoutDraftDialog'
 import { CHARGE_UNITS, STOCK_CLASSES, STOCK_STATUSES, type StockItemDto } from '@/shared'
 
 const CLASS_LABEL: Record<string, string> = { GOLD: 'Gold', SILVER: 'Silver', STONE: 'Stone', ARTIFICIAL: 'Artificial', FRANCHISE: 'Franchise' }
-
-// Photos sit behind requirePermission, so <img src> can't load them — blob-fetch to an object URL.
-// `ver` busts the cache after a re-upload (same path); bumped on upload success.
-function AuthedImage({ path, ver = 0, alt, className }: { path: string; ver?: number; alt: string; className?: string }) {
-  const [url, setUrl] = useState<string | null>(null)
-  useEffect(() => {
-    let active = true
-    let obj: string | null = null
-    api.blob(ver ? `${path}?v=${ver}` : path).then((b) => { if (active) { obj = URL.createObjectURL(b); setUrl(obj) } }).catch(() => {})
-    return () => { active = false; if (obj) URL.revokeObjectURL(obj) }
-  }, [path, ver])
-  return url ? <img src={url} alt={alt} className={className} /> : null
-}
 
 // Editable numeric/charge fields shared by single + bulk edit (empty = unchanged in bulk).
 const NUM_FIELDS = ['pcs', 'gross', 'less', 'tunch', 'wastage', 'stoneCharge', 'other', 'labour', 'rate', 'purchaseCost'] as const

@@ -16,11 +16,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useBankAccounts } from '@/lib/appQueries'
 import { useCreateIncomeExpense, useDeleteIncomeExpense, useIncomeExpense, useIncomeExpenseSummary, useUpdateIncomeExpense } from '@/lib/accountsQueries'
 import { useAuth } from '@/lib/auth'
-import { IE_SOURCE_TYPES, incomeExpenseBody, type IncomeExpenseDto } from '@/shared'
+import { businessDayISO, IE_SOURCE_TYPES, incomeExpenseBody, type IncomeExpenseDto } from '@/shared'
 
 type IEIn = z.input<typeof incomeExpenseBody>
 type IEOut = z.output<typeof incomeExpenseBody>
-const today = () => new Date().toISOString().slice(0, 10)
+const today = businessDayISO
 const isToday = (iso: string) => iso.slice(0, 10) === today()
 
 function IEDialog({ entry, onClose }: { entry?: IncomeExpenseDto; onClose: () => void }) {

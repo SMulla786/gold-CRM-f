@@ -7,9 +7,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useLedger } from '@/lib/accountsQueries'
-import { LEDGER_ASSETS, type LedgerRowDto } from '@/shared'
+import { businessDayISO, LEDGER_ASSETS, type LedgerRowDto } from '@/shared'
 
-const today = () => new Date().toISOString().slice(0, 10)
+const today = businessDayISO
 const unit = (asset: string) => (asset === 'MONEY' ? '₹' : asset === 'GOLD' || asset === 'SILVER' ? 'g' : 'pcs')
 // Main metric shown per asset: money amount / metal fine / pcs for the rest.
 const metric = (asset: string, r: LedgerRowDto) => (asset === 'MONEY' ? r.amount : asset === 'GOLD' || asset === 'SILVER' ? r.fine : r.pcs != null ? String(r.pcs) : null) ?? '—'

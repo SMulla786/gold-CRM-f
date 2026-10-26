@@ -7,10 +7,10 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useBankAccounts } from '@/lib/appQueries'
 import { useAddBillPayments } from '@/lib/billingQueries'
-import type { BillListItemDto } from '@/shared'
+import { businessDayISO, type BillListItemDto } from '@/shared'
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
-const today = () => new Date().toISOString().slice(0, 10)
+const today = businessDayISO
 
 /** Add a CASH/ONLINE payment to a bill. Reused by the bill list and the udhari pending-bills tab. */
 export function AddPaymentDialog({ bill, onClose }: { bill: BillListItemDto; onClose: () => void }) {

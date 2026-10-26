@@ -6,6 +6,7 @@ import { BrowserRouter } from 'react-router-dom'
 import App from '@/App'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from '@/components/ui/sonner'
+import { ThemeProvider } from 'next-themes'
 import { AuthProvider } from '@/lib/auth'
 import { LocaleProvider } from '@/lib/i18n'
 // Self-hosted fonts (no runtime fetch to Google — works on a flaky shop connection).
@@ -20,6 +21,7 @@ const queryClient = new QueryClient({
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
+    <ThemeProvider attribute="class" defaultTheme="light" storageKey="ju-theme" disableTransitionOnChange>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
@@ -32,5 +34,6 @@ createRoot(document.getElementById('root')!).render(
         </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>
+    </ThemeProvider>
   </StrictMode>,
 )

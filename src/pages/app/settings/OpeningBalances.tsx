@@ -12,11 +12,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useBankAccounts } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { useCreateOpening, useOpeningBatches, useReverseOpening } from '@/lib/openingQueries'
-import { METALS, type PartyRefDto } from '@/shared'
+import { businessDayISO, METALS, type PartyRefDto } from '@/shared'
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
-const today = () => new Date().toISOString().slice(0, 10)
+const today = businessDayISO
 const n = (s: string) => Number(s) || 0
 let uid = 0
 const key = () => `o${uid++}`

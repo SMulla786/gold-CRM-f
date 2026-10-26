@@ -11,9 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useBankAccounts } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { useEnroll, useSchemeGroups, useSchemes } from '@/lib/schemesQueries'
-import { SCHEME_PAY_MEDIUMS, type PartyRefDto, type SchemeDto } from '@/shared'
+import { businessDayISO, SCHEME_PAY_MEDIUMS, type PartyRefDto, type SchemeDto } from '@/shared'
 
-const today = () => new Date().toISOString().slice(0, 10)
+const today = businessDayISO
 const n = (s: string) => Number(s) || 0
 
 export function EnrollMember() {

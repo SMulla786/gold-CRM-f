@@ -11,10 +11,10 @@ import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
 import { usePartyBalance } from '@/lib/billingQueries'
 import { useCreateUdhar, usePendingBills } from '@/lib/udhariQueries'
-import { METALS, moneyToMetal, type PartyRefDto } from '@/shared'
+import { businessDayISO, METALS, moneyToMetal, type PartyRefDto } from '@/shared'
 
 const n = (s: string) => Number(s) || 0
-const today = () => new Date().toISOString().slice(0, 10)
+const today = businessDayISO
 const bal = (amount: number, gold: number, silver: number) =>
   `₹${amount.toFixed(2)}${gold ? ` · ${gold.toFixed(3)}g Au` : ''}${silver ? ` · ${silver.toFixed(3)}g Ag` : ''}`
 

@@ -1,3 +1,4 @@
+import { businessDayISO } from '@/shared'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
@@ -12,7 +13,7 @@ import { downloadPdf, shareOnWhatsApp } from '@/lib/share'
 import { cn } from '@/lib/utils'
 import { BillInvoice } from '@/pages/app/billing/BillInvoice'
 
-const todayISO = () => new Date().toISOString().slice(0, 10)
+const todayISO = businessDayISO
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 
 export function BillView() {
@@ -57,7 +58,7 @@ export function BillView() {
       </div>
 
       <div className={cn('print-area rounded-md border p-6', thermal && 'print-thermal')}>
-        <BillInvoice bill={bill} shopName={shopName} business={business} stateName={stateName} terms={settings?.['invoice.content'].terms} thermal={thermal} />
+        <BillInvoice bill={bill} shopName={shopName} business={business} stateName={stateName} terms={settings?.['invoice.content'].terms} thermal={thermal} media={settings?.['invoice.media']} columns={settings?.['invoice.content'].columns} watermarkOpacity={settings?.['invoice.content'].watermarkOpacity} />
       </div>
     </div>
   )

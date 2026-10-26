@@ -1,3 +1,4 @@
+import { businessDayISO } from '@/shared'
 import { useState } from 'react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -6,7 +7,7 @@ import { useT } from '@/lib/i18n'
 import { useGstr3b } from '@/lib/reportsQueries'
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
-const thisMonth = () => new Date().toISOString().slice(0, 7)
+const thisMonth = () => businessDayISO().slice(0, 7)
 const monthRange = (m: string) => {
   const [y, mo] = m.split('-').map(Number)
   const last = new Date(y, mo, 0).getDate()

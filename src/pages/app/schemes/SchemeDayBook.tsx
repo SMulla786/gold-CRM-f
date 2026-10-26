@@ -1,3 +1,4 @@
+import { businessDayISO } from '@/shared'
 import { useState } from 'react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -8,7 +9,7 @@ import { useSchemeDayBook } from '@/lib/schemesQueries'
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
-const today = () => new Date().toISOString().slice(0, 10)
+const today = businessDayISO
 
 export function SchemeDayBook() {
   const [from, setFrom] = useState(today())

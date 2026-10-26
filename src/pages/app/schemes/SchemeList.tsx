@@ -11,12 +11,12 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAuth } from '@/lib/auth'
 import { useCreateScheme, usePatchScheme, useSchemes } from '@/lib/schemesQueries'
-import { SCHEME_BONUS_TYPES, SCHEME_KINDS, SCHEME_TYPES, type SchemeDto } from '@/shared'
+import { businessDayISO, SCHEME_BONUS_TYPES, SCHEME_KINDS, SCHEME_TYPES, type SchemeDto } from '@/shared'
 
 type SchemeKind = (typeof SCHEME_KINDS)[number]
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
-const today = () => new Date().toISOString().slice(0, 10)
+const today = businessDayISO
 const n = (s: string) => Number(s) || 0
 const BONUS_LABEL: Record<string, string> = { NONE: 'No bonus', ONE_EMI: 'One free EMI', PERCENT: '% of paid', FIXED: 'Fixed amount' }
 

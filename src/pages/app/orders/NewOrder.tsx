@@ -14,11 +14,11 @@ import { useAuth } from '@/lib/auth'
 import { lineRateUnitGrams, metalRateUnitGrams } from '@/lib/billingQueries'
 import { useItemNames } from '@/lib/inventoryQueries'
 import { useCreateOrder } from '@/lib/ordersQueries'
-import { CHARGE_UNITS, METALS, computeLine, metalToMoney, type PartyRefDto } from '@/shared'
+import { businessDayISO, CHARGE_UNITS, METALS, computeLine, metalToMoney, type PartyRefDto } from '@/shared'
 
 let uid = 0
 const k = () => `o${uid++}`
-const today = () => new Date().toISOString().slice(0, 10)
+const today = businessDayISO
 const inr = (s: string | number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const n = (s: string) => Number(s) || 0
 

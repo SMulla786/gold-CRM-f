@@ -25,6 +25,7 @@ import { useItemNames, useStock } from '@/lib/inventoryQueries'
 import { useOrder, useOrders } from '@/lib/ordersQueries'
 import {
   BILL_TYPES,
+  businessDayISO,
   CHARGE_UNITS,
   DISCOUNT_UNITS,
   KEEP_BALANCE_AS,
@@ -45,7 +46,7 @@ import {
 
 let uid = 0
 const nextKey = () => `k${uid++}`
-const today = () => new Date().toISOString().slice(0, 10)
+const today = businessDayISO
 const inr = (s: string | number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 
 // TASK-86 bill-grid column customizer. Item/Gross/Total/actions stay fixed (needed for a valid bill);

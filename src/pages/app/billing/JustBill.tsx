@@ -12,11 +12,11 @@ import { useBankAccounts, useSettings } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { metalRateUnitGrams } from '@/lib/billingQueries'
 import { useCreateJustBill, useJustBillNextNo } from '@/lib/justbillQueries'
-import { CHARGE_UNITS, DISCOUNT_UNITS, METALS, QTY_UNITS, computeBill, computeJustLine, metalToMoney, type PartyRefDto } from '@/shared'
+import { businessDayISO, CHARGE_UNITS, DISCOUNT_UNITS, METALS, QTY_UNITS, computeBill, computeJustLine, metalToMoney, type PartyRefDto } from '@/shared'
 
 let uid = 0
 const k = () => `j${uid++}`
-const today = () => new Date().toISOString().slice(0, 10)
+const today = businessDayISO
 const inr = (s: string | number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const n = (s: string) => Number(s) || 0
 

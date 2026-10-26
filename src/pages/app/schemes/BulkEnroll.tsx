@@ -12,9 +12,9 @@ import { useAuth } from '@/lib/auth'
 import { useBulkEnroll, useSchemeGroups, useSchemes } from '@/lib/schemesQueries'
 import { plural } from '@/lib/plural'
 import type { BulkEnrollResult } from '@/lib/schemesQueries'
-import type { PartyRefDto } from '@/shared'
+import { businessDayISO, type PartyRefDto } from '@/shared'
 
-const today = () => new Date().toISOString().slice(0, 10)
+const today = businessDayISO
 
 interface MemberRow { key: string; party: PartyRefDto | null; assignId: string }
 let uid = 0

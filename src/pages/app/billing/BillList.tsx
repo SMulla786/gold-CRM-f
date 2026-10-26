@@ -15,9 +15,9 @@ import { useAuth } from '@/lib/auth'
 import { downloadCsv } from '@/lib/csv'
 import { fetchAllPaged } from '@/lib/queries'
 import { shareOnWhatsApp } from '@/lib/share'
-import { BILL_KINDS, type BillKind, type BillListItemDto } from '@/shared'
+import { businessDayISO, BILL_KINDS, type BillKind, type BillListItemDto } from '@/shared'
 
-const todayISO = () => new Date().toISOString().slice(0, 10)
+const todayISO = businessDayISO
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')

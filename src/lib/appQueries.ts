@@ -70,3 +70,10 @@ export const useSettings = () => useQuery({ queryKey: ['settings'], queryFn: () 
 export const useBusinessProfile = () => useQuery({ queryKey: ['business-profile'], queryFn: () => api.get<BusinessProfileDto>('/app/business-profile') })
 export const useSaveSetting = () =>
   useApiMutation(({ key, value, mpin }: { key: string; value: unknown; mpin: string }) => api.put(`/app/settings/${key}`, { value }, { mpin }), { invalidate: [['settings']], success: 'Settings saved' })
+// TASK-84: invoice media upload (logo/signature/watermark) — writes the invoice.media setting server-side.
+export const useUploadInvoiceMedia = () =>
+  useApiMutation(({ kind, file, mpin }: { kind: 'logo' | 'signature' | 'watermark'; file: File; mpin: string }) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return api.post<{ url: string; path: string }>(`/app/settings/invoice/${kind}`, fd, { mpin })
+  }, { invalidate: [['settings']], success: 'Image uploaded' })

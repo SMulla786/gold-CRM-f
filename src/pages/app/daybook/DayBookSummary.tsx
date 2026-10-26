@@ -1,3 +1,4 @@
+import { businessDayISO } from '@/shared'
 import { useState } from 'react'
 
 import { MpinDialog } from '@/components/MpinDialog'
@@ -11,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useCloseDay, useDayBook, useOpenDay } from '@/lib/accountsQueries'
 import { useAuth } from '@/lib/auth'
 
-const today = () => new Date().toISOString().slice(0, 10)
+const today = businessDayISO
 const unit = (asset: string) => (asset === 'MONEY' ? '₹' : asset === 'GOLD' || asset === 'SILVER' ? 'g' : 'pcs')
 
 export function DayBookSummary() {

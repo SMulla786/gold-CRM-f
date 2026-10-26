@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { downloadCsv } from '@/lib/csv'
 import { useSchemeDues, useSchemes } from '@/lib/schemesQueries'
-import type { SchemeDueRowDto } from '@/shared'
+import { businessDayISO, type SchemeDueRowDto } from '@/shared'
 
 const inr = (s: string | number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
@@ -35,7 +35,7 @@ export function SchemeDues() {
   const exportCsv = () => {
     const rows = [['Assign', 'Member', 'Mobile', 'Scheme', 'Group', 'EMI', 'Due count', 'Due amount', 'Oldest due']]
     for (const d of dues ?? []) rows.push([d.assignId, d.displayName, d.party.mobile ?? '', d.scheme.name, d.group?.name ?? '', d.emiAmount, String(d.emisDue), d.dueAmount, date(d.oldestDueDate)])
-    downloadCsv(`scheme-dues-${new Date().toISOString().slice(0, 10)}.csv`, rows)
+    downloadCsv(`scheme-dues-${businessDayISO()}.csv`, rows)
   }
 
   return (

@@ -10,11 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useBankAccounts } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { useCreateRepair, useRepairDeliver, useRepairs, useRepairStatus } from '@/lib/repairQueries'
-import { METALS, type PartyRefDto, type RepairTicketDto } from '@/shared'
+import { businessDayISO, METALS, type PartyRefDto, type RepairTicketDto } from '@/shared'
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
-const today = () => new Date().toISOString().slice(0, 10)
+const today = businessDayISO
 const n = (s: string) => Number(s) || 0
 const COLUMNS = ['RECEIVED', 'IN_PROGRESS', 'IN_REVIEW', 'READY'] as const
 const COL_LABEL: Record<string, string> = { RECEIVED: 'Received', IN_PROGRESS: 'In progress', IN_REVIEW: 'In review (QA)', READY: 'Ready' }

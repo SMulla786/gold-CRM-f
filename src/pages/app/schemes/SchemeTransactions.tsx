@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { downloadCsv } from '@/lib/csv'
 import { fetchAllPaged } from '@/lib/queries'
 import { useSchemeTransactions, useSchemes } from '@/lib/schemesQueries'
-import { SCHEME_PAY_MEDIUMS, type SchemeTxnRowDto } from '@/shared'
+import { businessDayISO, SCHEME_PAY_MEDIUMS, type SchemeTxnRowDto } from '@/shared'
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
@@ -31,7 +31,7 @@ export function SchemeTransactions() {
       const all = await fetchAllPaged<SchemeTxnRowDto>('/app/schemes/transactions', params)
       const rows = [['Date', 'Assign', 'Member', 'Scheme', 'EMI', 'Amount', 'Via', 'Fine', 'Reversed']]
       for (const t of all) rows.push([date(t.txnDate), t.assignId, t.party.name, t.scheme.name, t.emiNo != null ? String(t.emiNo) : '', t.amount, t.medium, t.fine ?? '', t.isReversed ? 'yes' : ''])
-      downloadCsv(`scheme-transactions-${new Date().toISOString().slice(0, 10)}.csv`, rows)
+      downloadCsv(`scheme-transactions-${businessDayISO()}.csv`, rows)
     } finally { setExporting(false) }
   }
 
