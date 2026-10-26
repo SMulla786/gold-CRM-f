@@ -483,7 +483,7 @@ export function StockList() {
           <span>{t('inv.f.pcs_n', { n: data.totals.pcs })}</span>
           <span>{t('inv.f.gross_g', { g: Number(data.totals.gross).toFixed(3) })}</span>
           <span>{t('inv.newstock.net_sub', { g: Number(data.totals.net).toFixed(3) })}</span>
-          <span>{t('inv.f.fine_g', { g: Number(data.totals.fine).toFixed(3) })}</span>
+          <span>{t('bill.pay_fine', { g: Number(data.totals.fine).toFixed(3) })}</span>
         </div>
       )}
 

@@ -28,20 +28,22 @@ export function Gstr3bReport() {
 
   // TASK-97: the return-form rows derivable from the endpoint (3.1(a)-(e), 4(A)(5), 4(B)(1), 4(D)(2)); same rows on screen and in the CSV.
   const head = ['Section', 'Description', 'Taxable', 'CGST', 'SGST', 'IGST']
+  // on-screen header keys; `head` stays English for the CSV (CGST/SGST/IGST are not translated)
+  const HEAD_KEY: Record<string, string> = { Section: 'gst.col_section', Description: 'bill.description', Taxable: 'gst.taxable' }
   const Z = { taxable: '0', cgst: '0', sgst: '0', igst: '0' }
   type Tax = { cgst: string; sgst: string; igst: string }
   const line = (sec: string, desc: string, c: Tax & { taxable?: string } = Z) => [sec, desc, c.taxable ?? '', c.cgst, c.sgst, c.igst]
   const plus = (a: Tax, b: Tax = Z) => ({ cgst: (Number(a.cgst) + Number(b.cgst)).toFixed(2), sgst: (Number(a.sgst) + Number(b.sgst)).toFixed(2), igst: (Number(a.igst) + Number(b.igst)).toFixed(2) })
   const rows = data ? [
     ['3.1(a)', t('gst.outward'), data.outward.taxable, data.outward.cgst, data.outward.sgst, data.outward.igst],
-    line('3.1(b)', 'Outward zero rated supplies', data.outward.zeroRated),
-    line('3.1(c)', 'Other outward supplies (nil rated, exempted)', data.outward.nilExempt),
-    line('3.1(d)', 'Inward supplies liable to reverse charge', data.outward.reverseCharge),
-    line('3.1(e)', 'Non-GST outward supplies', data.outward.nonGst),
+    line('3.1(b)', t('gst.r3b_zero_rated'), data.outward.zeroRated),
+    line('3.1(c)', t('gst.r3b_nil_exempt'), data.outward.nilExempt),
+    line('3.1(d)', t('gst.r3b_reverse_charge'), data.outward.reverseCharge),
+    line('3.1(e)', t('gst.r3b_non_gst'), data.outward.nonGst),
     // 4(A)(5) is gross ITC = eligible (flat itc) + 17(5) blocked, which 4(B)(1) then reverses
-    line('4(A)(5)', 'All other ITC', plus(data.itc, data.itc.reversed)),
-    line('4(B)(1)', 'ITC reversed: blocked u/s 17(5)', data.itc.reversed),
-    line('4(D)(2)', 'Ineligible ITC', data.itc.ineligible),
+    line('4(A)(5)', t('gst.r3b_other_itc'), plus(data.itc, data.itc.reversed)),
+    line('4(B)(1)', t('gst.r3b_itc_reversed'), data.itc.reversed),
+    line('4(D)(2)', t('gst.ineligible_itc'), data.itc.ineligible),
   ] : []
 
   return (
@@ -75,7 +77,7 @@ export function Gstr3bReport() {
 
             <TableCard>
               <Table>
-                <TableHeader><TableRow>{head.map((h, i) => <TableHead key={h} className={i > 1 ? 'text-right' : ''}>{h}</TableHead>)}</TableRow></TableHeader>
+                <TableHeader><TableRow>{head.map((h, i) => <TableHead key={h} className={i > 1 ? 'text-right' : ''}>{HEAD_KEY[h] ? t(HEAD_KEY[h]) : h}</TableHead>)}</TableRow></TableHeader>
                 <TableBody>
                   {rows.map((r) => (
                     <TableRow key={r[0]}>{r.map((c, i) => <TableCell key={i} className={i > 1 ? 'text-right tabular-nums' : i === 0 ? 'font-medium' : ''}>{i > 1 ? (c ? inr(c) : '—') : c}</TableCell>)}</TableRow>

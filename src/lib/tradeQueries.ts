@@ -94,3 +94,42 @@ export const useBulkDeleteBhav = () => {
 /** Audit trail of one trade document (GET /app/{exchange|buy-sell|bhav-booking}/:id/history). */
 export const useTradeHistory = (kind: 'exchange' | 'buy-sell' | 'bhav-booking', id?: number) =>
   useQuery({ queryKey: [kind, 'history', id], queryFn: () => api.get<TradeHistoryDto[]>(`/app/${kind}/${id}/history`), enabled: !!id })
+
+/**
+ * Run one existing per-item call for each item with the same MPIN, one after another (there is no bulk endpoint).
+ * A wrong MPIN rethrows so MpinDialog stays open; any other failure is collected as "#<no>: <message>".
+ */
+async function loopWithMpin<T extends { no: number }>(items: T[], run: (item: T) => Promise<unknown>): Promise<{ done: number; failed: string[] }> {
+  const failed: string[] = []
+  let done = 0
+  for (const item of items) {
+    try {
+      await run(item)
+      done++
+    } catch (e) {
+      if (e instanceof ApiException && e.code === 'MPIN_REQUIRED') throw e
+      failed.push(`#${item.no}: ${e instanceof ApiException ? e.message : 'failed'}`)
+    }
+  }
+  return { done, failed }
+}
+
+/** Bulk "send to melt" = POST /app/kacha/process once per exchange (same body the row dialog sends). Caller toasts the result. */
+export const useBulkKachaProcess = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ items, mpin }: { items: Array<{ no: number; body: Record<string, unknown> }>; mpin: string }) =>
+      loopWithMpin(items, (x) => api.post<KachaProcessDto>('/app/kacha/process', x.body, { mpin })),
+    onSettled: () => TRADE_KEYS.forEach((key) => qc.invalidateQueries({ queryKey: key })),
+  })
+}
+
+/** Bulk revert = POST /app/kacha/:id/revert once per process. `no` labels a failure (the S.No shown in the list). Caller toasts the result. */
+export const useBulkRevertKacha = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ items, mpin }: { items: Array<{ id: number; no: number }>; mpin: string }) =>
+      loopWithMpin(items, (x) => api.post(`/app/kacha/${x.id}/revert`, undefined, { mpin })),
+    onSettled: () => TRADE_KEYS.forEach((key) => qc.invalidateQueries({ queryKey: key })),
+  })
+}

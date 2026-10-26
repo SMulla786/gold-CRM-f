@@ -24,28 +24,28 @@ export function GstDashboard({ from, to }: { from: string; to: string }) {
     { search: 'report=summary&group=YEAR', label: `${t('gst.period_summary')} · ${t('gst.year')}` },
     { search: 'report=gstr1', label: t('gst.gstr1') },
     { search: 'report=gstr3b', label: t('gst.gstr3b') },
-    { search: 'report=itc', label: 'ITC summary' },
-    { search: 'report=reconcile', label: 'GSTR-2B reconciliation' },
+    { search: 'report=itc', label: t('gst.itc_summary') },
+    { search: 'report=reconcile', label: t('gst.reconcile_2b') },
   ]
 
   return (
     <div className="space-y-6">
       {!from || !to ? (
-        <p className="text-sm text-muted-foreground">Pick both From and To dates to see the dashboard.</p>
+        <p className="text-sm text-muted-foreground">{t('gst.dash_pick_dates')}</p>
       ) : isLoading || !data ? (
         <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
       ) : (
         <div className="stagger grid gap-4 sm:grid-cols-3">
-          <KpiTile label="Outward supplies" icon={ArrowUpFromLine} value={inr(sum(data.outward.cgst, data.outward.sgst, data.outward.igst))}
+          <KpiTile label={t('gst.dash_outward')} icon={ArrowUpFromLine} value={inr(sum(data.outward.cgst, data.outward.sgst, data.outward.igst))}
             sub={`${t('gst.taxable')} ${inr(data.outward.taxable)} · CGST ${inr(data.outward.cgst)} · SGST ${inr(data.outward.sgst)} · IGST ${inr(data.outward.igst)}`} />
-          <KpiTile label="Inward supplies (ITC)" icon={ArrowDownToLine} value={inr(sum(data.itc.cgst, data.itc.sgst, data.itc.igst))}
+          <KpiTile label={t('gst.dash_inward')} icon={ArrowDownToLine} value={inr(sum(data.itc.cgst, data.itc.sgst, data.itc.igst))}
             sub={`CGST ${inr(data.itc.cgst)} · SGST ${inr(data.itc.sgst)} · IGST ${inr(data.itc.igst)}`} />
-          <KpiTile label="Net GST cash liability" icon={Landmark} value={inr(data.netPayableIndicative)} sub={t('gst.net_payable_note')} />
+          <KpiTile label={t('gst.dash_net_liability')} icon={Landmark} value={inr(data.netPayableIndicative)} sub={t('gst.net_payable_note')} />
         </div>
       )}
 
       <Card className="print:hidden">
-        <CardHeader><CardTitle>Reports</CardTitle></CardHeader>
+        <CardHeader><CardTitle>{t('gst.reports')}</CardTitle></CardHeader>
         <CardContent className="grid gap-2 p-6 pt-0 sm:grid-cols-2 lg:grid-cols-5">
           {links.map((l) => (
             <Button key={l.search} asChild variant="outline" className="justify-start">

@@ -6,37 +6,40 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useBusinessProfile } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
+import { useT } from '@/lib/i18n'
 import { useRepair } from '@/lib/repairQueries'
 import { downloadPdf, shareOnWhatsApp } from '@/lib/share'
 
-import { addedMetalLabel, addedValue, date, estCharge, inr, n, STATUS_LABEL } from './repairUtils'
+import { addedMetalLabel, addedValue, date, estCharge, inr, n, STATUS_KEY } from './repairUtils'
 
 /** Printable repair slip (customer copy) — same .print-area pattern as the bill / statement views. */
 export function RepairSlip() {
+  const t = useT()
   const { id } = useParams()
   const { me } = useAuth()
-  const { data: t, isLoading } = useRepair(Number(id))
+  const { data: tk, isLoading } = useRepair(Number(id))
   const { data: business } = useBusinessProfile()
 
-  if (isLoading || !t) return <p className="text-sm text-muted-foreground">Loading…</p>
+  if (isLoading || !tk) return <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
 
   const shopName = business?.name ?? me?.business?.name ?? 'Shop'
-  const summary = `${shopName}\nRepair ticket #${t.ticketNo} · ${t.category}\nExpected ${date(t.expectedDate)} · Advance ${inr(t.advance)} · Balance ${inr(t.balance)}`
+  // WhatsApp text stays English, like the bill share text.
+  const summary = `${shopName}\nRepair ticket #${tk.ticketNo} · ${tk.category}\nExpected ${date(tk.expectedDate)} · Advance ${inr(tk.advance)} · Balance ${inr(tk.balance)}`
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4 print:hidden">
         <div className="space-y-1">
           <div className="flex items-center gap-3">
-            <Link to="/app/repair/ledger" className="text-sm font-medium text-brand-strong hover:underline">← Repair ledger</Link>
-            <Badge variant="secondary">{STATUS_LABEL[t.status]}</Badge>
+            <Link to="/app/repair/ledger" className="text-sm font-medium text-brand-strong hover:underline">{t('repair.back_ledger')}</Link>
+            <Badge variant="secondary">{t(STATUS_KEY[tk.status])}</Badge>
           </div>
-          <p className="text-sm text-muted-foreground">Customer copy of this repair ticket. Share, print or save it as a PDF.</p>
+          <p className="text-sm text-muted-foreground">{t('repair.slip_intro')}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={() => shareOnWhatsApp(t.party.mobile, summary)}>Share</Button>
-          <Button variant="outline" onClick={downloadPdf}><FileDown aria-hidden />Download PDF</Button>
-          <Button onClick={() => window.print()}><Printer aria-hidden />Print</Button>
+          <Button variant="outline" onClick={() => shareOnWhatsApp(tk.party.mobile, summary)}>{t('bill.share')}</Button>
+          <Button variant="outline" onClick={downloadPdf}><FileDown aria-hidden />{t('bill.download_pdf')}</Button>
+          <Button onClick={() => window.print()}><Printer aria-hidden />{t('bill.print')}</Button>
         </div>
       </div>
 
@@ -45,51 +48,51 @@ export function RepairSlip() {
           <div className="text-lg font-bold">{shopName}</div>
           {business?.address && <div>{business.address}</div>}
           {business?.gstin && <div>GSTIN: {business.gstin}</div>}
-          <div className="mt-1 font-medium">REPAIR SLIP</div>
+          <div className="mt-1 font-medium">{t('repair.slip_title')}</div>
         </header>
 
         <div className="flex justify-between gap-4 rounded-2xl bg-muted/50 px-4 py-3 print:rounded-none print:border-y print:bg-transparent print:px-0">
           <div>
-            <span className="text-muted-foreground">Ticket:</span> #{t.ticketNo}<br />
-            <span className="text-muted-foreground">Received:</span> {date(t.createdAt)}<br />
-            <span className="text-muted-foreground">Expected:</span> {date(t.expectedDate)}{t.priority !== 'NORMAL' ? ` · ${t.priority}` : ''}
+            <span className="text-muted-foreground">{t('repair.slip_ticket')}</span> #{tk.ticketNo}<br />
+            <span className="text-muted-foreground">{t('repair.slip_received')}</span> {date(tk.createdAt)}<br />
+            <span className="text-muted-foreground">{t('repair.slip_expected')}</span> {date(tk.expectedDate)}{tk.priority !== 'NORMAL' ? ` · ${tk.priority}` : ''}
           </div>
           <div className="text-right">
-            <div className="font-medium">{t.party.name}</div>
-            <div>{t.party.mobile}</div>
-            {t.party.shopName && <div>{t.party.shopName}</div>}
+            <div className="font-medium">{tk.party.name}</div>
+            <div>{tk.party.mobile}</div>
+            {tk.party.shopName && <div>{tk.party.shopName}</div>}
           </div>
         </div>
 
         <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
-          <Item label="Item">{t.category}{t.subCategory ? ` · ${t.subCategory}` : ''}</Item>
-          <Item label="Metal">{t.metal}{t.karatCode ? ` · ${t.karatCode}` : ''}{t.purity ? ` · ${t.purity}%` : ''}</Item>
-          <Item label="Pieces">{t.pcs}</Item>
-          <Item label="Gross weight">{t.gross} g</Item>
-          <Item label="Net weight">{t.net ? `${t.net} g` : '—'}</Item>
-          <Item label="Hallmark">{t.hallmark ?? '—'}</Item>
-          {t.finalWeight && <Item label="Final weight">{t.finalWeight} g</Item>}
-          {t.deliveredAt && <Item label="Delivered on">{date(t.deliveredAt)}</Item>}
+          <Item label={t('bill.col_item')}>{tk.category}{tk.subCategory ? ` · ${tk.subCategory}` : ''}</Item>
+          <Item label={t('udhari.metal')}>{tk.metal}{tk.karatCode ? ` · ${tk.karatCode}` : ''}{tk.purity ? ` · ${tk.purity}%` : ''}</Item>
+          <Item label={t('inv.newstock.pieces')}>{tk.pcs}</Item>
+          <Item label={t('inv.newstock.gross_weight')}>{tk.gross} g</Item>
+          <Item label={t('repair.net_weight')}>{tk.net ? `${tk.net} g` : '—'}</Item>
+          <Item label={t('repair.hallmark')}>{tk.hallmark ?? '—'}</Item>
+          {tk.finalWeight && <Item label={t('repair.final_weight')}>{tk.finalWeight} g</Item>}
+          {tk.deliveredAt && <Item label={t('repair.delivered_on')}>{date(tk.deliveredAt)}</Item>}
         </dl>
-        <p><span className="text-muted-foreground">Work to be done:</span> {t.description}</p>
-        {t.remarks && <p><span className="text-muted-foreground">Remarks:</span> {t.remarks}</p>}
+        <p><span className="text-muted-foreground">{t('repair.slip_work')}</span> {tk.description}</p>
+        {tk.remarks && <p><span className="text-muted-foreground">{t('repair.slip_remarks')}</span> {tk.remarks}</p>}
 
         <div className="ml-auto max-w-xs space-y-1 tabular-nums">
-          <Line label="Labour" value={inr(t.labourCharge)} />
-          <Line label="Other" value={inr(t.otherCharge)} />
-          {n(t.addedFine ?? '0') > 0 && <Line label={`Metal added (${addedMetalLabel(t)}, ${t.addedFine} g)`} value={inr(addedValue(t))} />}
-          <div className="flex justify-between border-t-2 border-brand pt-1 text-base font-bold"><span>Est. charge</span><span>{inr((Number(estCharge(t)) + Number(addedValue(t))).toFixed(2))}</span></div>
-          <Line label="Advance paid" value={inr(t.advance)} />
-          {t.status === 'DELIVERED' && <Line label="Paid cash at delivery" value={inr(t.deliveryCash ?? '0')} />}
-          {t.status === 'DELIVERED' && <Line label={`Paid online at delivery${t.deliveryBank ? ` (${t.deliveryBank.name})` : ''}`} value={inr(t.deliveryOnline ?? '0')} />}
-          <div className="flex justify-between font-medium"><span>Balance</span><span>{inr(t.balance)}</span></div>
+          <Line label={t('bill.col_labour')} value={inr(tk.labourCharge)} />
+          <Line label={t('bill.col_other')} value={inr(tk.otherCharge)} />
+          {n(tk.addedFine ?? '0') > 0 && <Line label={t('repair.slip_metal_added', { metal: addedMetalLabel(tk, t('repair.other_metal')), fine: tk.addedFine ?? '' })} value={inr(addedValue(tk))} />}
+          <div className="flex justify-between border-t-2 border-brand pt-1 text-base font-bold"><span>{t('repair.est_charge')}</span><span>{inr((Number(estCharge(tk)) + Number(addedValue(tk))).toFixed(2))}</span></div>
+          <Line label={t('repair.advance_paid')} value={inr(tk.advance)} />
+          {tk.status === 'DELIVERED' && <Line label={t('repair.slip_paid_cash')} value={inr(tk.deliveryCash ?? '0')} />}
+          {tk.status === 'DELIVERED' && <Line label={`${t('repair.slip_paid_online')}${tk.deliveryBank ? ` (${tk.deliveryBank.name})` : ''}`} value={inr(tk.deliveryOnline ?? '0')} />}
+          <div className="flex justify-between font-medium"><span>{t('bill.balance')}</span><span>{inr(tk.balance)}</span></div>
         </div>
 
         <div className="flex justify-between gap-6 pt-10">
-          <div className="w-40 border-t pt-1 text-center text-xs text-muted-foreground">Customer signature</div>
-          <div className="w-40 border-t pt-1 text-center text-xs text-muted-foreground">For {shopName}</div>
+          <div className="w-40 border-t pt-1 text-center text-xs text-muted-foreground">{t('repair.slip_customer_sign')}</div>
+          <div className="w-40 border-t pt-1 text-center text-xs text-muted-foreground">{t('repair.slip_for', { shop: shopName })}</div>
         </div>
-        <p className="text-xs text-muted-foreground">Please bring this slip when collecting the ornament. Final charges may change if extra metal is added during repair.</p>
+        <p className="text-xs text-muted-foreground">{t('repair.slip_note')}</p>
       </div>
     </div>
   )

@@ -3,14 +3,14 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 
-const TABS = [
+const TABS: { to: string; label: string; key: string; alt?: string; end?: boolean }[] = [
   { to: '/app/schemes', label: 'All Schemes', key: 'schemes.all', end: true },
   { to: '/app/schemes/groups', label: 'Groups', key: 'schemes.groups' },
   { to: '/app/schemes/enroll', label: 'Enrol', key: 'schemes.enroll' },
   { to: '/app/schemes/bulk-enroll', label: 'Bulk Enrol', key: 'schemes.enroll' },
   { to: '/app/schemes/members', label: 'Members', key: 'schemes.all' },
   { to: '/app/schemes/add-money', label: 'Add Money', key: 'schemes.add_money' },
-  { to: '/app/schemes/dues', label: 'Dues', key: 'schemes.due_list' },
+  { to: '/app/schemes/dues', label: 'Dues', key: 'schemes.due_list', alt: 'schemes.due_amount' },
   { to: '/app/schemes/transactions', label: 'Transactions', key: 'schemes.transactions' },
   { to: '/app/schemes/day-book', label: 'Day Book', key: 'schemes.daybook' },
   { to: '/app/schemes/anjuman', label: 'Anjuman', key: 'schemes.anjuman' },
@@ -18,7 +18,7 @@ const TABS = [
 
 export function SchemesLayout() {
   const { can } = useAuth()
-  const tabs = TABS.filter((t) => can(t.key, 'view'))
+  const tabs = TABS.filter((t) => can(t.key, 'view') || (!!t.alt && can(t.alt, 'view')))
   return (
     <div className="space-y-6">
       <header>

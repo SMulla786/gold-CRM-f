@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useBankAccounts } from '@/lib/appQueries'
+import { usePartyBalance } from '@/lib/billingQueries'
 import { useT } from '@/lib/i18n'
 import { useTradeHistory } from '@/lib/tradeQueries'
 import type { TradePaymentDto } from '@/shared'
@@ -68,6 +69,20 @@ export function SplitPaymentTable({ rows, onChange }: { rows: PayRow[]; onChange
         <span className="tabular-nums text-muted-foreground">{t('trade.total_amt', { amount: inr(payTotal(rows)) })}</span>
       </div>
     </div>
+  )
+}
+
+/** Read-only "existing udhar" chip for the picked party (money + gold + silver; + = party owes the shop). Display only. */
+export function PartyBalanceChip({ partyId }: { partyId?: number }) {
+  const t = useT()
+  const { data } = usePartyBalance(partyId)
+  if (!partyId) return null
+  return (
+    <p className="w-fit rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground tabular-nums">
+      {data
+        ? t('trade.party_bal', { amount: `${inr(data.amount)}${Number(data.amount) < 0 ? ` ${t('trade.party_bal_adv')}` : ''}`, gold: data.gold, silver: data.silver })
+        : t('trade.party_bal_none')}
+    </p>
   )
 }
 

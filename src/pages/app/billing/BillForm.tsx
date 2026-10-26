@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { MpinDialog } from '@/components/MpinDialog'
 import { NewPartyDialog } from '@/components/NewPartyDialog'
 import { PartyPicker } from '@/components/PartyPicker'
+import { SampleLookupButton } from '@/components/SamplePicker'
 import { TABLE_EDGES } from '@/components/SectionCard'
 import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
 import { Button } from '@/components/ui/button'
@@ -25,6 +26,7 @@ import { fetchDraftByNo } from '@/lib/draftsQueries'
 import { ApiException } from '@/lib/errors'
 import { shareOnWhatsApp } from '@/lib/share'
 import { lineRateUnitGrams, metalRateUnitGrams, useCreateBill, useNextBillNo, usePartyBalance, useUpdateBill } from '@/lib/billingQueries'
+import { SchemeEnrollmentSelect } from '@/pages/app/billing/SchemeEnrollmentSelect'
 import { useItemNames, useStock } from '@/lib/inventoryQueries'
 import { useOrder, useOrders } from '@/lib/ordersQueries'
 import {
@@ -120,8 +122,10 @@ interface PayRow {
   tunch: string
   rate: string
   remark: string
+  /** SCHEME pay rows (TASK-98) */
+  enrollmentId: string
 }
-const blankPay = (mode: string): PayRow => ({ key: nextKey(), mode, amount: '', bankAccountId: '', metal: 'GOLD', metalForm: 'BULLION', gross: '', less: '0', tunch: '', rate: '', remark: '' })
+const blankPay = (mode: string): PayRow => ({ key: nextKey(), mode, amount: '', bankAccountId: '', metal: 'GOLD', metalForm: 'BULLION', gross: '', less: '0', tunch: '', rate: '', remark: '', enrollmentId: '' })
 
 // ── edit-mode prefill: map a saved bill's lines/payments back into editable rows ──
 const rowFromLine = (it: BillLineDto): Row =>
@@ -135,10 +139,12 @@ const payFromDto = (p: BillPaymentDto): PayRow => ({
   key: nextKey(), mode: p.mode, amount: p.mode === 'METAL' ? '' : p.amount, bankAccountId: p.bankAccount ? String(p.bankAccount.id) : '',
   metal: p.metal ?? 'GOLD', metalForm: p.metalForm ?? 'BULLION',
   gross: p.gross ?? '', less: p.gross && p.net ? String(Number(p.gross) - Number(p.net)) : '0', tunch: p.tunch ?? '', rate: p.rate ?? '', remark: p.remark ?? '',
+  enrollmentId: p.schemeEnrollmentId != null ? String(p.schemeEnrollmentId) : '',
 })
 
-const ITC_OPTS = [['ELIGIBLE', 'Eligible'], ['BLOCKED_17_5', 'Blocked u/s 17(5)'], ['INELIGIBLE', 'Ineligible']] as const
-const SUPPLY_OPTS = [['TAXABLE', 'Taxable'], ['ZERO_RATED', 'Zero rated (export / SEZ)'], ['NIL_EXEMPT', 'Nil rated / exempt'], ['NON_GST', 'Non-GST supply']] as const
+// [value, i18n key] for the GST details block
+const ITC_OPTS = [['ELIGIBLE', 'gst.itc_eligible'], ['BLOCKED_17_5', 'gst.itc_blocked_us'], ['INELIGIBLE', 'gst.itc_ineligible']] as const
+const SUPPLY_OPTS = [['TAXABLE', 'gst.taxable'], ['ZERO_RATED', 'gst.supply_zero_rated'], ['NIL_EXEMPT', 'gst.supply_nil_exempt'], ['NON_GST', 'gst.supply_non_gst']] as const
 
 export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDto }) {
   const t = useT()
@@ -314,7 +320,9 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
           ? { mode: 'METAL', metal: p.metal, metalForm: p.metalForm, gross: Number(p.gross) || 0, less: Number(p.less) || 0, tunch: Number(p.tunch) || 0, rate: Number(p.rate) || 0, remark: p.remark || undefined }
           : p.mode === 'ONLINE'
             ? { mode: 'ONLINE', amount: Number(p.amount) || 0, bankAccountId: Number(p.bankAccountId), remark: p.remark || undefined }
-            : { mode: 'CASH', amount: Number(p.amount) || 0, remark: p.remark || undefined },
+            : p.mode === 'SCHEME'
+              ? { mode: 'SCHEME', enrollmentId: Number(p.enrollmentId), amount: Number(p.amount) || 0, remark: p.remark || undefined }
+              : { mode: p.mode === 'UDHAR_ADVANCE' ? 'UDHAR_ADVANCE' : 'CASH', amount: Number(p.amount) || 0, remark: p.remark || undefined },
       ),
       keepBalanceAs: keepAs, keepRate: keepAs === 'MONEY' ? undefined : Number(keepRate) || undefined,
       pan: panValue || undefined,
@@ -471,7 +479,8 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
 
       {/* Item grid: must stay the first <table> on the page and before payments (specs use tbody tr / Rate .first()). */}
       <Card className="overflow-hidden">
-      <div className="flex justify-end border-b bg-muted/40 px-6 py-3">
+      <div className="flex justify-end gap-2 border-b bg-muted/40 px-6 py-3">
+        <SampleLookupButton />
         <Popover>
           <PopoverTrigger asChild><Button type="button" variant="outline" size="sm"><Columns3 aria-hidden />{t('bill.columns')}</Button></PopoverTrigger>
           <PopoverContent align="end" className="w-56 space-y-2">
@@ -627,6 +636,12 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
               <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('CASH')])}>{t('bill.add_cash')}</Button>
               <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('ONLINE')])}>{t('bill.add_online')}</Button>
               <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('METAL')])}>{t('bill.add_metal')}</Button>
+              {kind === 'SELL' && party && (
+                <>
+                  <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('SCHEME')])}>{t('bill.add_scheme')}</Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('UDHAR_ADVANCE')])}>{t('bill.add_advance')}</Button>
+                </>
+              )}
             </div>
           </div>
           <div className="space-y-3 p-6">
@@ -659,6 +674,14 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
                       <SelectTrigger className="w-44" aria-label="Bank account"><SelectValue placeholder={t('bill.bank')} /></SelectTrigger>
                       <SelectContent>{banks?.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.bankName} · {b.accountNo}</SelectItem>)}</SelectContent>
                     </Select>
+                  )}
+                  {p.mode === 'SCHEME' && party && (
+                    // picking an enrollment prefills its value, capped at what is still due
+                    <SchemeEnrollmentSelect className="w-60" partyId={party.id} value={p.enrollmentId}
+                      onChange={(id, value) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, enrollmentId: id, amount: x.amount || String(Math.max(0, Math.min(value, balanceDue))) } : x))} />
+                  )}
+                  {p.mode === 'UDHAR_ADVANCE' && (
+                    <span className="text-xs text-muted-foreground">{t('bill.adv_available', { amount: inr(Math.max(0, -Number(balance?.amount ?? 0))) })}</span>
                   )}
                 </>
               )}
@@ -717,7 +740,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
       {billType === 'GST' && (
         <Card className="p-0">
           <button type="button" className="flex w-full items-center gap-2 px-6 py-4 text-left text-sm font-semibold" aria-expanded={gstOpen} aria-controls="bf-gst-details" onClick={() => setGstOpen((o) => !o)}>
-            GST details
+            {t('gst.details')}
             <ChevronDown className={`ml-auto size-4 text-muted-foreground transition-transform ${gstOpen ? 'rotate-180' : ''}`} aria-hidden />
           </button>
           {gstOpen && (
@@ -725,33 +748,33 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
               {kind === 'PURCHASE' ? (
                 <>
                   <div className="space-y-1.5">
-                    <Label htmlFor="bf-itc">ITC eligibility</Label>
+                    <Label htmlFor="bf-itc">{t('gst.itc_eligibility')}</Label>
                     <Select value={gst.itcEligibility} onValueChange={(v) => setGst((g) => ({ ...g, itcEligibility: v as typeof g.itcEligibility }))}>
                       <SelectTrigger id="bf-itc" className="w-48"><SelectValue /></SelectTrigger>
-                      <SelectContent>{ITC_OPTS.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
+                      <SelectContent>{ITC_OPTS.map(([v, l]) => <SelectItem key={v} value={v}>{t(l)}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                   {gst.itcEligibility !== 'ELIGIBLE' && (
                     <div className="space-y-1.5">
-                      <Label htmlFor="bf-itc-reason">Block reason</Label>
-                      <Input id="bf-itc-reason" className="w-56" maxLength={200} placeholder="e.g. personal use" value={gst.itcBlockReason} onChange={(e) => setGst((g) => ({ ...g, itcBlockReason: e.target.value }))} />
+                      <Label htmlFor="bf-itc-reason">{t('gst.block_reason')}</Label>
+                      <Input id="bf-itc-reason" className="w-56" maxLength={200} placeholder={t('gst.block_reason_ph')} value={gst.itcBlockReason} onChange={(e) => setGst((g) => ({ ...g, itcBlockReason: e.target.value }))} />
                     </div>
                   )}
                   <div className="space-y-1.5">
-                    <Label htmlFor="bf-sup-inv">Supplier invoice no.</Label>
+                    <Label htmlFor="bf-sup-inv">{t('gst.supplier_inv_no')}</Label>
                     <Input id="bf-sup-inv" className="w-44" maxLength={40} value={gst.supplierInvoiceNo} onChange={(e) => setGst((g) => ({ ...g, supplierInvoiceNo: e.target.value }))} />
                   </div>
                   <div className="flex items-center gap-2 pb-2">
                     <Checkbox id="bf-rcm" checked={gst.reverseCharge} onCheckedChange={(v) => setGst((g) => ({ ...g, reverseCharge: !!v }))} />
-                    <Label htmlFor="bf-rcm">Reverse charge</Label>
+                    <Label htmlFor="bf-rcm">{t('gst.reverse_charge')}</Label>
                   </div>
                 </>
               ) : (
                 <div className="space-y-1.5">
-                  <Label htmlFor="bf-supply">Supply category</Label>
+                  <Label htmlFor="bf-supply">{t('gst.supply_category')}</Label>
                   <Select value={gst.supplyCategory} onValueChange={(v) => setGst((g) => ({ ...g, supplyCategory: v as typeof g.supplyCategory }))}>
                     <SelectTrigger id="bf-supply" className="w-56"><SelectValue /></SelectTrigger>
-                    <SelectContent>{SUPPLY_OPTS.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
+                    <SelectContent>{SUPPLY_OPTS.map(([v, l]) => <SelectItem key={v} value={v}>{t(l)}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
               )}

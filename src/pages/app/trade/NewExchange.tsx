@@ -1,8 +1,9 @@
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Eraser } from 'lucide-react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { MpinDialog } from '@/components/MpinDialog'
 import { PartyPicker } from '@/components/PartyPicker'
 import { SamplePicker } from '@/components/SamplePicker'
@@ -22,7 +23,7 @@ import { useCreateExchange, useExchange, useUpdateExchange } from '@/lib/tradeQu
 import { businessDayISO, METALS, TRADE_SIDES, computeLine, metalToMoney, type PartyRefDto, type SamplePickDto } from '@/shared'
 
 import { blankPay, payBody, payRowsFrom, payTotal, payValid, type PayRow } from './splitPay'
-import { SplitPaymentTable, SplitToggle } from './TradeExtras'
+import { PartyBalanceChip, SplitPaymentTable, SplitToggle } from './TradeExtras'
 import { fineRate } from './tradeRates'
 
 let uid = 0
@@ -34,6 +35,8 @@ const n = (s: string) => Number(s) || 0
 interface Row { key: string; weight: string; touch: string; serialNo: string }
 const blankRow = (): Row => ({ key: k(), weight: '', touch: '', serialNo: '' })
 const fineOf = (r: Row) => Number(computeLine({ gross: n(r.weight), tunch: n(r.touch) }).fine)
+const INITIAL_F = { diffFine: '0', rate: '0', charges: '0', discount: '0', cash: '0', online: '0', bankAccountId: '', remark: '' }
+const BLANK_WB = { gross: '', less: '', sample: '' }
 
 export function NewExchange() {
   const t = useT()
@@ -51,14 +54,17 @@ export function NewExchange() {
   const [metal, setMetal] = useState('GOLD')
   const [txnDate, setTxnDate] = useState(today())
   const [rows, setRows] = useState<Row[]>([blankRow()])
-  const [f, setF] = useState({ diffFine: '0', rate: '0', charges: '0', discount: '0', cash: '0', online: '0', bankAccountId: '', remark: '' })
+  const [f, setF] = useState(INITIAL_F)
   const set = (key: keyof typeof f, v: string) => setF((s) => ({ ...s, [key]: v }))
   const [split, setSplit] = useState(false)
   const [pays, setPays] = useState<PayRow[]>(() => [blankPay()])
   const [askMpin, setAskMpin] = useState(false)
+  // New exchange: the rate field follows today's fine rate until the user types in it (then it is theirs).
+  const [rateAuto, setRateAuto] = useState(true)
+  const [askClear, setAskClear] = useState(false)
   // Weighing block (TASK-98): display/derivation only. Nothing here goes into the exchange body or calc.
   const [weighOpen, setWeighOpen] = useState(false)
-  const [wb, setWb] = useState({ gross: '', less: '', sample: '' })
+  const [wb, setWb] = useState(BLANK_WB)
   const [tounchSample, setTounchSample] = useState<SamplePickDto | null>(null)
   const meltWt = n(wb.gross) - n(wb.less)
   const netAfterSample = meltWt - n(wb.sample)
@@ -90,11 +96,25 @@ export function NewExchange() {
   const totalFine = rows.reduce((a, r) => a + fineOf(r), 0)
   const afterFine = totalFine + n(f.diffFine)
   const moneyMode = n(f.rate) > 0
-  const todayRate = fineRate(rates, metal, side, settings) // hint only; the rate field stays manual
+  const todayRate = fineRate(rates, metal, side, settings) // prefill + hint only; posting uses whatever is in the field
   const finalAmount = moneyMode ? Number(metalToMoney(afterFine, n(f.rate), metalRateUnitGrams(metal, settings))) + n(f.charges) - n(f.discount) : 0
   const splitOn = split && moneyMode
   const paid = splitOn ? payTotal(pays) : n(f.cash) + n(f.online)
   const balance = finalAmount - paid
+
+  // Prefill (new exchange only): today's fine sale rate for SELL / buy rate for BUY, until the user edits the field.
+  if (rateAuto && !editId && todayRate && f.rate !== todayRate) setF((s) => ({ ...s, rate: todayRate }))
+
+  const setAllTouch100 = () => setRows((rs) => rs.map((r) => ({ ...r, touch: '100' })))
+  const dirty = !!party || side !== 'BUY' || metal !== 'GOLD' || txnDate !== today() || rows.length > 1 || rows.some((r) => r.weight !== '' || r.touch !== '' || r.serialNo !== '')
+    || !rateAuto || (Object.keys(INITIAL_F) as Array<keyof typeof INITIAL_F>).some((key) => key !== 'rate' && f[key] !== INITIAL_F[key])
+    || split || wb.gross !== '' || wb.less !== '' || wb.sample !== '' || !!tounchSample
+  /** Back to a blank new exchange (same as opening the page fresh). */
+  const clearForm = () => {
+    setSide('BUY'); setParty(null); setMetal('GOLD'); setTxnDate(today()); setRows([blankRow()])
+    setF(INITIAL_F); setRateAuto(true); setSplit(false); setPays([blankPay()])
+    setWeighOpen(false); setWb(BLANK_WB); setTounchSample(null)
+  }
 
   const valid = branchReady && !!party && rows.every((r) => n(r.weight) > 0 && n(r.touch) > 0) && afterFine > 0
     && (moneyMode || (paid === 0 && n(f.charges) === 0 && n(f.discount) === 0))
@@ -142,7 +162,7 @@ export function NewExchange() {
               <SelectContent>{TRADE_SIDES.map((s) => <SelectItem key={s} value={s}>{s === 'BUY' ? t('trade.ex.side_buy') : t('trade.ex.side_sell')}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5 lg:col-span-2"><Label htmlFor="ex-party">{t('udhari.party')}</Label><PartyPicker value={party} onChange={setParty} placeholder={t('bill.search_party')} id="ex-party" ariaLabel="Party" /></div>
+          <div className="space-y-1.5 lg:col-span-2"><Label htmlFor="ex-party">{t('udhari.party')}</Label><PartyPicker value={party} onChange={setParty} placeholder={t('bill.search_party')} id="ex-party" ariaLabel="Party" /><PartyBalanceChip partyId={party?.id} /></div>
           <div className="space-y-1.5">
             <Label>{t('udhari.metal')}</Label>
             <Select value={metal} onValueChange={setMetal}>
@@ -172,7 +192,10 @@ export function NewExchange() {
             </TableBody>
           </Table>
         </Card>
-        <Button variant="outline" size="sm" onClick={() => setRows((rs) => [...rs, blankRow()])}>{t('jbill.add_line')}</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={() => setRows((rs) => [...rs, blankRow()])}>{t('jbill.add_line')}</Button>
+          <Button variant="outline" size="sm" title={t('trade.ex.touch_100_hint')} onClick={setAllTouch100}>{t('trade.ex.touch_100')}</Button>
+        </div>
       </section>
 
       <Card>
@@ -211,7 +234,7 @@ export function NewExchange() {
           <CardHeader><CardTitle>{t('trade.ex.settlement')}</CardTitle></CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1.5"><Label htmlFor="ex-diff">{t('trade.fine_adjust')}</Label><Input id="ex-diff" type="number" step="0.001" value={f.diffFine} onChange={(e) => set('diffFine', e.target.value)} /></div>
-            <div className="space-y-1.5"><Label htmlFor="ex-rate">{t('trade.rate_unit', { unit: metal === 'GOLD' ? '/10g' : '/kg' })}</Label><Input id="ex-rate" type="number" value={f.rate} onChange={(e) => set('rate', e.target.value)} />
+            <div className="space-y-1.5"><Label htmlFor="ex-rate">{t('trade.rate_unit', { unit: metal === 'GOLD' ? '/10g' : '/kg' })}</Label><Input id="ex-rate" type="number" value={f.rate} onChange={(e) => { setRateAuto(false); set('rate', e.target.value) }} />
               {todayRate && <p className="text-xs text-muted-foreground tabular-nums">{t('trade.ex.today_rate', { side: side === 'BUY' ? t('trade.side_buy_lc') : t('trade.side_sell_lc'), rate: todayRate })}</p>}
             </div>
             {moneyMode && <>
@@ -253,11 +276,13 @@ export function NewExchange() {
         </Card>
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-2">
+        {!editing && <Button variant="outline" className="w-full sm:w-auto" disabled={pending} onClick={() => (dirty ? setAskClear(true) : clearForm())}><Eraser className="size-4" aria-hidden />{t('trade.ex.clear')}</Button>}
         <Button className="w-full sm:w-auto" disabled={!valid || pending} onClick={() => void submit().catch(() => {})}>
           {pending ? t('bill.saving') : editing ? t('party.save_changes') : t('trade.save_kind', { kind: side === 'BUY' ? t('trade.kind_purchase') : t('trade.kind_sale') })}
         </Button>
       </div>
+      <ConfirmDialog open={askClear} title={t('trade.ex.clear_title')} description={t('trade.ex.clear_desc')} confirmLabel={t('trade.ex.clear')} destructive onConfirm={clearForm} onClose={() => setAskClear(false)} />
       <MpinDialog open={askMpin} title={t('trade.ex.save_changes_title', { no: editing?.exchangeNo ?? '' })} onConfirm={saveEdit} onClose={() => setAskMpin(false)} />
     </div>
   )

@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useAuth } from '@/lib/auth'
 import { useCreateGroup, useSchemeGroups, useSchemes } from '@/lib/schemesQueries'
+import { ClientPager, useClientPage } from './ClientPager'
 
 const n = (s: string) => Number(s) || 0
 
@@ -55,6 +56,7 @@ export function SchemeGroups() {
   const schemeName = new Map((allSchemes?.items ?? []).map((s) => [s.id, s.name]))
   // group-name filter is client-side: the groups endpoint returns the full (unpaged) list
   const groups = allGroups?.filter((g) => g.name.toLowerCase().includes(nameQ.trim().toLowerCase()))
+  const { pageRows, pager } = useClientPage(groups)
 
   const groupCount = groups?.length ?? 0
   const memberTotal = groups?.reduce((sum, g) => sum + g.memberCount, 0) ?? 0
@@ -106,7 +108,7 @@ export function SchemeGroups() {
           <TableHeader><TableRow><TableHead>Group</TableHead><TableHead>Scheme</TableHead><TableHead>Members</TableHead><TableHead>Limit</TableHead></TableRow></TableHeader>
           <TableBody>
             {isLoading ? <TableRow><TableCell colSpan={4} className="h-16 text-center text-muted-foreground">Loading…</TableCell></TableRow>
-              : groups?.length ? groups.map((g) => (
+              : groups?.length ? pageRows.map((g) => (
                 <TableRow key={g.id}><TableCell className="font-medium">{g.name}</TableCell><TableCell>{schemeName.get(g.schemeId) ?? `#${g.schemeId}`}</TableCell><TableCell className="tabular-nums">{g.memberCount}</TableCell><TableCell className="tabular-nums">{g.memberLimit ?? '—'}</TableCell></TableRow>
               )) : (
                 <TableRow>
@@ -120,6 +122,7 @@ export function SchemeGroups() {
               )}
           </TableBody>
         </Table>
+        <ClientPager {...pager} />
       </div>
     </div>
   )

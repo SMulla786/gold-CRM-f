@@ -9,24 +9,27 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { useBankAccounts } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { useBulkEnroll, useSchemeGroups, useSchemes } from '@/lib/schemesQueries'
 import { plural } from '@/lib/plural'
 import type { BulkEnrollResult } from '@/lib/schemesQueries'
-import { businessDayISO, type PartyRefDto } from '@/shared'
+import { businessDayISO, SCHEME_BANK_MEDIUMS, SCHEME_PAY_MEDIUMS, type PartyRefDto } from '@/shared'
 
 const today = businessDayISO
+const bankMedium = (m: string) => SCHEME_BANK_MEDIUMS.includes(m) // ONLINE / CHEQUE need a bank
 
 /** mode PAY = "With EMI pay": the row also sends firstPayment (enrollmentBody already accepts it). */
-interface MemberRow { key: string; party: PartyRefDto | null; assignId: string; mode: 'ENROLL' | 'PAY'; payAmount: string; payDate: string }
+interface MemberRow { key: string; party: PartyRefDto | null; displayName: string; assignId: string; mode: 'ENROLL' | 'PAY'; payAmount: string; payDate: string; payMedium: string; payBankId: string }
 let uid = 0
-const blank = (): MemberRow => ({ key: `m${uid++}`, party: null, assignId: '', mode: 'ENROLL', payAmount: '', payDate: today() })
+const blank = (): MemberRow => ({ key: `m${uid++}`, party: null, displayName: '', assignId: '', mode: 'ENROLL', payAmount: '', payDate: today(), payMedium: 'CASH', payBankId: '' })
 
 export function BulkEnroll() {
   const { activeBranch } = useAuth()
   const branchReady = activeBranch !== '' && activeBranch !== 'all'
   const { data: schemes } = useSchemes({ active: 'true', pageSize: 100 })
   const bulk = useBulkEnroll()
+  const { data: banks } = useBankAccounts()
 
   const [schemeId, setSchemeId] = useState('')
   const { data: groups } = useSchemeGroups(schemeId ? Number(schemeId) : undefined)
@@ -34,6 +37,8 @@ export function BulkEnroll() {
   const [emiAmount, setEmiAmount] = useState('')
   const [startDate, setStartDate] = useState(today())
   const [tokenAmount, setTokenAmount] = useState('0')
+  const [tokenMedium, setTokenMedium] = useState('TOKEN')
+  const [tokenBankId, setTokenBankId] = useState('')
   const [prefix, setPrefix] = useState('')
   const [startNo, setStartNo] = useState('1')
   const [rows, setRows] = useState<MemberRow[]>([blank(), blank(), blank()])
@@ -55,16 +60,22 @@ export function BulkEnroll() {
   const assignIds = filled.map((r) => r.assignId.trim())
   const dupIds = assignIds.length !== new Set(assignIds).size
   const badPay = filled.some((r) => r.mode === 'PAY' && payOf(r) <= 0)
-  const valid = branchReady && !!schemeId && filled.length > 0 && !dupIds && !badPay
+  const badBank = filled.some((r) => r.mode === 'PAY' && bankMedium(r.payMedium) && !r.payBankId)
+  const hasToken = (Number(tokenAmount) || 0) > 0
+  const badTokenBank = hasToken && bankMedium(tokenMedium) && !tokenBankId
+  const valid = branchReady && !!schemeId && filled.length > 0 && !dupIds && !badPay && !badBank && !badTokenBank
 
   const submit = async () => {
     setResults(null)
     const targets = rows.filter((r) => r.party && r.assignId.trim())
     const bodies = targets.map((r) => ({
       schemeId: Number(schemeId), groupId: groupId ? Number(groupId) : undefined, partyId: r.party!.id,
-      assignId: r.assignId.trim(), displayName: r.party!.name,
+      assignId: r.assignId.trim(), displayName: r.displayName.trim() || r.party!.name,
       emiAmount: emiAmount ? Number(emiAmount) : undefined, startDate, tokenAmount: Number(tokenAmount) || 0,
-      firstPayment: r.mode === 'PAY' ? { amount: payOf(r), txnDate: r.payDate || undefined, medium: 'CASH' } : undefined,
+      ...(hasToken && tokenMedium !== 'TOKEN' ? { tokenMedium, tokenBankAccountId: bankMedium(tokenMedium) ? Number(tokenBankId) : undefined } : {}),
+      firstPayment: r.mode === 'PAY'
+        ? { amount: payOf(r), txnDate: r.payDate || undefined, medium: r.payMedium, bankAccountId: bankMedium(r.payMedium) ? Number(r.payBankId) : undefined }
+        : undefined,
     }))
     const res = await bulk.mutateAsync(bodies)
     setResults(res)
@@ -98,6 +109,18 @@ export function BulkEnroll() {
           <div className="space-y-1.5"><Label htmlFor="be-emi">EMI ₹ (optional)</Label><Input id="be-emi" type="number" value={emiAmount} onChange={(e) => setEmiAmount(e.target.value)} /></div>
           <div className="space-y-1.5"><Label htmlFor="be-start">Start date</Label><Input id="be-start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} /></div>
           <div className="space-y-1.5"><Label htmlFor="be-token">Joining token ₹</Label><Input id="be-token" type="number" value={tokenAmount} onChange={(e) => setTokenAmount(e.target.value)} /></div>
+          {hasToken && (
+            <div className="space-y-1.5"><Label>Token paid by (all rows)</Label>
+              <Select value={tokenMedium} onValueChange={setTokenMedium}><SelectTrigger aria-label="Token medium"><SelectValue /></SelectTrigger>
+                <SelectContent>{SCHEME_PAY_MEDIUMS.map((m) => <SelectItem key={m} value={m}>{m === 'TOKEN' ? 'TOKEN (cash)' : m}</SelectItem>)}</SelectContent></Select>
+            </div>
+          )}
+          {hasToken && bankMedium(tokenMedium) && (
+            <div className="space-y-1.5"><Label>Token bank</Label>
+              <Select value={tokenBankId} onValueChange={setTokenBankId}><SelectTrigger aria-label="Token bank account"><SelectValue placeholder="Bank" /></SelectTrigger>
+                <SelectContent>{banks?.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.bankName} · {b.accountNo}</SelectItem>)}</SelectContent></Select>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -115,11 +138,12 @@ export function BulkEnroll() {
 
         <div className="overflow-x-auto rounded-3xl border bg-card shadow-sm">
           <Table>
-            <TableHeader><TableRow><TableHead className="min-w-64">Member</TableHead><TableHead>Assign ID</TableHead><TableHead>Processing mode</TableHead><TableHead>Pay EMI ₹</TableHead><TableHead>Pay date</TableHead><TableHead>Status</TableHead><TableHead /></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead className="min-w-64">Member</TableHead><TableHead>Display name</TableHead><TableHead>Assign ID</TableHead><TableHead>Processing mode</TableHead><TableHead>Pay EMI ₹</TableHead><TableHead>Pay date</TableHead><TableHead>Pay via</TableHead><TableHead>Status</TableHead><TableHead /></TableRow></TableHeader>
             <TableBody>
               {rows.map((r, i) => (
                 <TableRow key={r.key}>
                   <TableCell><PartyPicker value={r.party} onChange={(p) => setRow(i, { party: p })} placeholder="Search name / mobile" ariaLabel={`Member ${i + 1}`} /></TableCell>
+                  <TableCell><Input className="w-40" aria-label={`Display name ${i + 1}`} placeholder={r.party?.name ?? 'Party name'} value={r.displayName} onChange={(e) => setRow(i, { displayName: e.target.value })} /></TableCell>
                   <TableCell><Input className="w-32" aria-label={`Assign ID ${i + 1}`} value={r.assignId} onChange={(e) => setRow(i, { assignId: e.target.value })} /></TableCell>
                   <TableCell>
                     <Select value={r.mode} onValueChange={(v) => setRow(i, { mode: v as MemberRow['mode'] })}>
@@ -129,6 +153,20 @@ export function BulkEnroll() {
                   </TableCell>
                   <TableCell><Input className="w-28" type="number" aria-label={`Pay EMI ${i + 1}`} placeholder={emi} disabled={r.mode !== 'PAY'} value={r.payAmount} onChange={(e) => setRow(i, { payAmount: e.target.value })} /></TableCell>
                   <TableCell><Input className="w-40" type="date" aria-label={`Pay date ${i + 1}`} max={today()} disabled={r.mode !== 'PAY'} value={r.payDate} onChange={(e) => setRow(i, { payDate: e.target.value })} /></TableCell>
+                  <TableCell>
+                    <div className="flex gap-1">
+                      <Select value={r.payMedium} onValueChange={(v) => setRow(i, { payMedium: v })} disabled={r.mode !== 'PAY'}>
+                        <SelectTrigger className="w-28" aria-label={`Pay via ${i + 1}`}><SelectValue /></SelectTrigger>
+                        <SelectContent>{SCHEME_PAY_MEDIUMS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                      </Select>
+                      {r.mode === 'PAY' && bankMedium(r.payMedium) && (
+                        <Select value={r.payBankId} onValueChange={(v) => setRow(i, { payBankId: v })}>
+                          <SelectTrigger className="w-36" aria-label={`Pay bank ${i + 1}`}><SelectValue placeholder="Bank" /></SelectTrigger>
+                          <SelectContent>{banks?.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.bankName} · {b.accountNo}</SelectItem>)}</SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell className="text-sm">{results?.[i] ? (results[i]!.ok ? <span className="text-green-600 dark:text-green-500">✓ enrolled</span> : <span className="text-destructive">{results[i]!.error}</span>) : null}</TableCell>
                   <TableCell>
                     <div className="flex gap-1">
@@ -146,6 +184,8 @@ export function BulkEnroll() {
           <Button variant="outline" onClick={() => setRows((rs) => [...rs, blank()])}>+ Add member</Button>
           {dupIds && <span className="text-sm text-destructive">Assign IDs must be unique.</span>}
           {badPay && <span className="text-sm text-destructive">Enter the EMI amount for “With EMI pay” rows.</span>}
+          {badBank && <span className="text-sm text-destructive">Select a bank for ONLINE / CHEQUE payments.</span>}
+          {badTokenBank && <span className="text-sm text-destructive">Select a bank for the joining token.</span>}
           <Button className="ml-auto" disabled={!valid || bulk.isPending} onClick={() => void submit().catch(() => {})}>
             {bulk.isPending ? 'Enrolling…' : `Enrol ${plural(filled.length, 'member')}`}
           </Button>

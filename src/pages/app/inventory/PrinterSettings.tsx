@@ -7,25 +7,28 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAuth } from '@/lib/auth'
+import { useT } from '@/lib/i18n'
 import { usePrinterSettings, useSavePrinterSettings } from '@/lib/inventoryQueries'
 import { PRINTER_TYPES, type PrinterSettingsDto } from '@/shared'
 
+// Labels are i18n keys, translated at render.
 const TYPE_LABEL: Record<(typeof PRINTER_TYPES)[number], string> = {
-  THERMAL_LABEL: 'Thermal label printer',
-  ZEBRA: 'Zebra label printer',
-  A4_SHEET: 'A4 sheet (laser or inkjet)',
+  THERMAL_LABEL: 'inv.printer.type_thermal',
+  ZEBRA: 'inv.printer.type_zebra',
+  A4_SHEET: 'inv.printer.type_a4',
 }
 
 type NumKey = Exclude<keyof PrinterSettingsDto, 'printerType'>
 const FIELDS: [NumKey, string, string][] = [
-  ['labelWidthMm', 'Label width (mm)', '0.5'],
-  ['labelHeightMm', 'Label height (mm)', '0.5'],
-  ['columns', 'Labels per row', '1'],
-  ['gapMm', 'Gap between labels (mm)', '0.5'],
-  ['marginMm', 'Page margin (mm)', '0.5'],
+  ['labelWidthMm', 'inv.printer.label_width', '0.5'],
+  ['labelHeightMm', 'inv.printer.label_height', '0.5'],
+  ['columns', 'inv.printer.columns', '1'],
+  ['gapMm', 'inv.printer.gap', '0.5'],
+  ['marginMm', 'inv.printer.margin', '0.5'],
 ]
 
 function PrinterForm({ initial, canEdit }: { initial: PrinterSettingsDto; canEdit: boolean }) {
+  const t = useT()
   const save = useSavePrinterSettings()
   const [f, setF] = useState<Record<NumKey, string>>(() => Object.fromEntries(FIELDS.map(([k]) => [k, String(initial[k])])) as Record<NumKey, string>)
   const [printerType, setPrinterType] = useState(initial.printerType)
@@ -39,19 +42,19 @@ function PrinterForm({ initial, canEdit }: { initial: PrinterSettingsDto; canEdi
     <div className="grid gap-6 lg:grid-cols-2">
       <Card>
         <CardHeader>
-          <CardTitle>Printer</CardTitle>
-          <CardDescription>Used by Tags when printing a label sheet.</CardDescription>
+          <CardTitle>{t('inv.printer.printer')}</CardTitle>
+          <CardDescription>{t('inv.printer.printer_desc')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 p-6 pt-0">
           <div className="space-y-1.5">
-            <Label>Printer type</Label>
+            <Label>{t('inv.printer.type')}</Label>
             <Select value={printerType} disabled={!canEdit} onValueChange={(v) => setPrinterType(v as PrinterSettingsDto['printerType'])}>
               <SelectTrigger aria-label="Printer type">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {PRINTER_TYPES.map((t) => (
-                  <SelectItem key={t} value={t}>{TYPE_LABEL[t]}</SelectItem>
+                {PRINTER_TYPES.map((p) => (
+                  <SelectItem key={p} value={p}>{t(TYPE_LABEL[p])}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -59,7 +62,7 @@ function PrinterForm({ initial, canEdit }: { initial: PrinterSettingsDto; canEdi
           <div className="grid grid-cols-2 gap-4">
             {FIELDS.map(([k, label, step]) => (
               <div key={k} className="space-y-1.5">
-                <Label htmlFor={`ps-${k}`}>{label}</Label>
+                <Label htmlFor={`ps-${k}`}>{t(label)}</Label>
                 <Input id={`ps-${k}`} type="number" min={k === 'columns' ? 1 : 0} max={k === 'columns' ? 6 : undefined} step={step} disabled={!canEdit} value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} />
               </div>
             ))}
@@ -69,15 +72,15 @@ function PrinterForm({ initial, canEdit }: { initial: PrinterSettingsDto; canEdi
               disabled={!valid || save.isPending}
               onClick={() => save.mutate({ printerType, labelWidthMm: n('labelWidthMm'), labelHeightMm: n('labelHeightMm'), columns: n('columns'), gapMm: n('gapMm'), marginMm: n('marginMm') })}
             >
-              {save.isPending ? 'Saving…' : 'Save printer settings'}
+              {save.isPending ? t('bill.saving') : t('inv.printer.save')}
             </Button>
           )}
         </CardContent>
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle>Sheet preview</CardTitle>
-          <CardDescription>Two rows of labels at the saved size.</CardDescription>
+          <CardTitle>{t('inv.printer.preview')}</CardTitle>
+          <CardDescription>{t('inv.printer.preview_desc')}</CardDescription>
         </CardHeader>
         <CardContent className="p-6 pt-0">
           {valid ? (
@@ -92,7 +95,7 @@ function PrinterForm({ initial, canEdit }: { initial: PrinterSettingsDto; canEdi
               </div>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">Enter valid sizes to see the preview.</p>
+            <p className="text-sm text-muted-foreground">{t('inv.printer.invalid')}</p>
           )}
         </CardContent>
       </Card>
@@ -101,6 +104,7 @@ function PrinterForm({ initial, canEdit }: { initial: PrinterSettingsDto; canEdi
 }
 
 export function PrinterSettings() {
+  const t = useT()
   const { can } = useAuth()
   const { data, isLoading } = usePrinterSettings()
   return (
@@ -108,11 +112,11 @@ export function PrinterSettings() {
       <div className="flex items-center gap-3">
         <span className="icon-chip"><Printer className="size-5" aria-hidden /></span>
         <div>
-          <h2 className="text-xl">Printer settings</h2>
-          <p className="text-sm text-muted-foreground">Choose your label printer and the label size, so tag sheets line up with your label stock.</p>
+          <h2 className="text-xl">{t('inv.printer.title')}</h2>
+          <p className="text-sm text-muted-foreground">{t('inv.printer.intro')}</p>
         </div>
       </div>
-      {isLoading || !data ? <p className="text-sm text-muted-foreground">Loading…</p> : <PrinterForm initial={data} canEdit={can('inventory.printer_setting', 'edit')} />}
+      {isLoading || !data ? <p className="text-sm text-muted-foreground">{t('common.loading')}</p> : <PrinterForm initial={data} canEdit={can('inventory.printer_setting', 'edit')} />}
     </div>
   )
 }

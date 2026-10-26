@@ -3,6 +3,7 @@ import { Printer } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import { CsvExportButton } from '@/components/CsvExportButton'
 import { DataTable } from '@/components/DataTable'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -11,9 +12,9 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useT } from '@/lib/i18n'
 import { useBhavBookings } from '@/lib/tradeQueries'
-import { METALS, TRADE_SIDES, type BhavBookingDto } from '@/shared'
+import { businessDayISO, METALS, TRADE_SIDES, type BhavBookingDto } from '@/shared'
 
-import { BhavRowMenu, VerifiedBadge } from './BhavBookings'
+import { BhavRowMenu, VerifiedBadge, bhavExportRows } from './BhavBookings'
 import { DateRangeFilter } from './TradeExtras'
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
@@ -32,7 +33,8 @@ export function BhavOldBookings() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const statusParams = status === 'ALL' ? { closed: 'true' } : { status }
-  const { data, isLoading } = useBhavBookings({ ...statusParams, side: side || undefined, metal: metal || undefined, q: q || undefined, from: from || undefined, to: to || undefined, page, pageSize })
+  const filters = { ...statusParams, side: side || undefined, metal: metal || undefined, q: q || undefined, from: from || undefined, to: to || undefined }
+  const { data, isLoading } = useBhavBookings({ ...filters, page, pageSize })
 
   const columns: ColumnDef<BhavBookingDto, unknown>[] = [
     { header: t('trade.col_no'), cell: ({ row }) => <span className="font-medium">#{row.original.bookingNo}</span> },
@@ -77,6 +79,7 @@ export function BhavOldBookings() {
             <SelectContent><SelectItem value="all">{t('trade.all_metals')}</SelectItem>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
           </Select>
           <DateRangeFilter from={from} to={to} onChange={(a, b) => { setFrom(a); setTo(b); setPage(1) }} />
+          <CsvExportButton className="ml-auto" filename={`bhav-old-bookings-${businessDayISO()}.csv`} rows={() => bhavExportRows(filters)} />
         </CardContent>
       </Card>
 

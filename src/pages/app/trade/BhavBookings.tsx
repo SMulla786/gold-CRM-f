@@ -3,6 +3,7 @@ import { BadgeCheck, Hourglass, Lock, MoreHorizontal, Plus, Printer, Scale, Truc
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import { CsvExportButton } from '@/components/CsvExportButton'
 import { DataTable } from '@/components/DataTable'
 import { MpinDialog } from '@/components/MpinDialog'
 import { PartyPicker } from '@/components/PartyPicker'
@@ -20,16 +21,25 @@ import { useBankAccounts, useSettings } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { metalRateUnitGrams } from '@/lib/billingQueries'
 import { useT } from '@/lib/i18n'
+import { fetchAllPaged } from '@/lib/queries'
 import { useBhavBookings, useBulkDeleteBhav, useCancelBhav, useCreateBhav, useDeleteBhav, useUndeliverBhav, useUpdateBhav, useVerifyBhav } from '@/lib/tradeQueries'
 import { BHAV_STATUSES, businessDayISO, METALS, TRADE_SIDES, metalToMoney, type BhavBookingDto, type PartyRefDto } from '@/shared'
 
 import { blankPay, payBody, payRowsFrom, payTotal, payValid, type PayRow } from './splitPay'
-import { DateRangeFilter, HistoryDialog, SplitPaymentTable, SplitToggle } from './TradeExtras'
+import { DateRangeFilter, HistoryDialog, PartyBalanceChip, SplitPaymentTable, SplitToggle } from './TradeExtras'
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
 const n = (s: string) => Number(s) || 0
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = { PENDING: 'default', PARTIAL: 'secondary', DELIVERED: 'outline', CANCELLED: 'outline' }
+
+/** Header + body for the bhav CSV / Excel export (open and old bookings share it). */
+export async function bhavExportRows(filters: Record<string, string | number | undefined>) {
+  const all = await fetchAllPaged<BhavBookingDto>('/app/bhav-booking', filters)
+  const header = ['No', 'Date', 'Side', 'Party', 'Mobile', 'Metal', 'Weight (g)', 'Pending (g)', 'Rate', 'Amount', 'Advance', 'Entry type', 'Status', 'Verified', 'Narration']
+  const body = all.map((b) => [b.bookingNo, date(b.txnDate), b.side, b.party.name, b.party.mobile, b.metal, b.weight, b.pendingWeight, b.rate, b.amount, b.advance, b.entryType ?? '', b.status, b.verifiedAt ? 'Yes' : 'No', b.narration])
+  return [header, ...body]
+}
 
 let uid = 0
 interface WRow { key: string; weight: string; rate: string }
@@ -93,7 +103,7 @@ function BookingForm({ editing, onDone }: { editing?: BhavBookingDto; onDone: ()
           <Select value={f.metal} onValueChange={(v) => set('metal', v)}><SelectTrigger aria-label="Metal"><SelectValue /></SelectTrigger>
             <SelectContent>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select>
         </div>
-        <div className="space-y-1.5"><Label htmlFor="bk-party">{t('udhari.party')}</Label><PartyPicker value={party} onChange={setParty} placeholder={t('bill.search_party')} id="bk-party" ariaLabel="Party" /></div>
+        <div className="space-y-1.5"><Label htmlFor="bk-party">{t('udhari.party')}</Label><PartyPicker value={party} onChange={setParty} placeholder={t('bill.search_party')} id="bk-party" ariaLabel="Party" /><PartyBalanceChip partyId={party?.id} /></div>
         <div className="space-y-1.5"><Label htmlFor="bk-date">{t('udhari.date')}</Label><Input id="bk-date" type="date" value={f.txnDate} onChange={(e) => set('txnDate', e.target.value)} /></div>
         <div className="col-span-2 flex items-center gap-2">
           <Checkbox id="bk-multi" checked={multi} onCheckedChange={(c) => setMulti(c === true)} />
@@ -226,7 +236,8 @@ export function BhavBookings() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const statusParams = status === 'open' ? { open: 'true' } : status === 'all' ? {} : { status }
-  const { data, isLoading } = useBhavBookings({ side: side || undefined, metal: metal || undefined, q: q || undefined, from: from || undefined, to: to || undefined, ...statusParams, page, pageSize })
+  const filters = { side: side || undefined, metal: metal || undefined, q: q || undefined, from: from || undefined, to: to || undefined, ...statusParams }
+  const { data, isLoading } = useBhavBookings({ ...filters, page, pageSize })
   const cancel = useCancelBhav()
   const del = useDeleteBhav()
   const [cancelling, setCancelling] = useState<BhavBookingDto | null>(null)
@@ -335,11 +346,14 @@ export function BhavBookings() {
             </SelectContent>
           </Select>
           <DateRangeFilter from={from} to={to} onChange={(a, b) => { setFrom(a); setTo(b); setPage(1); clearSel() }} />
-          {canDelete && selected.length > 0 && (
-            <Button variant="outline" className="ml-auto text-destructive hover:text-destructive" disabled={bulkDelete.isPending} onClick={() => setBulkDeleting(true)}>
-              {t('trade.bhav.delete_selected', { n: selected.length })}
-            </Button>
-          )}
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {canDelete && selected.length > 0 && (
+              <Button variant="outline" className="text-destructive hover:text-destructive" disabled={bulkDelete.isPending} onClick={() => setBulkDeleting(true)}>
+                {t('trade.bhav.delete_selected', { n: selected.length })}
+              </Button>
+            )}
+            <CsvExportButton filename={`bhav-bookings-${businessDayISO()}.csv`} rows={() => bhavExportRows(filters)} />
+          </div>
         </CardContent>
       </Card>
 

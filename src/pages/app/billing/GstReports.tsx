@@ -24,7 +24,9 @@ import { Gstr3bReport } from './Gstr3bReport'
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
 const ITC_LABEL: Record<string, string> = { ELIGIBLE: 'Eligible', BLOCKED_17_5: 'Blocked 17(5)', INELIGIBLE: 'Ineligible' }
-const itcText = (x: GstRegisterRowDto) => ITC_LABEL[x.itcEligibility ?? 'ELIGIBLE'] + (x.itcBlockReason ? ` (${x.itcBlockReason})` : '')
+/** On-screen ITC label keys (the CSV keeps ITC_LABEL in English). */
+const ITC_KEY: Record<string, string> = { ELIGIBLE: 'gst.itc_eligible', BLOCKED_17_5: 'gst.itc_blocked', INELIGIBLE: 'gst.itc_ineligible' }
+const itcText = (x: GstRegisterRowDto, label = (k: string) => ITC_LABEL[k]) => label(x.itcEligibility ?? 'ELIGIBLE') + (x.itcBlockReason ? ` (${x.itcBlockReason})` : '')
 
 // TASK-97: report / kind / group live in the URL (?report=hsn, ?report=register&kind=PURCHASE, ?report=summary&group=QUARTER) so each report is linkable.
 const MODES = ['dashboard', 'register', 'hsn', 'summary', 'gstr1', 'gstr3b', 'itc', 'reconcile'] as const
@@ -48,8 +50,8 @@ export function GstReports() {
   const setParam = (k: string, v: string) => { setSp((p) => { p.set(k, v); return p }); setPage(1) }
 
   const REPORT_LABEL: Record<Mode, string> = {
-    dashboard: 'GST dashboard', register: t('gst.register'), hsn: t('gst.hsn_summary'), summary: t('gst.period_summary'),
-    gstr1: t('gst.gstr1'), gstr3b: t('gst.gstr3b'), itc: 'ITC summary', reconcile: 'GSTR-2B reconciliation',
+    dashboard: t('gst.dashboard'), register: t('gst.register'), hsn: t('gst.hsn_summary'), summary: t('gst.period_summary'),
+    gstr1: t('gst.gstr1'), gstr3b: t('gst.gstr3b'), itc: t('gst.itc_summary'), reconcile: t('gst.reconcile_2b'),
   }
 
   const exportRegister = async () => {
@@ -87,11 +89,11 @@ export function GstReports() {
     { header: t('udhari.party'), cell: ({ row }) => row.original.party.name },
     { header: 'GSTIN', cell: ({ row }) => <span className="font-mono text-xs">{row.original.party.gstin ?? '—'}</span> },
     ...(kind === 'PURCHASE' ? [
-      { id: 'supInv', header: 'Supplier inv. no.', cell: ({ row }) => row.original.supplierInvoiceNo || '—' },
-      { id: 'itc', header: 'ITC', cell: ({ row }) => itcText(row.original) },
+      { id: 'supInv', header: t('gst.col_supplier_inv'), cell: ({ row }) => row.original.supplierInvoiceNo || '—' },
+      { id: 'itc', header: 'ITC', cell: ({ row }) => itcText(row.original, (k) => t(ITC_KEY[k])) },
     ] satisfies ColumnDef<GstRegisterRowDto, unknown>[] : []),
     { header: 'HSN', cell: ({ row }) => row.original.hsnCodes.join(', ') || '—' },
-    { header: 'GST %', cell: ({ row }) => (row.original.gstPercent != null ? `${row.original.gstPercent}%` : '—') },
+    { header: t('bill.gst_pct'), cell: ({ row }) => (row.original.gstPercent != null ? `${row.original.gstPercent}%` : '—') },
     { header: t('gst.taxable'), cell: ({ row }) => inr(row.original.taxable) },
     { header: 'CGST', cell: ({ row }) => inr(row.original.cgst) },
     { header: 'SGST', cell: ({ row }) => inr(row.original.sgst) },
@@ -168,7 +170,7 @@ export function GstReports() {
         <div className="ml-auto flex flex-wrap gap-2">
           {csv && <Button variant="outline" disabled={exporting} onClick={() => void csv()}>{exporting ? t('bill.exporting') : t('common.export_csv')}</Button>}
           {/* "PDF" = the browser's print dialog (Save as PDF) on the .print-area below */}
-          <Button variant="outline" onClick={() => window.print()}><Printer aria-hidden />Print / PDF</Button>
+          <Button variant="outline" onClick={() => window.print()}><Printer aria-hidden />{t('gst.print_pdf')}</Button>
         </div>
       </Card>
 

@@ -23,7 +23,7 @@ const KIND_LABEL: Record<string, string> = { SAVING: 'Saving', ANJUMAN: 'Anjuman
 export function SchemeTransactions() {
   const [sp] = useSearchParams()
   const [kind, setKind] = useState(sp.get('kind') ?? '')
-  const [schemeId, setSchemeId] = useState('')
+  const [schemeId, setSchemeId] = useState(sp.get('schemeId') ?? '')
   const [groupId, setGroupId] = useState('')
   const [q, setQ] = useState('')
   const [medium, setMedium] = useState('')
@@ -114,8 +114,8 @@ export function SchemeTransactions() {
             <SelectContent><SelectItem value="all">All groups</SelectItem>{groups?.map((g) => <SelectItem key={g.id} value={String(g.id)}>{g.name}</SelectItem>)}</SelectContent>
           </Select>
           <Select value={medium || 'all'} onValueChange={(v) => { setMedium(v === 'all' ? '' : v); setPage(1) }}>
-            <SelectTrigger className="w-32" aria-label="Medium"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="all">All media</SelectItem>{SCHEME_PAY_MEDIUMS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+            <SelectTrigger className="w-36" aria-label="Medium"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All media</SelectItem>{SCHEME_PAY_MEDIUMS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}<SelectItem value="CASH,TOKEN">Cash + Token</SelectItem><SelectItem value="DRAW,VENDOR">Draw + Vendor</SelectItem></SelectContent>
           </Select>
           <Input className="w-40" type="date" aria-label="From" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1) }} />
           <Input className="w-40" type="date" aria-label="To" value={to} onChange={(e) => { setTo(e.target.value); setPage(1) }} />

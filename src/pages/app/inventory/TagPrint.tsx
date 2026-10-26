@@ -10,13 +10,11 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAuth } from '@/lib/auth'
+import { useT } from '@/lib/i18n'
 import { useAllStock, usePrinterSettings, useTagTemplates } from '@/lib/inventoryQueries'
-import { plural } from '@/lib/plural'
 import { printerSettingsBody, type PrinterSettingsDto, type StockItemDto } from '@/shared'
 
 import { TagLabel } from './TagLabel'
-
-const CLASS_LABEL: Record<string, string> = { GOLD: 'Gold', SILVER: 'Silver', STONE: 'Stone', ARTIFICIAL: 'Artificial', FRANCHISE: 'Franchise' }
 
 function Barcode({ value }: { value: string }) {
   const ref = useRef<SVGSVGElement>(null)
@@ -36,12 +34,13 @@ function pageCss(p: PrinterSettingsDto): string {
 }
 
 export function TagPrint() {
+  const t = useT()
   const { can, me } = useAuth()
   const canLayout = can('inventory.printer_setting', 'view')
   // Users without printer-setting access print with the defaults and the fixed layout.
   const printer = usePrinterSettings(canLayout).data ?? DEFAULT_PRINTER
   const { data: templates } = useTagTemplates(canLayout)
-  const templateFor = (c: string) => templates?.find((t) => t.isActive && (t.appliesTo as string[]).includes(c))
+  const templateFor = (c: string) => templates?.find((tpl) => tpl.isActive && (tpl.appliesTo as string[]).includes(c))
   const [printing, setPrinting] = useState(false)
   const print = () => {
     flushSync(() => setPrinting(true))
@@ -59,7 +58,7 @@ export function TagPrint() {
   // Filters narrow only the pick list; already-picked items stay on the sheet.
   const [f, setF] = useState({ stockClass: '', karatCode: '', groupId: '', itemNameId: '', q: '' })
   const uniq = <T,>(rows: [string, T][]) => [...new Map(rows).entries()]
-  const classOpts = uniq(items.map((i) => [i.stockClass, CLASS_LABEL[i.stockClass] ?? i.stockClass]))
+  const classOpts = uniq(items.map((i) => [i.stockClass, t(`class.${i.stockClass}`)]))
   const karatOpts = uniq(items.filter((i) => i.karatCode).map((i) => [i.karatCode as string, i.karatCode as string]))
   const groupOpts = uniq(items.filter((i) => !f.stockClass || i.stockClass === f.stockClass).map((i) => [String(i.group.id), i.group.name]))
   const nameOpts = uniq(items.filter((i) => (!f.stockClass || i.stockClass === f.stockClass) && (!f.groupId || String(i.group.id) === f.groupId)).map((i) => [String(i.itemName.id), i.itemName.name]))
@@ -107,28 +106,28 @@ export function TagPrint() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         <div>
-          <h2 className="text-xl">Barcode tags</h2>
-          <p className="text-sm text-muted-foreground">Pick tagged pieces and print a barcode sheet for them.</p>
+          <h2 className="text-xl">{t('inv.tags.title')}</h2>
+          <p className="text-sm text-muted-foreground">{t('inv.tags.intro')}</p>
         </div>
         <Button disabled={selected.length === 0} onClick={print}>
-          Print {selected.length ? plural(selected.length, 'label') : 'labels'}
+          {selected.length ? t(selected.length === 1 ? 'inv.tags.print_one' : 'inv.tags.print_other', { n: selected.length }) : t('inv.tags.print_none')}
         </Button>
       </div>
 
       <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4 print:hidden">
-        {tile('Tagged in stock', data ? String(items.length) : '—', 'Available pieces with a tag no.', Tags)}
-        {tile('Tagged net weight', data ? grams(sumNet(items)) : '—', 'Across all tagged pieces', Scale)}
-        {tile('Picked', String(selected.length), data ? `of ${items.length} tagged` : undefined, ListChecks)}
-        {tile('Picked net weight', grams(sumNet(selected)), 'Going on the sheet', Weight)}
+        {tile(t('inv.tags.tagged'), data ? String(items.length) : '—', t('inv.tags.tagged_sub'), Tags)}
+        {tile(t('inv.tags.tagged_net'), data ? grams(sumNet(items)) : '—', t('inv.tags.tagged_net_sub'), Scale)}
+        {tile(t('inv.tags.picked'), String(selected.length), data ? t('inv.tags.picked_sub', { n: items.length }) : undefined, ListChecks)}
+        {tile(t('inv.tags.picked_net'), grams(sumNet(selected)), t('inv.tags.picked_net_sub'), Weight)}
       </div>
 
       <Card className="print:hidden">
         <CardContent className="flex flex-wrap items-end gap-3 pt-6">
-          <Input className="max-w-xs" placeholder="Search tag / HUID / item…" aria-label="Search tags" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} />
-          {filterSelect('stockClass', 'Stock class', 'All classes', classOpts, { groupId: '', itemNameId: '' })}
-          {filterSelect('karatCode', 'Purity', 'Any purity', karatOpts)}
-          {filterSelect('groupId', 'Item group', 'All groups', groupOpts, { itemNameId: '' })}
-          {filterSelect('itemNameId', 'Item', 'All items', nameOpts)}
+          <Input className="max-w-xs" placeholder={t('inv.f.search_tag_huid')} aria-label="Search tags" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} />
+          {filterSelect('stockClass', 'Stock class', t('stock.all_classes'), classOpts, { groupId: '', itemNameId: '' })}
+          {filterSelect('karatCode', 'Purity', t('inv.f.any_purity'), karatOpts)}
+          {filterSelect('groupId', 'Item group', t('inv.f.all_groups'), groupOpts, { itemNameId: '' })}
+          {filterSelect('itemNameId', 'Item', t('inv.f.all_items'), nameOpts)}
         </CardContent>
       </Card>
 
@@ -139,7 +138,7 @@ export function TagPrint() {
             checked={visible.length > 0 && visible.every((i) => picked.has(i.id))}
             onCheckedChange={(v) => setPicked((s) => { const n = new Set(s); for (const i of visible) { if (v) n.add(i.id); else n.delete(i.id) } return n })}
           />
-          <span className="text-sm">Select all ({visible.length})</span>
+          <span className="text-sm">{t('inv.tags.select_all_n', { n: visible.length })}</span>
         </CardHeader>
         <CardContent>
           <div className="stagger grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -153,7 +152,7 @@ export function TagPrint() {
             {visible.length === 0 && (
               <div className="col-span-full flex flex-col items-center gap-3 py-10 text-center">
                 <span className="icon-chip"><BarcodeIcon className="size-5" aria-hidden /></span>
-                <p className="text-sm text-muted-foreground">{items.length === 0 ? 'No tagged items available.' : 'No tagged items match these filters.'}</p>
+                <p className="text-sm text-muted-foreground">{items.length === 0 ? t('inv.tags.none') : t('inv.tags.none_match')}</p>
               </div>
             )}
           </div>

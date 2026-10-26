@@ -19,7 +19,7 @@ import { useBhavBooking, useBhavBookings, useBuySell, useCreateBuySell, useUpdat
 import { businessDayISO, METALS, TRADE_SIDES, metalToMoney, type BhavBookingDto, type PartyRefDto } from '@/shared'
 
 import { blankPay, payBody, payRowsFrom, payTotal, payValid, type PayRow } from './splitPay'
-import { SplitPaymentTable, SplitToggle } from './TradeExtras'
+import { PartyBalanceChip, SplitPaymentTable, SplitToggle } from './TradeExtras'
 import { fineRate } from './tradeRates'
 
 let uid = 0
@@ -156,7 +156,7 @@ export function NewBuySell() {
               <SelectContent>{TRADE_SIDES.map((s) => <SelectItem key={s} value={s}>{s === 'BUY' ? t('trade.bs.side_buy') : t('trade.bs.side_sell')}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5 lg:col-span-2"><Label htmlFor="bs-party">{t('udhari.party')}</Label><PartyPicker value={party} onChange={(p) => { setParty(p); setBooking(null) }} placeholder={t('bill.search_party')} id="bs-party" ariaLabel="Party" /></div>
+          <div className="space-y-1.5 lg:col-span-2"><Label htmlFor="bs-party">{t('udhari.party')}</Label><PartyPicker value={party} onChange={(p) => { setParty(p); setBooking(null) }} placeholder={t('bill.search_party')} id="bs-party" ariaLabel="Party" /><PartyBalanceChip partyId={party?.id} /></div>
           <div className="space-y-1.5">
             <Label>{t('udhari.metal')}</Label>
             <Select value={metal} onValueChange={(v) => { setMetal(v); setBooking(null) }}>

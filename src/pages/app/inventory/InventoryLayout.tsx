@@ -1,45 +1,51 @@
 import { NavLink, Outlet } from 'react-router-dom'
 
 import { useAuth } from '@/lib/auth'
+import { SAMPLES_PERM } from '@/lib/samplesQueries'
+import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
+// `key` = permission key; `tk` = i18n key for the label (translated at render).
 const TABS = [
-  { to: '/app/inventory', label: 'Dashboard', key: 'inventory.dashboard', end: true },
-  { to: '/app/inventory/masters', label: 'Item Masters', key: 'inventory.item_masters' },
-  { to: '/app/inventory/new', label: 'New Stock', key: 'inventory.new_stock' },
-  { to: '/app/inventory/stock', label: 'Stock', key: 'inventory.all_stock' },
-  { to: '/app/inventory/groups', label: 'Group-wise', key: 'inventory.all_stock' },
-  { to: '/app/inventory/summary', label: 'All Stock Summary', key: 'inventory.all_stock' },
-  { to: '/app/inventory/import', label: 'Import', key: 'inventory.import_stock' },
-  { to: '/app/inventory/shortage', label: 'Shortage', key: 'inventory.all_stock' },
-  { to: '/app/inventory/transfers', label: 'Transfer', key: 'inventory.stock_transfer', needsBranches: true },
-  { to: '/app/inventory/tags', label: 'Tags', key: 'inventory.tag_print' },
-  { to: '/app/inventory/scan', label: 'Scan/Match', key: 'inventory.scan_match' },
-  { to: '/app/inventory/printer', label: 'Printer settings', key: 'inventory.printer_setting' },
-  { to: '/app/inventory/tag-editor', label: 'Tag editor', key: 'inventory.printer_setting' },
+  { to: '/app/inventory', tk: 'dash.title', key: 'inventory.dashboard', end: true },
+  { to: '/app/inventory/masters', tk: 'inv.tab.masters', key: 'inventory.item_masters' },
+  { to: '/app/inventory/new', tk: 'inv.tab.new_stock', key: 'inventory.new_stock' },
+  { to: '/app/inventory/stock', tk: 'inv.tab.stock', key: 'inventory.all_stock' },
+  { to: '/app/inventory/groups', tk: 'inv.tab.groups', key: 'inventory.all_stock' },
+  { to: '/app/inventory/summary', tk: 'inv.tab.summary', key: 'inventory.all_stock' },
+  { to: '/app/inventory/import', tk: 'inv.import.import', key: 'inventory.import_stock' },
+  { to: '/app/inventory/shortage', tk: 'inv.shortage.st_shortage', key: 'inventory.all_stock' },
+  // TASK-98: plain label until the samples.* i18n fragment is merged (then drop `label`)
+  { to: '/app/inventory/samples', tk: 'samples.tab', label: 'Samples', key: SAMPLES_PERM },
+  { to: '/app/inventory/transfers', tk: 'inv.tab.transfer', key: 'inventory.stock_transfer', needsBranches: true },
+  { to: '/app/inventory/tags', tk: 'inv.tab.tags', key: 'inventory.tag_print' },
+  { to: '/app/inventory/scan', tk: 'inv.tab.scan', key: 'inventory.scan_match' },
+  { to: '/app/inventory/printer', tk: 'inv.printer.title', key: 'inventory.printer_setting' },
+  { to: '/app/inventory/tag-editor', tk: 'inv.editor.title', key: 'inventory.printer_setting' },
 ]
 
 export function InventoryLayout() {
+  const t = useT()
   const { can, me } = useAuth()
   const multiBranch = (me?.accessibleBranches.length ?? 0) >= 2
-  const tabs = TABS.filter((t) => can(t.key, 'view') && (!t.needsBranches || multiBranch))
+  const tabs = TABS.filter((tab) => can(tab.key, 'view') && (!tab.needsBranches || multiBranch))
   return (
     <div className="space-y-6">
       <header>
-        <h1>Inventory</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Stock on hand, tagging and movement of pieces between branches.</p>
+        <h1>{t('inv.title')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('inv.subtitle')}</p>
       </header>
       <nav className="flex flex-wrap gap-1 border-b">
-        {tabs.map((t) => (
+        {tabs.map((tab) => (
           <NavLink
-            key={t.to}
-            to={t.to}
-            end={t.end}
+            key={tab.to}
+            to={tab.to}
+            end={tab.end}
             className={({ isActive }) =>
               cn('border-b-2 px-3 py-2 text-sm font-medium', isActive ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground')
             }
           >
-            {t.label}
+            {tab.label ?? t(tab.tk)}
           </NavLink>
         ))}
       </nav>

@@ -13,10 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useHsn, useKarats } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
+import { useT } from '@/lib/i18n'
 import { useCreateItemGroup, useCreateItemName, useItemGroups, useItemNames, useJewelleryTypes, useUpdateItemGroup, useUpdateItemName } from '@/lib/inventoryQueries'
 import { CHARGE_UNITS, ENTRY_METHODS, STOCK_CLASSES, type ItemGroupDto, type ItemNameDto } from '@/shared'
-
-const CLASS_LABEL: Record<string, string> = { GOLD: 'Gold', SILVER: 'Silver', STONE: 'Stone', ARTIFICIAL: 'Artificial', FRANCHISE: 'Franchise' }
 
 /** '' → `empty` (undefined = not sent on create; null = cleared on edit), else a number. */
 const optNum = (s: string, empty?: null) => (s.trim() === '' ? empty : Number(s))
@@ -27,6 +26,7 @@ const limitsBody = (l: Limits, empty?: null) => ({ minWeight: optNum(l.minWeight
 
 /** HSN picker fed by the settings HSN master (enabled codes only), with a client-side 4/6/8-digit filter. */
 function HsnSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const t = useT()
   const { data } = useHsn({ onlyActive: 'true' })
   const [digits, setDigits] = useState('any')
   // Keep the selected code listed even when it falls outside the digit filter.
@@ -38,7 +38,7 @@ function HsnSelect({ value, onChange }: { value: string; onChange: (v: string) =
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="none">No HSN</SelectItem>
+          <SelectItem value="none">{t('inv.masters.no_hsn')}</SelectItem>
           {opts?.map((h) => (
             <SelectItem key={h.id} value={String(h.id)}>
               {h.code} · {h.productType}
@@ -51,9 +51,9 @@ function HsnSelect({ value, onChange }: { value: string; onChange: (v: string) =
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="any">Any length</SelectItem>
+          <SelectItem value="any">{t('inv.masters.any_length')}</SelectItem>
           {['4', '6', '8'].map((d) => (
-            <SelectItem key={d} value={d}>{d} digits</SelectItem>
+            <SelectItem key={d} value={d}>{t('inv.masters.digits', { n: d })}</SelectItem>
           ))}
         </SelectContent>
       </Select>
@@ -62,17 +62,19 @@ function HsnSelect({ value, onChange }: { value: string; onChange: (v: string) =
 }
 
 function LimitFields({ prefix, value, onChange }: { prefix: string; value: Limits; onChange: (l: Limits) => void }) {
+  const t = useT()
+  // [field, i18n key, step]
   const fields: [keyof Limits, string, string][] = [
-    ['minWeight', 'Min stock (g)', '0.001'],
-    ['maxWeight', 'Max stock (g)', '0.001'],
-    ['minPcs', 'Min stock (pcs)', '1'],
-    ['maxPcs', 'Max stock (pcs)', '1'],
+    ['minWeight', 'inv.masters.min_g', '0.001'],
+    ['maxWeight', 'inv.masters.max_g', '0.001'],
+    ['minPcs', 'inv.masters.min_pcs', '1'],
+    ['maxPcs', 'inv.masters.max_pcs', '1'],
   ]
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
       {fields.map(([k, label, step]) => (
         <div key={k} className="space-y-1.5">
-          <Label htmlFor={`${prefix}-${k}`}>{label}</Label>
+          <Label htmlFor={`${prefix}-${k}`}>{t(label)}</Label>
           <Input id={`${prefix}-${k}`} type="number" min={0} step={step} value={value[k]} onChange={(e) => onChange({ ...value, [k]: e.target.value })} />
         </div>
       ))}
@@ -81,6 +83,7 @@ function LimitFields({ prefix, value, onChange }: { prefix: string; value: Limit
 }
 
 function GroupDialog({ group, defaultClass, onCreated, onClose }: { group?: ItemGroupDto; defaultClass?: string; onCreated?: (groups: ItemGroupDto[]) => void; onClose: () => void }) {
+  const t = useT()
   const editing = !!group
   const create = useCreateItemGroup()
   const update = useUpdateItemGroup()
@@ -107,12 +110,12 @@ function GroupDialog({ group, defaultClass, onCreated, onClose }: { group?: Item
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{editing ? `Edit group · ${group.name}` : 'New item group(s)'}</DialogTitle>
+          <DialogTitle>{editing ? t('inv.masters.edit_group', { name: group.name }) : t('inv.masters.new_groups')}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label>Stock class</Label>
+              <Label>{t('bill.stock_class')}</Label>
               <Select value={stockClass} disabled={editing} onValueChange={(v) => { setStockClass(v); setJewelleryTypeId('') }}>
                 <SelectTrigger aria-label="Stock class">
                   <SelectValue />
@@ -120,23 +123,23 @@ function GroupDialog({ group, defaultClass, onCreated, onClose }: { group?: Item
                 <SelectContent>
                   {STOCK_CLASSES.map((c) => (
                     <SelectItem key={c} value={c}>
-                      {CLASS_LABEL[c]}
+                      {t(`class.${c}`)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Jewellery type</Label>
+              <Label>{t('inv.masters.jewellery_type')}</Label>
               <Select value={jewelleryTypeId} onValueChange={(v) => setJewelleryTypeId(v === 'none' ? '' : v)}>
                 <SelectTrigger aria-label="Jewellery type">
-                  <SelectValue placeholder="Optional" />
+                  <SelectValue placeholder={t('inv.f.optional')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">No type</SelectItem>
-                  {types?.map((t) => (
-                    <SelectItem key={t.id} value={String(t.id)}>
-                      {t.name}
+                  <SelectItem value="none">{t('inv.masters.no_type')}</SelectItem>
+                  {types?.map((jt) => (
+                    <SelectItem key={jt.id} value={String(jt.id)}>
+                      {jt.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -145,12 +148,12 @@ function GroupDialog({ group, defaultClass, onCreated, onClose }: { group?: Item
           </div>
           {editing ? (
             <div className="space-y-1.5">
-              <Label htmlFor="g-edit-name">Group name</Label>
+              <Label htmlFor="g-edit-name">{t('inv.masters.group_name')}</Label>
               <Input id="g-edit-name" value={editName} onChange={(e) => setEditName(e.target.value)} />
             </div>
           ) : (
             <div className="space-y-1.5">
-              <Label htmlFor="g-names">Group names (type and press Enter to add several)</Label>
+              <Label htmlFor="g-names">{t('inv.masters.group_names')}</Label>
               <Input
                 id="g-names"
                 value={draft}
@@ -176,11 +179,11 @@ function GroupDialog({ group, defaultClass, onCreated, onClose }: { group?: Item
           )}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="g-gst">GST %</Label>
+              <Label htmlFor="g-gst">{t('bill.gst_pct')}</Label>
               <Input id="g-gst" type="number" step="0.01" value={gstRate} onChange={(e) => setGstRate(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label>HSN code</Label>
+              <Label>{t('inv.masters.hsn_code')}</Label>
               <HsnSelect value={hsnId} onChange={setHsnId} />
             </div>
           </div>
@@ -195,7 +198,7 @@ function GroupDialog({ group, defaultClass, onCreated, onClose }: { group?: Item
                 onClose()
               }}
             >
-              Save group
+              {t('inv.masters.save_group')}
             </Button>
           ) : (
             <Button
@@ -206,7 +209,7 @@ function GroupDialog({ group, defaultClass, onCreated, onClose }: { group?: Item
                 onClose()
               }}
             >
-              Create {names.length || ''} group{names.length === 1 ? '' : 's'}
+              {t(names.length === 1 ? 'inv.masters.create_group_one' : 'inv.masters.create_group_other', { n: names.length || '' })}
             </Button>
           )}
         </DialogFooter>
@@ -217,6 +220,7 @@ function GroupDialog({ group, defaultClass, onCreated, onClose }: { group?: Item
 
 /** Create/edit an item name. Exported for New Stock's inline 'New item'; `stockClass` seeds the inline new-group dialog. */
 export function ItemNameDialog({ groups, item, stockClass, onCreated, onClose }: { groups: ItemGroupDto[]; item?: ItemNameDto; stockClass?: string; onCreated?: (item: ItemNameDto) => void; onClose: () => void }) {
+  const t = useT()
   const editing = !!item
   const create = useCreateItemName()
   const update = useUpdateItemName()
@@ -260,20 +264,20 @@ export function ItemNameDialog({ groups, item, stockClass, onCreated, onClose }:
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{editing ? `Edit item name · ${item.name}` : 'New item name'}</DialogTitle>
+          <DialogTitle>{editing ? t('inv.masters.edit_name', { name: item.name }) : t('inv.newstock.new_item_name')}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label>Group</Label>
+            <Label>{t('stock.col_group')}</Label>
             <div className="flex gap-2">
               <Select value={groupId} disabled={editing} onValueChange={setGroupId}>
                 <SelectTrigger aria-label="Group">
-                  <SelectValue placeholder="Select group" />
+                  <SelectValue placeholder={t('inv.import.select_group')} />
                 </SelectTrigger>
                 <SelectContent>
                   {groupOpts.map((g) => (
                     <SelectItem key={g.id} value={String(g.id)}>
-                      {CLASS_LABEL[g.stockClass]} · {g.name}
+                      {t(`class.${g.stockClass}`)} · {g.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -281,18 +285,18 @@ export function ItemNameDialog({ groups, item, stockClass, onCreated, onClose }:
               {!editing && (
                 <Button type="button" variant="outline" className="shrink-0" onClick={() => setNewGroup(true)}>
                   <Plus className="size-4" aria-hidden />
-                  New group
+                  {t('inv.masters.new_group')}
                 </Button>
               )}
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="n-name">Item name</Label>
+            <Label htmlFor="n-name">{t('bill.item_name')}</Label>
             <Input id="n-name" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-1.5">
-              <Label>Method</Label>
+              <Label>{t('subscription.col_method')}</Label>
               <Select value={method} onValueChange={setMethod}>
                 <SelectTrigger aria-label="Method">
                   <SelectValue />
@@ -309,11 +313,11 @@ export function ItemNameDialog({ groups, item, stockClass, onCreated, onClose }:
             {needsTag && (
               <>
                 <div className="space-y-1.5">
-                  <Label htmlFor="n-prefix">Tag prefix</Label>
+                  <Label htmlFor="n-prefix">{t('inv.masters.tag_prefix')}</Label>
                   <Input id="n-prefix" value={tagPrefix} onChange={(e) => setTagPrefix(e.target.value.toUpperCase())} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="n-digits">Tag digits</Label>
+                  <Label htmlFor="n-digits">{t('inv.masters.tag_digits')}</Label>
                   <Input id="n-digits" type="number" min={3} max={8} value={tagDigits} onChange={(e) => setTagDigits(e.target.value)} />
                 </div>
               </>
@@ -321,38 +325,38 @@ export function ItemNameDialog({ groups, item, stockClass, onCreated, onClose }:
           </div>
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-1.5">
-              <Label>HSN code</Label>
+              <Label>{t('inv.masters.hsn_code')}</Label>
               <HsnSelect value={hsnId} onChange={setHsnId} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="n-tax">GST value</Label>
-              <Input id="n-tax" type="number" min={0} step="0.01" placeholder="Group rate" value={taxValue} onChange={(e) => setTaxValue(e.target.value)} />
+              <Label htmlFor="n-tax">{t('inv.masters.gst_value')}</Label>
+              <Input id="n-tax" type="number" min={0} step="0.01" placeholder={t('inv.masters.group_rate')} value={taxValue} onChange={(e) => setTaxValue(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label>GST unit</Label>
+              <Label>{t('inv.masters.gst_unit')}</Label>
               <Select value={taxUnit} onValueChange={setTaxUnit}>
                 <SelectTrigger aria-label="GST unit">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="PERCENT">Percent</SelectItem>
-                  <SelectItem value="FIXED">Fixed amount</SelectItem>
+                  <SelectItem value="PERCENT">{t('inv.masters.percent')}</SelectItem>
+                  <SelectItem value="FIXED">{t('inv.masters.fixed_amount')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
           <LimitFields prefix="n" value={limits} onChange={setLimits} />
           <fieldset className="space-y-3 rounded-xl border p-4">
-            <legend className="px-1 text-sm font-medium">Default sale values</legend>
+            <legend className="px-1 text-sm font-medium">{t('inv.masters.defaults_legend')}</legend>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
               <div className="space-y-1.5">
-                <Label>Default karat</Label>
+                <Label>{t('inv.masters.default_karat')}</Label>
                 <Select value={def.karat || 'none'} onValueChange={(v) => setDef({ ...def, karat: v === 'none' ? '' : v })}>
                   <SelectTrigger aria-label="Default karat">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="none">{t('udhari.none')}</SelectItem>
                     {karatOpts.map((k) => (
                       <SelectItem key={k.code} value={k.code}>
                         {k.title}
@@ -362,25 +366,25 @@ export function ItemNameDialog({ groups, item, stockClass, onCreated, onClose }:
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="n-def-tunch">Tunch %</Label>
+                <Label htmlFor="n-def-tunch">{t('inv.f.tunch_pct')}</Label>
                 <Input id="n-def-tunch" type="number" min={0} max={100} step="0.01" value={def.tunch} onChange={(e) => setDef({ ...def, tunch: e.target.value })} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="n-def-wastage">Wastage %</Label>
+                <Label htmlFor="n-def-wastage">{t('inv.f.wastage_pct')}</Label>
                 <Input id="n-def-wastage" type="number" min={0} max={100} step="0.01" value={def.wastage} onChange={(e) => setDef({ ...def, wastage: e.target.value })} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="n-def-labour">Labour</Label>
+                <Label htmlFor="n-def-labour">{t('bill.col_labour')}</Label>
                 <Input id="n-def-labour" type="number" min={0} step="0.01" value={def.labour} onChange={(e) => setDef({ ...def, labour: e.target.value })} />
               </div>
               <div className="space-y-1.5">
-                <Label>Labour unit</Label>
+                <Label>{t('inv.f.labour_unit')}</Label>
                 <Select value={def.labourUnit || 'none'} onValueChange={(v) => setDef({ ...def, labourUnit: v === 'none' ? '' : v })}>
                   <SelectTrigger aria-label="Default labour unit">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="none">{t('udhari.none')}</SelectItem>
                     {CHARGE_UNITS.map((u) => (
                       <SelectItem key={u} value={u}>
                         {u}
@@ -401,7 +405,7 @@ export function ItemNameDialog({ groups, item, stockClass, onCreated, onClose }:
                 onClose()
               }}
             >
-              Save item name
+              {t('inv.masters.save_name')}
             </Button>
           ) : (
             <>
@@ -416,7 +420,7 @@ export function ItemNameDialog({ groups, item, stockClass, onCreated, onClose }:
                     setTagPrefix('')
                   }}
                 >
-                  Save and add another
+                  {t('inv.masters.save_add_another')}
                 </Button>
               )}
               <Button
@@ -427,7 +431,7 @@ export function ItemNameDialog({ groups, item, stockClass, onCreated, onClose }:
                   onClose()
                 }}
               >
-                Create
+                {t('inv.masters.create')}
               </Button>
             </>
           )}
@@ -441,6 +445,7 @@ export function ItemNameDialog({ groups, item, stockClass, onCreated, onClose }:
 const ALL = 'all'
 
 export function ItemMasters() {
+  const t = useT()
   const { can } = useAuth()
   const canEdit = can('inventory.item_masters', 'edit')
   // Group tab filters + page
@@ -471,28 +476,28 @@ export function ItemMasters() {
   const [editGroup, setEditGroup] = useState<ItemGroupDto | null>(null)
   const [editName, setEditName] = useState<ItemNameDto | null>(null)
 
-  const statusBadge = (active: boolean) => <Badge variant={active ? 'default' : 'secondary'}>{active ? 'Active' : 'Inactive'}</Badge>
+  const statusBadge = (active: boolean) => <Badge variant={active ? 'default' : 'secondary'}>{active ? t('bill.status_active') : t('inv.masters.inactive')}</Badge>
   const limitText = (minW: string | null, maxW: string | null, minP: number | null, maxP: number | null) =>
     minW == null && maxW == null && minP == null && maxP == null ? '—' : `${minW ?? '—'}–${maxW ?? '—'} g · ${minP ?? '—'}–${maxP ?? '—'} pcs`
 
   const groupCols: ColumnDef<ItemGroupDto, unknown>[] = [
-    { accessorKey: 'name', header: 'Group' },
-    { accessorKey: 'stockClass', header: 'Class', cell: ({ row }) => CLASS_LABEL[row.original.stockClass] },
-    { header: 'Type', cell: ({ row }) => row.original.jewelleryType?.name ?? '—' },
+    { accessorKey: 'name', header: t('stock.col_group') },
+    { accessorKey: 'stockClass', header: t('gst.col_class'), cell: ({ row }) => t(`class.${row.original.stockClass}`) },
+    { header: t('bill.type'), cell: ({ row }) => row.original.jewelleryType?.name ?? '—' },
     { id: 'hsn', header: 'HSN', cell: ({ row }) => row.original.hsn?.code ?? '—' },
-    { accessorKey: 'gstRate', header: 'GST %' },
-    { id: 'limits', header: 'Min / Max stock', cell: ({ row }) => <span className="whitespace-nowrap tabular-nums text-muted-foreground">{limitText(row.original.minWeight, row.original.maxWeight, row.original.minPcs, row.original.maxPcs)}</span> },
-    { accessorKey: 'itemCount', header: 'Items' },
-    { id: 'status', header: 'Status', cell: ({ row }) => statusBadge(row.original.isActive) },
+    { accessorKey: 'gstRate', header: t('bill.gst_pct') },
+    { id: 'limits', header: t('inv.masters.col_limits'), cell: ({ row }) => <span className="whitespace-nowrap tabular-nums text-muted-foreground">{limitText(row.original.minWeight, row.original.maxWeight, row.original.minPcs, row.original.maxPcs)}</span> },
+    { accessorKey: 'itemCount', header: t('bill.col_items') },
+    { id: 'status', header: t('stock.col_status'), cell: ({ row }) => statusBadge(row.original.isActive) },
     ...(canEdit
       ? [{
           id: 'actions',
           header: '',
           cell: ({ row }: { row: { original: ItemGroupDto } }) => (
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => setEditGroup(row.original)}>Edit</Button>
+              <Button variant="outline" size="sm" onClick={() => setEditGroup(row.original)}>{t('common.edit')}</Button>
               <Button variant="ghost" size="sm" disabled={updateGroup.isPending} onClick={() => updateGroup.mutate({ id: row.original.id, body: { isActive: !row.original.isActive } })}>
-                {row.original.isActive ? 'Deactivate' : 'Activate'}
+                {row.original.isActive ? t('inv.masters.deactivate') : t('inv.masters.activate')}
               </Button>
             </div>
           ),
@@ -500,31 +505,31 @@ export function ItemMasters() {
       : []),
   ]
   const nameCols: ColumnDef<ItemNameDto, unknown>[] = [
-    { accessorKey: 'name', header: 'Item name' },
-    { header: 'Group', cell: ({ row }) => `${CLASS_LABEL[row.original.group.stockClass]} · ${row.original.group.name}` },
-    { accessorKey: 'method', header: 'Method' },
-    { header: 'Tag', cell: ({ row }) => (row.original.tagPrefix ? `${row.original.tagPrefix} (${row.original.tagDigits})` : '—') },
+    { accessorKey: 'name', header: t('bill.item_name') },
+    { header: t('stock.col_group'), cell: ({ row }) => `${t(`class.${row.original.group.stockClass}`)} · ${row.original.group.name}` },
+    { accessorKey: 'method', header: t('subscription.col_method') },
+    { header: t('inv.newstock.tag'), cell: ({ row }) => (row.original.tagPrefix ? `${row.original.tagPrefix} (${row.original.tagDigits})` : '—') },
     { id: 'hsn', header: 'HSN', cell: ({ row }) => row.original.hsn?.code ?? '—' },
-    { id: 'purity', header: 'Purity', cell: ({ row }) => [row.original.defKaratCode, row.original.defTunch != null ? `${row.original.defTunch}%` : null].filter(Boolean).join(' · ') || '—' },
+    { id: 'purity', header: t('jbill.col_purity'), cell: ({ row }) => [row.original.defKaratCode, row.original.defTunch != null ? `${row.original.defTunch}%` : null].filter(Boolean).join(' · ') || '—' },
     {
       id: 'defaults',
-      header: 'Defaults',
+      header: t('inv.masters.col_defaults'),
       cell: ({ row }) => {
         const n = row.original
-        const parts = [n.defWastage != null ? `Wst ${n.defWastage}%` : null, n.defLabour != null ? `Lbr ${n.defLabour}${n.defLabourUnit ? ` ${n.defLabourUnit}` : ''}` : null].filter(Boolean)
+        const parts = [n.defWastage != null ? t('inv.masters.wst', { v: n.defWastage }) : null, n.defLabour != null ? t('inv.masters.lbr', { v: `${n.defLabour}${n.defLabourUnit ? ` ${n.defLabourUnit}` : ''}` }) : null].filter(Boolean)
         return <span className="whitespace-nowrap text-muted-foreground">{parts.join(' · ') || '—'}</span>
       },
     },
-    { id: 'status', header: 'Status', cell: ({ row }) => statusBadge(row.original.isActive) },
+    { id: 'status', header: t('stock.col_status'), cell: ({ row }) => statusBadge(row.original.isActive) },
     ...(canEdit
       ? [{
           id: 'actions',
           header: '',
           cell: ({ row }: { row: { original: ItemNameDto } }) => (
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => setEditName(row.original)}>Edit</Button>
+              <Button variant="outline" size="sm" onClick={() => setEditName(row.original)}>{t('common.edit')}</Button>
               <Button variant="ghost" size="sm" disabled={updateName.isPending} onClick={() => updateName.mutate({ id: row.original.id, body: { isActive: !row.original.isActive } })}>
-                {row.original.isActive ? 'Deactivate' : 'Activate'}
+                {row.original.isActive ? t('inv.masters.deactivate') : t('inv.masters.activate')}
               </Button>
             </div>
           ),
@@ -557,10 +562,10 @@ export function ItemMasters() {
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value={ALL}>All classes</SelectItem>
+        <SelectItem value={ALL}>{t('stock.all_classes')}</SelectItem>
         {STOCK_CLASSES.map((c) => (
           <SelectItem key={c} value={c}>
-            {CLASS_LABEL[c]}
+            {t(`class.${c}`)}
           </SelectItem>
         ))}
       </SelectContent>
@@ -570,38 +575,38 @@ export function ItemMasters() {
   return (
     <div className="space-y-8">
       <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {tile('Categories', allGroupsQ.data ? String(allGroupsQ.data.total) : '—', 'All master categories', Layers)}
-        {tile('Product names', allNamesCount.data ? String(allNamesCount.data.total) : '—', 'Across all categories', Gem)}
-        {tile('Linked entries', groupsQ.data ? String(linkedTotal) : '—', 'Across categories on this page', Boxes)}
-        {tile('Auto-numbered', namesQ.data ? String(numbered) : '—', namesQ.data ? `of ${nameItems.length} products on this page` : undefined, Hash)}
+        {tile(t('inv.masters.categories'), allGroupsQ.data ? String(allGroupsQ.data.total) : '—', t('inv.masters.categories_sub'), Layers)}
+        {tile(t('inv.masters.product_names'), allNamesCount.data ? String(allNamesCount.data.total) : '—', t('inv.masters.product_names_sub'), Gem)}
+        {tile(t('inv.masters.linked'), groupsQ.data ? String(linkedTotal) : '—', t('inv.masters.linked_sub'), Boxes)}
+        {tile(t('inv.masters.auto_numbered'), namesQ.data ? String(numbered) : '—', namesQ.data ? t('inv.masters.auto_numbered_sub', { n: nameItems.length }) : undefined, Hash)}
       </div>
 
       <Tabs defaultValue="groups">
         <TabsList>
-          <TabsTrigger value="groups">Item Groups</TabsTrigger>
-          <TabsTrigger value="names">Item Names</TabsTrigger>
+          <TabsTrigger value="groups">{t('inv.masters.tab_groups')}</TabsTrigger>
+          <TabsTrigger value="names">{t('inv.masters.tab_names')}</TabsTrigger>
         </TabsList>
         <TabsContent value="groups" className="space-y-4 pt-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-xl">Category catalogue</h2>
-              <p className="text-sm text-muted-foreground">Organise products by metal, jewellery family and GST rate.</p>
+              <h2 className="text-xl">{t('inv.masters.groups_title')}</h2>
+              <p className="text-sm text-muted-foreground">{t('inv.masters.groups_intro')}</p>
             </div>
-            <Button onClick={() => setNewGroup(true)}>New group</Button>
+            <Button onClick={() => setNewGroup(true)}>{t('inv.masters.new_group')}</Button>
           </div>
           <Card>
             <CardContent className="flex flex-wrap items-end gap-3 pt-6">
-              <Input className="max-w-xs" placeholder="Search groups…" aria-label="Search groups" value={gQ} onChange={(e) => { setGQ(e.target.value); setGPage(1) }} />
+              <Input className="max-w-xs" placeholder={t('inv.shortage.search')} aria-label="Search groups" value={gQ} onChange={(e) => { setGQ(e.target.value); setGPage(1) }} />
               {classSelect(gClass, (v) => { setGClass(v); setGType(''); setGPage(1) }, 'Filter by class')}
               <Select value={gType || ALL} onValueChange={(v) => { setGType(v === ALL ? '' : v); setGPage(1) }}>
                 <SelectTrigger className="w-44" aria-label="Filter by jewellery type">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={ALL}>All jewellery types</SelectItem>
-                  {gTypes?.map((t) => (
-                    <SelectItem key={t.id} value={String(t.id)}>
-                      {t.name}
+                  <SelectItem value={ALL}>{t('inv.shortage.all_types')}</SelectItem>
+                  {gTypes?.map((jt) => (
+                    <SelectItem key={jt.id} value={String(jt.id)}>
+                      {jt.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -613,7 +618,7 @@ export function ItemMasters() {
               columns={groupCols}
               data={groupItems}
               isLoading={groupsQ.isLoading}
-              emptyText="No item groups"
+              emptyText={t('inv.masters.no_groups')}
               pagination={groupsQ.data ? { page: groupsQ.data.page, pageSize: groupsQ.data.pageSize, total: groupsQ.data.total, onPage: setGPage, onPageSize: setGSize } : undefined}
             />
           </Card>
@@ -621,23 +626,23 @@ export function ItemMasters() {
         <TabsContent value="names" className="space-y-4 pt-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-xl">Product catalogue</h2>
-              <p className="text-sm text-muted-foreground">Set how each product is entered and labelled for printing.</p>
+              <h2 className="text-xl">{t('inv.masters.names_title')}</h2>
+              <p className="text-sm text-muted-foreground">{t('inv.masters.names_intro')}</p>
             </div>
             <Button onClick={() => setNewName(true)} disabled={!allGroups.length}>
-              New item name
+              {t('inv.newstock.new_item_name')}
             </Button>
           </div>
           <Card>
             <CardContent className="flex flex-wrap items-end gap-3 pt-6">
-              <Input className="max-w-xs" placeholder="Search item names…" aria-label="Search item names" value={nQ} onChange={(e) => { setNQ(e.target.value); setNPage(1) }} />
+              <Input className="max-w-xs" placeholder={t('inv.masters.search_names')} aria-label="Search item names" value={nQ} onChange={(e) => { setNQ(e.target.value); setNPage(1) }} />
               {classSelect(nClass, (v) => { setNClass(v); setNGroup(''); setNPage(1) }, 'Filter item names by class')}
               <Select value={nGroup || ALL} onValueChange={(v) => { setNGroup(v === ALL ? '' : v); setNPage(1) }}>
                 <SelectTrigger className="w-44" aria-label="Filter by group">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={ALL}>All groups</SelectItem>
+                  <SelectItem value={ALL}>{t('inv.f.all_groups')}</SelectItem>
                   {allGroups.filter((g) => !nClass || g.stockClass === nClass).map((g) => (
                     <SelectItem key={g.id} value={String(g.id)}>
                       {g.name}
@@ -652,7 +657,7 @@ export function ItemMasters() {
               columns={nameCols}
               data={nameItems}
               isLoading={namesQ.isLoading}
-              emptyText="No item names"
+              emptyText={t('inv.masters.no_names')}
               pagination={namesQ.data ? { page: namesQ.data.page, pageSize: namesQ.data.pageSize, total: namesQ.data.total, onPage: setNPage, onPageSize: setNSize } : undefined}
             />
           </Card>

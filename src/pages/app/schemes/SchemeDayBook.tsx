@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useSchemeDayBook } from '@/lib/schemesQueries'
+import { ClientPager, useClientPage } from './ClientPager'
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
@@ -19,6 +20,7 @@ export function SchemeDayBook() {
 
   // Summary numbers derived from the day-book already fetched (no extra requests).
   const rows = data?.rows ?? []
+  const { pageRows, pager } = useClientPage(data?.rows)
   const reversedCount = rows.filter((r) => r.isReversed).length
   const partyCount = new Set(rows.map((r) => r.party.id)).size
   const inNum = data ? Number(data.moneyIn) : 0
@@ -127,7 +129,7 @@ export function SchemeDayBook() {
             <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Assign</TableHead><TableHead>Member</TableHead><TableHead>Scheme</TableHead><TableHead>Amount</TableHead><TableHead>Via</TableHead></TableRow></TableHeader>
             <TableBody>
               {isLoading ? <TableRow><TableCell colSpan={6} className="h-16 text-center text-muted-foreground">Loading…</TableCell></TableRow>
-                : data?.rows.length ? data.rows.map((r) => (
+                : data?.rows.length ? pageRows.map((r) => (
                   <TableRow key={r.id} className={r.isReversed ? 'text-muted-foreground line-through' : ''}>
                     <TableCell>{date(r.txnDate)}</TableCell><TableCell className="font-medium">{r.assignId}</TableCell>
                     <TableCell>{r.party.name}</TableCell><TableCell>{r.scheme.name}</TableCell>
@@ -145,6 +147,7 @@ export function SchemeDayBook() {
                 )}
             </TableBody>
           </Table>
+          <ClientPager {...pager} />
         </Card>
       </section>
     </div>

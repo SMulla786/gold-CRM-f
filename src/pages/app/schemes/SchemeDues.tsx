@@ -12,6 +12,7 @@ import { downloadCsv } from '@/lib/csv'
 import { downloadPdf } from '@/lib/share'
 import { useSchemeDueMonths, useSchemeDues, useSchemeGroups, useSchemes } from '@/lib/schemesQueries'
 import { businessDayISO, SCHEME_KINDS, type SchemeDueRowDto } from '@/shared'
+import { ClientPager, useClientPage } from './ClientPager'
 
 const inr = (s: string | number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
@@ -41,7 +42,7 @@ function bucket(rows: SchemeDueRowDto[], label: (d: SchemeDueRowDto) => string):
 export function SchemeDues() {
   const [sp] = useSearchParams()
   const [kind, setKind] = useState(sp.get('kind') ?? '')
-  const [schemeId, setSchemeId] = useState('')
+  const [schemeId, setSchemeId] = useState(sp.get('schemeId') ?? '')
   const [groupId, setGroupId] = useState('')
   const [customer, setCustomer] = useState('')
   const [view, setView] = useState<View>('flat')
@@ -52,6 +53,9 @@ export function SchemeDues() {
   const { data: months, isLoading: monthsLoading } = useSchemeDueMonths(filters, view === 'month')
   const grouped = useMemo(() => bucket(dues ?? [], (d) => d.group?.name ?? 'No group'), [dues])
   const bySchemes = useMemo(() => bucket(dues ?? [], (d) => d.scheme.name), [dues])
+  // on-screen paging only (flat + per-month lists); CSV/PDF still export every row
+  const duePage = useClientPage(dues)
+  const monthPage = useClientPage(months)
 
   const exportCsv = () => {
     const rows = [['Assign', 'Member', 'Mobile', 'Scheme', 'Group', 'EMI', 'Due count', 'Due amount', 'Oldest due']]
@@ -137,9 +141,9 @@ export function SchemeDues() {
             <TableBody>
               {monthsLoading ? <TableRow><TableCell colSpan={9} className="h-16 text-center text-muted-foreground">Loading…</TableCell></TableRow>
                 : !months?.length ? empty(9)
-                : months.map((m, i) => (
+                : monthPage.pageRows.map((m, i) => (
                     <TableRow key={`${m.enrollmentId}-${m.emiNo}`}>
-                      <TableCell className="tabular-nums text-muted-foreground">{i + 1}</TableCell><TableCell className="font-medium">{m.assignId}</TableCell>
+                      <TableCell className="tabular-nums text-muted-foreground">{monthPage.start + i + 1}</TableCell><TableCell className="font-medium">{m.assignId}</TableCell>
                       <TableCell>{m.party?.name}</TableCell><TableCell className="tabular-nums">{m.party?.mobile || '—'}</TableCell>
                       <TableCell>{m.scheme.name}</TableCell><TableCell>{m.group?.name ?? '—'}</TableCell>
                       <TableCell className="tabular-nums">{m.emiNo}</TableCell><TableCell>{date(m.emiDate)}</TableCell><TableCell className="tabular-nums font-medium">{inr(m.amount)}</TableCell>
@@ -184,10 +188,12 @@ export function SchemeDues() {
                       {items.map((d, i) => <DueRow key={d.enrollmentId} d={d} sn={i + 1} />)}
                     </Fragment>
                   ))
-                : dues.map((d, i) => <DueRow key={d.enrollmentId} d={d} sn={i + 1} />)}
+                : duePage.pageRows.map((d, i) => <DueRow key={d.enrollmentId} d={d} sn={duePage.start + i + 1} />)}
             </TableBody>
           </Table>
         )}
+        {view === 'flat' && <ClientPager {...duePage.pager} />}
+        {view === 'month' && <ClientPager {...monthPage.pager} />}
       </Card>
 
       {printing && dues && (

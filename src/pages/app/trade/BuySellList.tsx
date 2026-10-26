@@ -1,8 +1,9 @@
 import type { ColumnDef } from '@tanstack/react-table'
-import { Coins, Download, History, IndianRupee, ListOrdered, Pencil, Printer, Wallet, type LucideIcon } from 'lucide-react'
+import { Coins, History, IndianRupee, ListOrdered, Pencil, Printer, Wallet, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import { CsvExportButton } from '@/components/CsvExportButton'
 import { DataTable } from '@/components/DataTable'
 import { MpinDialog } from '@/components/MpinDialog'
 import { Badge } from '@/components/ui/badge'
@@ -11,7 +12,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAuth } from '@/lib/auth'
-import { downloadCsv } from '@/lib/csv'
 import { useT } from '@/lib/i18n'
 import { fetchAllPaged } from '@/lib/queries'
 import { useBuySells, useDeleteBuySell } from '@/lib/tradeQueries'
@@ -38,17 +38,11 @@ export function BuySellList() {
   const [pageSize, setPageSize] = useState(20)
   const filters = { side: side || undefined, metal: metal || undefined, q: q || undefined, from: from || undefined, to: to || undefined }
   const { data, isLoading } = useBuySells({ ...filters, page, pageSize })
-  const [exporting, setExporting] = useState(false)
-  const exportCsv = async () => {
-    setExporting(true)
-    try {
-      const all = await fetchAllPaged<BuySellDto>('/app/buy-sell', filters)
-      const header = ['No', 'Date', 'Side', 'Party', 'Mobile', 'Metal', 'Lines (weight @ rate = amount)', 'Weight (g)', 'Discount', 'Amount', 'Cash', 'Online', 'Balance', 'Booking', 'Narration']
-      const body = all.map((x) => [x.buySellNo, date(x.txnDate), x.side, x.party.name, x.party.mobile, x.metal, x.lines.map((l) => `${l.weight} @ ${l.rate} = ${l.amount}`).join('; '), x.totalWeight, x.discount, x.totalAmount, x.cash, x.online, x.balance, x.bhavBooking ? `#${x.bhavBooking.bookingNo}` : '', x.narration])
-      downloadCsv(`buy-sell-${businessDayISO()}.csv`, [header, ...body])
-    } finally {
-      setExporting(false)
-    }
+  const exportRows = async () => {
+    const all = await fetchAllPaged<BuySellDto>('/app/buy-sell', filters)
+    const header = ['No', 'Date', 'Side', 'Party', 'Mobile', 'Metal', 'Lines (weight @ rate = amount)', 'Weight (g)', 'Discount', 'Amount', 'Cash', 'Online', 'Balance', 'Booking', 'Narration']
+    const body = all.map((x) => [x.buySellNo, date(x.txnDate), x.side, x.party.name, x.party.mobile, x.metal, x.lines.map((l) => `${l.weight} @ ${l.rate} = ${l.amount}`).join('; '), x.totalWeight, x.discount, x.totalAmount, x.cash, x.online, x.balance, x.bhavBooking ? `#${x.bhavBooking.bookingNo}` : '', x.narration])
+    return [header, ...body]
   }
   const del = useDeleteBuySell()
   const [deleting, setDeleting] = useState<BuySellDto | null>(null)
@@ -68,6 +62,10 @@ export function BuySellList() {
     { header: t('bill.amount'), cell: ({ row }) => inr(row.original.totalAmount) },
     { header: t('bill.balance'), cell: ({ row }) => inr(row.original.balance) },
     { header: t('trade.col_booking'), cell: ({ row }) => (row.original.bhavBooking ? `#${row.original.bhavBooking.bookingNo}` : '—') },
+    // Source = how the trade was entered: typed in by hand, or delivered against a bhav booking.
+    { header: t('trade.bs.col_source'), cell: ({ row }) => (row.original.bhavBooking
+      ? <Badge variant="outline">{t('trade.bs.src_booking', { no: row.original.bhavBooking.bookingNo })}</Badge>
+      : <span className="text-muted-foreground">{t('trade.bs.src_manual')}</span>) },
     { id: 'actions', header: '', cell: ({ row }) => (
       <div className="flex justify-end gap-1">
         <Button asChild variant="ghost" size="sm"><Link to={`/app/buy_sell/${row.original.id}/print`}><Printer className="size-4" aria-hidden />{t('bill.print')}</Link></Button>
@@ -119,7 +117,7 @@ export function BuySellList() {
             <SelectContent><SelectItem value="all">{t('trade.all_metals')}</SelectItem>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
           </Select>
           <DateRangeFilter from={from} to={to} onChange={(a, b) => { setFrom(a); setTo(b); setPage(1) }} />
-          <Button variant="outline" className="ml-auto" disabled={exporting} onClick={() => void exportCsv()}><Download className="size-4" aria-hidden />{exporting ? t('bill.exporting') : t('common.export_csv')}</Button>
+          <CsvExportButton className="ml-auto" filename={`buy-sell-${businessDayISO()}.csv`} rows={exportRows} />
         </CardContent>
       </Card>
 

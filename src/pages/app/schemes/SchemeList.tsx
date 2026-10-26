@@ -29,7 +29,7 @@ const BONUS_LABEL: Record<string, string> = { NONE: 'No bonus', ONE_EMI: 'One fr
 /** Anjuman tab shortcuts: the shared Members / Dues / Transactions screens pre-filtered to kind=ANJUMAN. */
 const ANJUMAN_VIEWS = [
   { to: '/app/schemes/members', label: 'Anjuman members', key: 'schemes.all' },
-  { to: '/app/schemes/dues', label: 'Anjuman dues', key: 'schemes.due_list' },
+  { to: '/app/schemes/dues', label: 'Anjuman dues', key: 'schemes.due_list', alt: 'schemes.due_amount' },
   { to: '/app/schemes/transactions', label: 'Anjuman transactions', key: 'schemes.transactions' },
 ]
 
@@ -131,6 +131,8 @@ export function SchemeList({ kind = 'SAVING' }: { kind?: SchemeKind }) {
   const permKey = kind === 'ANJUMAN' ? 'schemes.anjuman' : 'schemes.all'
   const canEdit = can(permKey, 'edit')
   const canMembers = can('schemes.all', 'view')
+  const canDues = can('schemes.due_list', 'view') || can('schemes.due_amount', 'view')
+  const canTxns = can('schemes.transactions', 'view')
   const [type, setType] = useState('')
   const [active, setActive] = useState('')
   const [q, setQ] = useState('')
@@ -168,6 +170,16 @@ export function SchemeList({ kind = 'SAVING' }: { kind?: SchemeKind }) {
     { header: 'Active', cell: ({ row }) => (canEdit
       ? <Button variant="ghost" size="sm" aria-label="Toggle active" onClick={() => patch.mutate({ id: row.original.id, body: { isActive: !row.original.isActive } })}><Badge variant={row.original.isActive ? 'default' : 'outline'}>{row.original.isActive ? 'Active' : 'Off'}</Badge></Button>
       : <Badge variant={row.original.isActive ? 'default' : 'outline'}>{row.original.isActive ? 'Active' : 'Off'}</Badge>) },
+    // drill-down: this scheme's dues / transactions (?schemeId=&kind= presets)
+    ...(canDues || canTxns ? [{ id: 'drill', header: '', cell: ({ row }) => {
+      const qs = `?schemeId=${row.original.id}&kind=${row.original.kind}`
+      return (
+        <div className="flex gap-1">
+          {canDues && <Button asChild variant="ghost" size="sm"><Link to={`/app/schemes/dues${qs}`} aria-label={`Dues for ${row.original.name}`}>Dues</Link></Button>}
+          {canTxns && <Button asChild variant="ghost" size="sm"><Link to={`/app/schemes/transactions${qs}`} aria-label={`Transactions for ${row.original.name}`}>Txns</Link></Button>}
+        </div>
+      )
+    } } satisfies ColumnDef<SchemeDto, unknown>] : []),
     ...(canEdit ? [{ id: 'edit', header: '', cell: ({ row }) => <Button variant="ghost" size="sm" aria-label={`Edit ${row.original.name}`} onClick={() => setEditing(row.original)}>Edit</Button> } satisfies ColumnDef<SchemeDto, unknown>] : []),
   ]
 
@@ -193,7 +205,7 @@ export function SchemeList({ kind = 'SAVING' }: { kind?: SchemeKind }) {
           <p className="text-sm text-muted-foreground">{anjuman ? 'Anjuman savings plans offered at this branch.' : 'EMI savings plans, their tenure and bonus rules.'}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {anjuman && ANJUMAN_VIEWS.filter((v) => can(v.key, 'view')).map((v) => (
+          {anjuman && ANJUMAN_VIEWS.filter((v) => can(v.key, 'view') || ('alt' in v && can(v.alt, 'view'))).map((v) => (
             <Button key={v.to} asChild variant="outline" size="sm"><Link to={`${v.to}?kind=ANJUMAN`}>{v.label}</Link></Button>
           ))}
           {canEdit && <NewSchemeDialog kind={kind} />}
