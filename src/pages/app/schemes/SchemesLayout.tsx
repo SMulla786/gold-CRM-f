@@ -20,7 +20,10 @@ export function SchemesLayout() {
   const tabs = TABS.filter((t) => can(t.key, 'view'))
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Saving schemes</h1>
+      <header>
+        <h1>Saving schemes</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Recurring EMI savings plans, enrolments, dues and the scheme day-book.</p>
+      </header>
       <nav className="flex flex-wrap gap-1 border-b">
         {tabs.map((t) => (
           <NavLink key={t.to} to={t.to} end={t.end} className={({ isActive }) => cn('border-b-2 px-3 py-2 text-sm font-medium', isActive ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground')}>

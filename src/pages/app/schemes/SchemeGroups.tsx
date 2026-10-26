@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { Layers, Target, Users, UsersRound, type LucideIcon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -26,7 +28,7 @@ function NewGroupDialog({ schemeId, schemes }: { schemeId: number; schemes: { id
       <DialogTrigger asChild><Button>New group</Button></DialogTrigger>
       <DialogContent>
         <DialogHeader><DialogTitle>New group</DialogTitle></DialogHeader>
-        <div className="space-y-3">
+        <div className="grid gap-4">
           <div className="space-y-1.5"><Label>Scheme</Label>
             <Select value={f.schemeId} onValueChange={(v) => set('schemeId', v)}><SelectTrigger aria-label="Scheme"><SelectValue placeholder="Select scheme" /></SelectTrigger>
               <SelectContent>{schemes.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}</SelectContent></Select>
@@ -48,23 +50,67 @@ export function SchemeGroups() {
   const { data: groups, isLoading } = useSchemeGroups(schemeId ? Number(schemeId) : undefined)
   const schemeOpts = schemes?.items.map((s) => ({ id: s.id, name: s.name })) ?? []
 
+  const groupCount = groups?.length ?? 0
+  const memberTotal = groups?.reduce((sum, g) => sum + g.memberCount, 0) ?? 0
+  const limited = groups?.filter((g) => g.memberLimit != null) ?? []
+  const capacity = limited.reduce((sum, g) => sum + (g.memberLimit ?? 0), 0)
+
+  const tile = (label: string, value: string, sub: string | undefined, Icon: LucideIcon) => (
+    <Card className="gap-2 hover:-translate-y-1">
+      <CardHeader className="flex flex-row items-center justify-between pb-1">
+        <CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</CardTitle>
+        <span className="icon-chip"><Icon className="size-5" aria-hidden /></span>
+      </CardHeader>
+      <CardContent>
+        <div className="text-3xl font-extrabold tracking-tight tabular-nums">{value}</div>
+        {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
+      </CardContent>
+    </Card>
+  )
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <Select value={schemeId || 'all'} onValueChange={(v) => setSchemeId(v === 'all' ? '' : v)}>
-          <SelectTrigger className="w-56" aria-label="Scheme filter"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="all">All schemes</SelectItem>{schemeOpts.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}</SelectContent>
-        </Select>
-        {canEdit && <div className="ml-auto"><NewGroupDialog schemeId={schemeId ? Number(schemeId) : 0} schemes={schemeOpts} /></div>}
+    <div className="space-y-8">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl">Scheme groups</h2>
+          <p className="text-sm text-muted-foreground">Batches of members enrolled together under a scheme.</p>
+        </div>
+        {canEdit && <NewGroupDialog schemeId={schemeId ? Number(schemeId) : 0} schemes={schemeOpts} />}
       </div>
-      <div className="overflow-x-auto rounded-md border">
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {tile('Total groups', String(groupCount), schemeId ? 'In selected scheme' : 'Across all schemes', Layers)}
+        {tile('Members enrolled', String(memberTotal), 'Across listed groups', Users)}
+        {tile('Member capacity', limited.length ? String(capacity) : '—', `${limited.length} group${limited.length === 1 ? '' : 's'} with a limit`, Target)}
+        {tile('Active schemes', String(schemeOpts.length), undefined, UsersRound)}
+      </div>
+
+      <Card>
+        <CardContent className="flex flex-wrap items-end gap-3">
+          <Select value={schemeId || 'all'} onValueChange={(v) => setSchemeId(v === 'all' ? '' : v)}>
+            <SelectTrigger className="w-56" aria-label="Scheme filter"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All schemes</SelectItem>{schemeOpts.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}</SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+
+      <div className="overflow-x-auto rounded-3xl border bg-card shadow-sm">
         <Table>
           <TableHeader><TableRow><TableHead>Group</TableHead><TableHead>Members</TableHead><TableHead>Limit</TableHead></TableRow></TableHeader>
           <TableBody>
             {isLoading ? <TableRow><TableCell colSpan={3} className="h-16 text-center text-muted-foreground">Loading…</TableCell></TableRow>
               : groups?.length ? groups.map((g) => (
-                <TableRow key={g.id}><TableCell className="font-medium">{g.name}</TableCell><TableCell>{g.memberCount}</TableCell><TableCell>{g.memberLimit ?? '—'}</TableCell></TableRow>
-              )) : <TableRow><TableCell colSpan={3} className="h-16 text-center text-muted-foreground">{schemeId ? 'No groups' : 'Pick a scheme to see its groups'}</TableCell></TableRow>}
+                <TableRow key={g.id}><TableCell className="font-medium">{g.name}</TableCell><TableCell className="tabular-nums">{g.memberCount}</TableCell><TableCell className="tabular-nums">{g.memberLimit ?? '—'}</TableCell></TableRow>
+              )) : (
+                <TableRow>
+                  <TableCell colSpan={3} className="py-10">
+                    <div className="flex flex-col items-center justify-center gap-3 text-center text-sm text-muted-foreground">
+                      <span className="icon-chip"><Layers className="size-5" aria-hidden /></span>
+                      {schemeId ? 'No groups' : 'Pick a scheme to see its groups'}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
           </TableBody>
         </Table>
       </div>

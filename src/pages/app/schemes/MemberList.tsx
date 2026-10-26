@@ -1,10 +1,12 @@
 import type { ColumnDef } from '@tanstack/react-table'
+import { CalendarClock, PiggyBank, UserCheck, Users, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { DataTable } from '@/components/DataTable'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAuth } from '@/lib/auth'
@@ -42,17 +44,49 @@ export function MemberList() {
     ) },
   ]
 
+  // Summary numbers derived from the page already fetched (no extra requests).
+  const items = data?.items ?? []
+  const dueRows = items.filter((e) => e.emisDue > 0)
+  const dueEmis = dueRows.reduce((sum, e) => sum + e.emisDue, 0)
+  const activeRows = items.filter((e) => e.status === 'ACTIVE').length
+  const maturityTotal = items.reduce((sum, e) => sum + Number(e.maturity.maturityValue), 0)
+
+  const tile = (label: string, value: string, sub: string | undefined, Icon: LucideIcon) => (
+    <Card className="gap-2 hover:-translate-y-1">
+      <CardHeader className="flex flex-row items-center justify-between pb-1">
+        <CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</CardTitle>
+        <span className="icon-chip"><Icon className="size-5" aria-hidden /></span>
+      </CardHeader>
+      <CardContent>
+        <div className="text-3xl font-extrabold tracking-tight tabular-nums">{value}</div>
+        {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
+      </CardContent>
+    </Card>
+  )
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <Input className="max-w-xs" placeholder="Search assign / name / mobile…" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
-        <Select value={status || 'all'} onValueChange={(v) => { setStatus(v === 'all' ? '' : v); setPage(1) }}>
-          <SelectTrigger className="w-40" aria-label="Status"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="all">All statuses</SelectItem>{ENROLLMENT_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-        </Select>
-        <Button variant={due ? 'default' : 'outline'} size="sm" onClick={() => { setDue((d) => !d); setPage(1) }}>Due today</Button>
+    <div className="space-y-8">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {tile('Members', data ? String(data.total) : '—', 'Matching current filters', Users)}
+        {tile('Due on this page', data ? String(dueRows.length) : '—', data ? `${dueEmis} EMIs pending` : undefined, CalendarClock)}
+        {tile('Active on this page', data ? String(activeRows) : '—', data ? `of ${items.length} shown` : undefined, UserCheck)}
+        {tile('Maturity value', data ? inr(String(maturityTotal)) : '—', 'Members on this page', PiggyBank)}
       </div>
-      <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} emptyText="No members" pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined} />
+
+      <Card>
+        <CardContent className="flex flex-wrap items-end gap-3 pt-6">
+          <Input className="max-w-xs" placeholder="Search assign / name / mobile…" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
+          <Select value={status || 'all'} onValueChange={(v) => { setStatus(v === 'all' ? '' : v); setPage(1) }}>
+            <SelectTrigger className="w-40" aria-label="Status"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All statuses</SelectItem>{ENROLLMENT_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+          </Select>
+          <Button variant={due ? 'default' : 'outline'} size="sm" onClick={() => { setDue((d) => !d); setPage(1) }}>Due today</Button>
+        </CardContent>
+      </Card>
+
+      <Card className="p-4">
+        <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} emptyText="No members" pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined} />
+      </Card>
       {paying && <AddMoneyDialog enrollment={paying} onClose={() => setPaying(null)} />}
     </div>
   )

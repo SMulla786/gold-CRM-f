@@ -25,8 +25,8 @@ export function SchemeDayBook() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card><CardHeader className="pb-1"><CardTitle className="text-sm font-medium text-muted-foreground">Opening</CardTitle></CardHeader><CardContent className="text-lg font-semibold tabular-nums">{data ? inr(data.opening) : '—'}</CardContent></Card>
-        <Card><CardHeader className="pb-1"><CardTitle className="text-sm font-medium text-muted-foreground">Money in</CardTitle></CardHeader><CardContent className="text-lg font-semibold tabular-nums text-green-600">{data ? inr(data.moneyIn) : '—'}</CardContent></Card>
-        <Card><CardHeader className="pb-1"><CardTitle className="text-sm font-medium text-muted-foreground">Money out</CardTitle></CardHeader><CardContent className="text-lg font-semibold tabular-nums text-red-600">{data ? inr(data.moneyOut) : '—'}</CardContent></Card>
+        <Card><CardHeader className="pb-1"><CardTitle className="text-sm font-medium text-muted-foreground">Money in</CardTitle></CardHeader><CardContent className="text-lg font-semibold tabular-nums text-green-600 dark:text-green-500">{data ? inr(data.moneyIn) : '—'}</CardContent></Card>
+        <Card><CardHeader className="pb-1"><CardTitle className="text-sm font-medium text-muted-foreground">Money out</CardTitle></CardHeader><CardContent className="text-lg font-semibold tabular-nums text-destructive">{data ? inr(data.moneyOut) : '—'}</CardContent></Card>
         <Card><CardHeader className="pb-1"><CardTitle className="text-sm font-medium text-muted-foreground">Closing</CardTitle></CardHeader><CardContent className="text-lg font-semibold tabular-nums">{data ? inr(data.closing) : '—'}</CardContent></Card>
       </div>
 
