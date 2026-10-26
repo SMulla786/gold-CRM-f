@@ -54,7 +54,11 @@ export function useApiMutation<TArgs, TOut>(
       opts.invalidate?.forEach((key) => qc.invalidateQueries({ queryKey: key }))
       if (opts.success) toast.success(opts.success)
     },
-    onError: (e) => toast.error(e instanceof ApiException ? e.message : 'Something went wrong'),
+    onError: (e) => {
+      // Store users hitting a permission wall get a one-click path to ask for it (original 'Permission Enquiry' prompt).
+      const forbidden = e instanceof ApiException && e.code === 'FORBIDDEN' && window.location.pathname.startsWith('/app')
+      toast.error(e instanceof ApiException ? e.message : 'Something went wrong', forbidden ? { action: { label: 'Request access', onClick: () => window.location.assign('/app/access-requests') } } : undefined)
+    },
   })
 }
 

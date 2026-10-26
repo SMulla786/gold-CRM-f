@@ -689,5 +689,7 @@
   "bill.pay_fine": "फाइन {g} g",
   "bill.pay_remark": "टिप्पणी",
   "jbill.gst_amount": "GST राशि",
-  "jbill.discount_amount": "छूट राशि"
+  "jbill.discount_amount": "छूट राशि",
+
+  "bill.totals_row": "कुल ({n} पंक्तियाँ)"
 }

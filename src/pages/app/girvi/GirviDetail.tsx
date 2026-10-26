@@ -1,4 +1,4 @@
-import { FileDown, Printer } from 'lucide-react'
+import { FileDown, History as HistoryIcon, MessageCircle, Printer } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
@@ -12,16 +12,52 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { useBankAccounts, useBusinessProfile } from '@/lib/appQueries'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useBankAccounts, useBusinessProfile, useParty, useSettings } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { useDeleteGirvi, useGirvi, useGirviInterest, useGirviRelease, useGirviTopup } from '@/lib/girviQueries'
 import { useT } from '@/lib/i18n'
-import { downloadPdf } from '@/lib/share'
-import type { GirviBatchDto } from '@/shared'
+import { downloadPdf, shareOnWhatsApp } from '@/lib/share'
+import { cn } from '@/lib/utils'
+import type { GirviBatchDto, GirviTxnDto } from '@/shared'
+import { GirviItemPhoto } from '@/pages/app/girvi/GirviItemPhoto'
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
 const n = (s: string) => Number(s) || 0
+const payMode = (tx: GirviTxnDto) =>
+  [n(tx.cash) > 0 && `Cash ${inr(tx.cash)}`, n(tx.online) > 0 && `Online ${inr(tx.online)}${tx.bankAccount ? ` (${tx.bankAccount.name})` : ''}`].filter(Boolean).join(' + ')
+
+/** One history line: date · type · amounts · payment mode · remark · created by. */
+function TxnLine({ tx }: { tx: GirviTxnDto }) {
+  const t = useT()
+  const mode = payMode(tx)
+  return (
+    <li className="py-3">
+      {date(tx.txnDate)} · {tx.type}{Number(tx.principal) ? ` · ${t('girvi.txn_principal', { amount: inr(tx.principal) })}` : ''}{Number(tx.interest) ? ` · ${t('girvi.txn_interest', { amount: inr(tx.interest) })}` : ''}{Number(tx.discount) ? ` · ${t('girvi.txn_disc', { amount: inr(tx.discount) })}` : ''}
+      {(mode || tx.remark || tx.createdBy) && (
+        <span className="block text-xs">
+          {[mode, tx.remark && `Remark: ${tx.remark}`, tx.createdBy && `By ${tx.createdBy}`].filter(Boolean).join(' · ')}
+        </span>
+      )}
+    </li>
+  )
+}
+
+/** Per-item history: the txns whose itemIds include the item. GRANT txns carry no itemIds (every item is pledged at grant), so the grant is listed too. */
+function ItemHistoryDialog({ batch, itemId, onClose }: { batch: GirviBatchDto; itemId: number; onClose: () => void }) {
+  const item = batch.items.find((it) => it.id === itemId)
+  const txns = batch.txns.filter((tx) => tx.type === 'GRANT' || tx.itemIds.includes(itemId))
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Item history · {item?.name}</DialogTitle></DialogHeader>
+        {item && <p className="text-sm text-muted-foreground">{item.category} · {item.net}g · {inr(item.valuation)} · {item.status}{item.releasedAt ? ` on ${date(item.releasedAt)}` : ''}</p>}
+        {txns.length ? <ul className="divide-y text-sm text-muted-foreground">{txns.map((tx) => <TxnLine key={tx.id} tx={tx} />)}</ul> : <p className="text-sm text-muted-foreground">No transactions for this item.</p>}
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 function BankPay({ cash, online, bankAccountId, set }: { cash: string; online: string; bankAccountId: string; set: (k: 'cash' | 'online' | 'bankAccountId', v: string) => void }) {
   const t = useT()
@@ -92,22 +128,81 @@ function ReleaseDialog({ batch, onClose }: { batch: GirviBatchDto; onClose: () =
   const t = useT()
   const rel = useGirviRelease()
   const pledged = batch.items.filter((it) => it.status === 'PLEDGED')
+  const returned = batch.items.filter((it) => it.status === 'RELEASED')
   const [ids, setIds] = useState<Set<number>>(new Set(pledged.map((it) => it.id)))
   const [f, setF] = useState({ principalPaid: batch.principal, interestPaid: batch.interestDue, discount: '0', cash: '', online: '0', bankAccountId: '' })
+  // UI-only acknowledgement (girviReleaseBody has no field for it) + a second "Confirm release" step before the POST
+  const [ack, setAck] = useState(false)
+  const [confirming, setConfirming] = useState(false)
   const set = (k: string, v: string) => setF((s) => ({ ...s, [k]: v }))
   const releasingAll = ids.size === pledged.length
   const toggle = (id: number) => setIds((s) => { const x = new Set(s); if (x.has(id)) x.delete(id); else x.add(id); return x })
   const ok = ids.size > 0 && (n(f.online) === 0 || f.bankAccountId) && (!releasingAll || Math.abs(n(f.principalPaid) - Number(batch.principal)) < 0.005)
+  const selected = pledged.filter((it) => ids.has(it.id))
+  const { data: banks } = useBankAccounts()
+  const bank = banks?.find((b) => String(b.id) === f.bankAccountId)
+  const submit = async () => {
+    await rel.mutateAsync({ id: batch.id, body: { itemIds: [...ids], principalPaid: n(f.principalPaid), interestPaid: n(f.interestPaid), discount: n(f.discount), cash: n(f.cash), online: n(f.online), bankAccountId: n(f.online) > 0 ? Number(f.bankAccountId) : undefined } })
+    onClose()
+  }
+
+  if (confirming) {
+    const rows: [string, string][] = [
+      [t('girvi.principal_paid'), inr(f.principalPaid || '0')],
+      [t('girvi.interest_paid'), inr(f.interestPaid || '0')],
+      [t('girvi.discount_inr'), inr(f.discount || '0')],
+      [t('udhari.cash'), inr(f.cash || '0')],
+      [t('udhari.online'), `${inr(f.online || '0')}${n(f.online) > 0 && bank ? ` · ${bank.bankName}` : ''}`],
+    ]
+    return (
+      <Dialog open onOpenChange={(o) => !o && onClose()}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Confirm release · #{batch.girviNo}</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">{selected.length === 1 ? '1 item' : `${selected.length} items`} will be returned to {batch.party.name}{releasingAll ? ' and the loan will be closed' : ''}.</p>
+          <ul className="divide-y rounded-2xl border bg-muted/40 px-3 text-sm">
+            {selected.map((it) => <li key={it.id} className="flex justify-between gap-2 py-2"><span>{it.category} · {it.name} · {it.net}g</span><span className="tabular-nums">{inr(it.valuation)}</span></li>)}
+          </ul>
+          <div className="space-y-1 text-sm tabular-nums">
+            {rows.map(([k, v]) => <div key={k} className="flex justify-between"><span className="text-muted-foreground">{k}</span><span>{v}</span></div>)}
+            <div className="flex justify-between border-t-2 border-brand pt-2 font-bold"><span>Total received</span><span>{inr(String(n(f.cash) + n(f.online)))}</span></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" disabled={rel.isPending} onClick={() => setConfirming(false)}>Back</Button>
+            <Button disabled={rel.isPending} onClick={() => void submit().catch(() => {})}>Confirm release</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    )
+  }
+
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{t('girvi.release_title', { no: batch.girviNo })}</DialogTitle></DialogHeader>
         <p className="text-sm text-muted-foreground">{t('girvi.release_desc', { interest: inr(batch.interestDue), principal: inr(batch.principal) })}</p>
-        <div className="space-y-2 rounded-2xl border bg-muted/40 p-3 text-sm">
-          {pledged.map((it) => (
-            <label key={it.id} className="flex items-center gap-2"><Checkbox aria-label={`Release ${it.name}`} checked={ids.has(it.id)} onCheckedChange={() => toggle(it.id)} /> {it.name} · {it.net}g · {inr(it.valuation)}</label>
-          ))}
-        </div>
+        <Tabs defaultValue="return">
+          <TabsList>
+            <TabsTrigger value="return">Items to return ({pledged.length})</TabsTrigger>
+            <TabsTrigger value="returned">Returned items ({returned.length})</TabsTrigger>
+          </TabsList>
+          <TabsContent value="return">
+            <div className="space-y-2 rounded-2xl border bg-muted/40 p-3 text-sm">
+              <label className="flex items-center gap-2 border-b pb-2 font-medium">
+                <Checkbox aria-label="Select all" checked={ids.size === 0 ? false : releasingAll ? true : 'indeterminate'} onCheckedChange={() => setIds(releasingAll ? new Set() : new Set(pledged.map((it) => it.id)))} /> Select all
+              </label>
+              {pledged.map((it) => (
+                <label key={it.id} className="flex items-center gap-2"><Checkbox aria-label={`Release ${it.name}`} checked={ids.has(it.id)} onCheckedChange={() => toggle(it.id)} /> {it.name} · {it.net}g · {inr(it.valuation)}</label>
+              ))}
+            </div>
+          </TabsContent>
+          <TabsContent value="returned">
+            <div className="space-y-2 rounded-2xl border bg-muted/40 p-3 text-sm">
+              {returned.length ? returned.map((it) => (
+                <div key={it.id} className="flex justify-between gap-2"><span>{it.name} · {it.net}g · {inr(it.valuation)}</span><span className="text-muted-foreground">{it.releasedAt ? date(it.releasedAt) : ''}</span></div>
+              )) : <p className="text-muted-foreground">No items returned yet.</p>}
+            </div>
+          </TabsContent>
+        </Tabs>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5"><Label>{t('girvi.principal_paid')}</Label><Input type="number" aria-label="Principal paid" value={f.principalPaid} onChange={(e) => set('principalPaid', e.target.value)} /></div>
           <div className="space-y-1.5"><Label>{t('girvi.interest_paid')}</Label><Input type="number" aria-label="Interest paid" value={f.interestPaid} onChange={(e) => set('interestPaid', e.target.value)} /></div>
@@ -115,8 +210,12 @@ function ReleaseDialog({ batch, onClose }: { batch: GirviBatchDto; onClose: () =
           <div />
           <BankPay cash={f.cash} online={f.online} bankAccountId={f.bankAccountId} set={(k, v) => set(k, v)} />
         </div>
+        <label className="flex items-start gap-2 rounded-2xl border border-brand/30 bg-brand/10 p-3 text-sm">
+          <Checkbox className="mt-0.5" aria-label="I confirm the customer has checked the items and there is no loss/damage" checked={ack} onCheckedChange={(v) => setAck(v === true)} />
+          I confirm the customer has checked the items and there is no loss/damage
+        </label>
         <DialogFooter>
-          <Button disabled={!ok || rel.isPending} onClick={async () => { await rel.mutateAsync({ id: batch.id, body: { itemIds: [...ids], principalPaid: n(f.principalPaid), interestPaid: n(f.interestPaid), discount: n(f.discount), cash: n(f.cash), online: n(f.online), bankAccountId: n(f.online) > 0 ? Number(f.bankAccountId) : undefined } }); onClose() }}>{ids.size === 1 ? t('girvi.release_one') : t('girvi.release_many', { n: ids.size })}</Button>
+          <Button disabled={!ok || !ack || rel.isPending} onClick={() => setConfirming(true)}>{ids.size === 1 ? t('girvi.release_one') : t('girvi.release_many', { n: ids.size })}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -130,14 +229,24 @@ export function GirviDetail() {
   const [asOf, setAsOf] = useState('')
   const { data: batch, isLoading } = useGirvi(Number(id), asOf || undefined)
   const { data: business } = useBusinessProfile()
+  const { data: settings } = useSettings()
+  // customer address needs the party-master view permission; without it the receipt just omits the address
+  const { data: partyFull } = useParty(batch && can('settings.parties', 'view') ? batch.party.id : undefined)
   const del = useDeleteGirvi()
   const [dialog, setDialog] = useState<'interest' | 'topup' | 'release' | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [historyItem, setHistoryItem] = useState<number | null>(null)
+  const [layoutOverride, setLayoutOverride] = useState<string | null>(null)
 
   if (isLoading || !batch) return <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
   const canEdit = can('girvi.entry', 'edit')
   const canDelete = can('girvi.entry', 'delete')
   const grantOnly = batch.txns.length === 1 && batch.txns[0]?.type === 'GRANT'
+  const layout = layoutOverride ?? (settings?.['print.defaults'].layout === 'THERMAL_80' ? 'THERMAL_80' : 'A4')
+  const thermal = layout === 'THERMAL_80'
+  const shopName = business?.name ?? me?.business?.name ?? t('girvi.shop')
+  const customerAddress = partyFull?.address
+  const summary = `${shopName}\nGirvi #${batch.girviNo} · ${batch.party.name}\nPrincipal ${inr(batch.principal)} · Due ${date(batch.returnDate)}`
 
   return (
     <div className="space-y-6">
@@ -149,9 +258,21 @@ export function GirviDetail() {
             <Badge variant={batch.status === 'ACTIVE' ? (batch.overdue ? 'destructive' : 'secondary') : 'default'}>{batch.status}{batch.overdue && batch.status === 'ACTIVE' ? ' · OVERDUE' : ''}</Badge>
           </div>
           <p className="text-sm text-muted-foreground">{t('girvi.detail_intro')}</p>
+          <p className="text-sm">
+            <Link to={`/app/girvi?partyId=${batch.party.id}`} className="font-medium text-brand-strong hover:underline">All loans of {batch.party.name}</Link>
+            {canEdit && <> · <Link to={`/app/girvi/new?partyId=${batch.party.id}`} className="font-medium text-brand-strong hover:underline">New loan for this customer</Link></>}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2"><Label htmlFor="g-asof" className="text-xs text-muted-foreground">{t('girvi.as_of')}</Label><Input id="g-asof" type="date" className="w-36" value={asOf} onChange={(e) => setAsOf(e.target.value)} /></div>
+          <Button size="sm" variant="outline" onClick={() => shareOnWhatsApp(batch.party.mobile, summary)}><MessageCircle aria-hidden />Share on WhatsApp</Button>
+          <Select value={layout} onValueChange={setLayoutOverride}>
+            <SelectTrigger size="sm" className="w-36" aria-label="Print layout"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="A4">A4</SelectItem>
+              <SelectItem value="THERMAL_80">{t('bill.thermal_80')}</SelectItem>
+            </SelectContent>
+          </Select>
           <Button size="sm" variant="outline" onClick={() => window.print()}><Printer aria-hidden />{t('udhari.print')}</Button>
           <Button size="sm" variant="outline" onClick={downloadPdf}><FileDown aria-hidden />PDF</Button>
           {canDelete && grantOnly && <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDeleting(true)}>{t('common.delete')}</Button>}
@@ -182,18 +303,39 @@ export function GirviDetail() {
         </div>
       )}
 
-      <div className="print-area space-y-4 rounded-3xl border border-white/80 bg-card p-6 text-sm shadow-sm sm:p-10 dark:border-border print:rounded-none print:border-0 print:bg-transparent print:shadow-none">
-        <div className="text-center"><div className="text-lg font-bold">{business?.name ?? me?.business?.name ?? t('girvi.shop')}</div><div className="font-medium">{t('girvi.receipt_title')}</div></div>
+      <div className={cn('print-area space-y-4 rounded-3xl border border-white/80 bg-card p-6 text-sm shadow-sm sm:p-10 dark:border-border print:rounded-none print:border-0 print:bg-transparent print:shadow-none', thermal && 'print-thermal mx-auto max-w-sm sm:p-6 print:max-w-none')}>
+        <div className="text-center">
+          <div className="text-lg font-bold">{shopName}</div>
+          {business?.address && <div>{business.address}</div>}
+          {(business?.mobile || business?.gstin) && <div>{[business.mobile && `Mobile: ${business.mobile}`, business.gstin && `GSTIN: ${business.gstin}`].filter(Boolean).join(' · ')}</div>}
+          <div className="mt-1 font-medium">{t('girvi.receipt_title')}</div>
+        </div>
         <div className="flex flex-wrap justify-between gap-2">
-          <div>{batch.party.name} · {batch.party.mobile}</div>
+          <div>
+            <Link to={`/app/girvi?partyId=${batch.party.id}`} className="font-medium hover:underline print:no-underline" title="Show all loans of this customer">{batch.party.name}</Link> · {batch.party.mobile}
+            {customerAddress && <div className="text-muted-foreground">{customerAddress}</div>}
+          </div>
           <div>{t('girvi.receipt_dates', { no: batch.girviNo, issued: date(batch.issueDate), due: date(batch.returnDate) })}</div>
         </div>
         <div className="overflow-x-auto print:overflow-visible">
         <Table>
-          <TableHeader><TableRow><TableHead>{t('girvi.col_item')}</TableHead><TableHead>{t('stock.col_gross')}</TableHead><TableHead>{t('stock.col_net')}</TableHead><TableHead>{t('girvi.col_purity')}</TableHead><TableHead>{t('stock.col_fine')}</TableHead><TableHead>{t('girvi.valuation')}</TableHead><TableHead>{t('stock.col_status')}</TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow><TableHead>{t('girvi.col_item')}</TableHead>{!thermal && <TableHead>{t('stock.col_gross')}</TableHead>}<TableHead>{t('stock.col_net')}</TableHead>{!thermal && <><TableHead>{t('girvi.col_purity')}</TableHead><TableHead>{t('stock.col_fine')}</TableHead></>}<TableHead>{t('girvi.valuation')}</TableHead><TableHead>{t('stock.col_status')}</TableHead><TableHead className="print:hidden" /></TableRow></TableHeader>
           <TableBody>
             {batch.items.map((it) => (
-              <TableRow key={it.id}><TableCell>{it.category} · {it.name}</TableCell><TableCell className="tabular-nums">{it.gross}</TableCell><TableCell className="tabular-nums">{it.net}</TableCell><TableCell className="tabular-nums">{it.purity}%</TableCell><TableCell className="tabular-nums">{it.fine}</TableCell><TableCell className="tabular-nums">{inr(it.valuation)}</TableCell><TableCell>{it.status}</TableCell></TableRow>
+              <TableRow key={it.id}>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <GirviItemPhoto item={it} />
+                    <span>{it.category} · {it.name}</span>
+                  </div>
+                </TableCell>
+                {!thermal && <TableCell className="tabular-nums">{it.gross}</TableCell>}
+                <TableCell className="tabular-nums">{it.net}</TableCell>
+                {!thermal && <><TableCell className="tabular-nums">{it.purity}%</TableCell><TableCell className="tabular-nums">{it.fine}</TableCell></>}
+                <TableCell className="tabular-nums">{inr(it.valuation)}</TableCell>
+                <TableCell>{it.status}{it.releasedAt ? <span className="block text-xs text-muted-foreground">{date(it.releasedAt)}</span> : null}</TableCell>
+                <TableCell className="print:hidden"><Button size="sm" variant="ghost" aria-label={`History ${it.name}`} onClick={() => setHistoryItem(it.id)}><HistoryIcon aria-hidden />History</Button></TableCell>
+              </TableRow>
             ))}
           </TableBody>
         </Table>
@@ -211,7 +353,7 @@ export function GirviDetail() {
         <Card className="overflow-hidden text-sm print:hidden">
           <div className="border-b bg-muted/40 px-6 py-4"><h3 className="text-lg font-bold">{t('girvi.history')}</h3></div>
           <ul className="divide-y px-6 text-muted-foreground">
-            {batch.txns.map((tx) => <li key={tx.id} className="py-3">{date(tx.txnDate)} · {tx.type}{Number(tx.principal) ? ` · ${t('girvi.txn_principal', { amount: inr(tx.principal) })}` : ''}{Number(tx.interest) ? ` · ${t('girvi.txn_interest', { amount: inr(tx.interest) })}` : ''}{Number(tx.discount) ? ` · ${t('girvi.txn_disc', { amount: inr(tx.discount) })}` : ''}</li>)}
+            {batch.txns.map((tx) => <TxnLine key={tx.id} tx={tx} />)}
           </ul>
         </Card>
       )}
@@ -219,6 +361,7 @@ export function GirviDetail() {
       {dialog === 'interest' && <InterestDialog batch={batch} onClose={() => setDialog(null)} />}
       {dialog === 'topup' && <TopupDialog batch={batch} onClose={() => setDialog(null)} />}
       {dialog === 'release' && <ReleaseDialog batch={batch} onClose={() => setDialog(null)} />}
+      {historyItem != null && <ItemHistoryDialog batch={batch} itemId={historyItem} onClose={() => setHistoryItem(null)} />}
       <MpinDialog open={deleting} title={t('girvi.delete_title', { no: batch.girviNo })} onConfirm={(mpin) => del.mutateAsync({ id: batch.id, mpin })} onClose={() => setDeleting(false)} />
     </div>
   )

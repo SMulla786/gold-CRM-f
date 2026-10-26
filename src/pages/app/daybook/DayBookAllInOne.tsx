@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import { CsvExportButton } from '@/components/CsvExportButton'
 import { TableCard } from '@/components/SectionCard'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -11,7 +12,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useDayBookAllInOne } from '@/lib/accountsQueries'
 import { sourceHref } from '@/lib/sourceLinks'
 import { useT } from '@/lib/i18n'
-import { LEDGER_ASSETS, LEDGER_SOURCES, businessDayISO } from '@/shared'
+import { fetchAllPaged } from '@/lib/queries'
+import { LEDGER_ASSETS, LEDGER_SOURCES, businessDayISO, type DayBookAllInOneRowDto } from '@/shared'
 
 const today = businessDayISO
 const amt = (s: string) => (Number(s) ? Number(s).toLocaleString('en-IN') : '—')
@@ -22,7 +24,15 @@ export function DayBookAllInOne() {
   const [to, setTo] = useState(today())
   const [source, setSource] = useState('')
   const [page, setPage] = useState(1)
-  const { data, isLoading } = useDayBookAllInOne({ from, to, source: source || undefined, page })
+  const filters = { from, to, source: source || undefined }
+  const { data, isLoading } = useDayBookAllInOne({ ...filters, page })
+  const exportRows = async () => {
+    const all = await fetchAllPaged<DayBookAllInOneRowDto>('/app/day-book/all-in-one', filters)
+    return [
+      ['Date', 'Source', 'Ref', 'Party', ...LEDGER_ASSETS.flatMap((a) => [`${a} in`, `${a} out`])],
+      ...all.map((r) => [new Date(r.txnDate).toLocaleDateString('en-IN'), r.source, r.sourceId, r.party?.name, ...LEDGER_ASSETS.flatMap((a) => [r.assets[a].in, r.assets[a].out])]),
+    ]
+  }
 
   return (
     <div className="space-y-6">
@@ -39,6 +49,7 @@ export function DayBookAllInOne() {
             </SelectContent>
           </Select>
         </div>
+        <CsvExportButton className="ml-auto" filename={`day-book-${from}-${to}.csv`} rows={exportRows} />
       </Card>
 
       <TableCard>

@@ -100,9 +100,11 @@ test('girvi loan → pay interest → partial release → final release closes',
   await page.getByRole('spinbutton', { name: 'Principal paid' }).fill('20000');
   await page.getByRole('spinbutton', { name: 'Interest paid' }).fill('0');
   await page.getByRole('spinbutton', { name: 'Cash' }).fill('20000');
+  await page.getByRole('checkbox', { name: /no loss\/damage/ }).check();
+  await page.getByRole('dialog').getByRole('button', { name: /Release 1 item/ }).click();
   const [rel1] = await Promise.all([
     page.waitForResponse((r) => rx(`/app/girvi/${girviId}/release`).test(r.url()) && r.request().method() === 'POST'),
-    page.getByRole('dialog').getByRole('button', { name: /Release 1 item/ }).click(),
+    page.getByRole('dialog').getByRole('button', { name: 'Confirm release' }).click(),
   ]);
   expect(rel1.status(), JSON.stringify(await rel1.json().catch(() => ''))).toBe(200);
   expect((await apiJson(request, token, `/app/girvi/${girviId}`)).body.status).toBe('ACTIVE');
@@ -113,9 +115,11 @@ test('girvi loan → pay interest → partial release → final release closes',
   await page.getByRole('spinbutton', { name: 'Interest paid' }).fill('0');
   const remaining = await page.getByRole('spinbutton', { name: 'Principal paid' }).inputValue(); // prefilled with the outstanding principal
   await page.getByRole('spinbutton', { name: 'Cash' }).fill(remaining);
+  await page.getByRole('checkbox', { name: /no loss\/damage/ }).check();
+  await page.getByRole('dialog').getByRole('button', { name: /Release 1 item/ }).click();
   const [rel2] = await Promise.all([
     page.waitForResponse((r) => rx(`/app/girvi/${girviId}/release`).test(r.url()) && r.request().method() === 'POST'),
-    page.getByRole('dialog').getByRole('button', { name: /Release 1 item/ }).click(),
+    page.getByRole('dialog').getByRole('button', { name: 'Confirm release' }).click(),
   ]);
   expect(rel2.status(), JSON.stringify(await rel2.json().catch(() => ''))).toBe(200);
   expect((await apiJson(request, token, `/app/girvi/${girviId}`)).body.status).toBe('CLOSED');

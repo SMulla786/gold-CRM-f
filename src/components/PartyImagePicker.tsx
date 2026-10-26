@@ -16,7 +16,7 @@ export const uploadPartyImage = (partyId: number, kind: PartyImageKind, file: Fi
 }
 
 /** Webcam capture (original 'Capture Photo' modal): live preview, snap to a JPEG File. */
-function CaptureDialog({ onCapture, onClose }: { onCapture: (f: File) => void; onClose: () => void }) {
+export function CaptureDialog({ onCapture, onClose }: { onCapture: (f: File) => void; onClose: () => void }) {
   const video = useRef<HTMLVideoElement>(null)
   const [error, setError] = useState<string | null>(null)
 

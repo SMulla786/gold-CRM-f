@@ -3,12 +3,14 @@ import { Search } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import { CsvExportButton } from '@/components/CsvExportButton'
 import { DataTable } from '@/components/DataTable'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useT } from '@/lib/i18n'
+import { fetchAllPaged } from '@/lib/queries'
 import { useUdharEntries } from '@/lib/udhariQueries'
 import { LEDGER_SOURCES, type UdharEntryRowDto } from '@/shared'
 
@@ -23,7 +25,15 @@ export function UdharList() {
   const [to, setTo] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
-  const { data, isLoading } = useUdharEntries({ source: source || undefined, q: q || undefined, from: from || undefined, to: to || undefined, page, pageSize })
+  const filters = { source: source || undefined, q: q || undefined, from: from || undefined, to: to || undefined }
+  const { data, isLoading } = useUdharEntries({ ...filters, page, pageSize })
+  const exportRows = async () => {
+    const all = await fetchAllPaged<UdharEntryRowDto>('/app/udhar/entries', filters)
+    return [
+      ['Date', 'Time', 'Source', 'Ref', 'Party', 'Mobile', 'Amount', 'Gold', 'Silver', 'Narration', 'Reversal'],
+      ...all.map((r) => [date(r.txnDate), time(r.createdAt), r.source, r.reference, r.party.name, r.party.mobile, r.amount, r.gold, r.silver, r.narration, r.isReversal ? 'yes' : '']),
+    ]
+  }
 
   const columns: ColumnDef<UdharEntryRowDto, unknown>[] = [
     { header: t('udhari.date'), cell: ({ row }) => date(row.original.txnDate) },
@@ -64,6 +74,7 @@ export function UdharList() {
         </Select>
         <Input className="w-40" type="date" aria-label="From date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1) }} />
         <Input className="w-40" type="date" aria-label="To date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1) }} />
+        <CsvExportButton className="ml-auto" filename="udhar-list.csv" rows={exportRows} />
       </Card>
 
       <DataTable

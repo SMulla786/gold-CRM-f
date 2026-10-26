@@ -689,5 +689,7 @@
   "bill.pay_fine": "Fine {g} g",
   "bill.pay_remark": "Remark",
   "jbill.gst_amount": "GST amount",
-  "jbill.discount_amount": "Discount amount"
+  "jbill.discount_amount": "Discount amount",
+
+  "bill.totals_row": "Total ({n} lines)"
 }

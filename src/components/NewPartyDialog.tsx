@@ -224,7 +224,7 @@ export function NewPartyDialog({ open, onClose, defaultType = 'CUSTOMER', defaul
               <Input {...register('specialty')} />
             </Field>
           )}
-          {(type === 'SUPPLIER' || type === 'WHOLESALER') && (
+          {(type === 'SUPPLIER' || type === 'WHOLESALER' || type === 'CUSTOMER') && (
             <Field label={t('party.shop_name')}>
               <Input {...register('shopName')} />
             </Field>

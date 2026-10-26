@@ -80,6 +80,7 @@ function UserDialog({ user, onClose }: { user?: UserDto; onClose: () => void }) 
   const update = useUpdateUser()
   const branches = root ? flatten(root) : []
   const [created, setCreated] = useState<{ username: string; password: string } | null>(null)
+  const [limitUnit, setLimitUnit] = useState<'DAYS' | 'MONTHS'>('DAYS')
 
   const { register, handleSubmit, watch, setValue, getValues, formState } = useForm<UserForm>({
     // runtime schema differs by mode (create needs username/password); cast bridges the two typed resolvers.
@@ -97,7 +98,8 @@ function UserDialog({ user, onClose }: { user?: UserDto; onClose: () => void }) 
       level: v.level,
       branchId: Number(v.branchId),
       roleId: v.roleId ? Number(v.roleId) : undefined,
-      viewDaysLimit: v.viewDaysLimit ? Number(v.viewDaysLimit) : null,
+      // Stored in days; the Months unit is 30 days each.
+      viewDaysLimit: v.viewDaysLimit ? Number(v.viewDaysLimit) * (limitUnit === 'MONTHS' ? 30 : 1) : null,
     }
     if (user) {
       await update.mutateAsync({ id: user.id, body: common })
@@ -243,8 +245,25 @@ function UserDialog({ user, onClose }: { user?: UserDto; onClose: () => void }) 
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="u-days">View-days limit</Label>
-              <Input id="u-days" type="number" placeholder="Unlimited" {...register('viewDaysLimit', { setValueAs: (v) => (v === '' || v == null ? null : Number(v)) })} />
+              <Label htmlFor="u-days">View limit</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="u-days"
+                  type="number"
+                  min={1}
+                  placeholder="Unlimited"
+                  {...register('viewDaysLimit', { setValueAs: (v) => (v === '' || v == null ? null : Number(v)) })}
+                />
+                <Select value={limitUnit} onValueChange={(v) => setLimitUnit(v as 'DAYS' | 'MONTHS')}>
+                  <SelectTrigger className="w-28" aria-label="View limit unit">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="DAYS">Days</SelectItem>
+                    <SelectItem value="MONTHS">Months</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
           <DialogFooter>

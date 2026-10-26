@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { api } from '@/lib/api'
 import { useBankAccounts, useKarats, useSettings } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
@@ -537,6 +537,35 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
               )
             })}
           </TableBody>
+          {/* totals row in <tfoot> so `tbody tr` (specs) still hits the first line */}
+          {rows.length > 1 && (() => {
+            const lines = rows.map(lineOf)
+            const sum = (f: (i: number) => number, dp: number) => rows.reduce((a, _r, i) => a + f(i), 0).toFixed(dp)
+            const blank = <TableCell />
+            return (
+              <TableFooter>
+                <TableRow className="font-semibold tabular-nums">
+                  <TableCell>{t('bill.totals_row', { n: rows.length })}</TableCell>
+                  {cols.karat && blank}
+                  {cols.pcs && <TableCell>{sum((i) => Number(rows[i]!.pcs) || 0, 0)}</TableCell>}
+                  <TableCell>{sum((i) => Number(rows[i]!.gross) || 0, 3)}</TableCell>
+                  {cols.less && <TableCell>{sum((i) => Number(rows[i]!.less) || 0, 3)}</TableCell>}
+                  {cols.tunch && blank}
+                  {cols.wastage && blank}
+                  {cols.net && <TableCell>{sum((i) => Number(lines[i]!.net) || 0, 3)}</TableCell>}
+                  {cols.fine && <TableCell>{sum((i) => Number(lines[i]!.fine) || 0, 3)}</TableCell>}
+                  {cols.stone && blank}
+                  {cols.rate && blank}
+                  {cols.labour && blank}
+                  {cols.unit && blank}
+                  {cols.other && blank}
+                  {cols.disc && blank}
+                  <TableCell className="whitespace-nowrap">{sum((i) => Number(lines[i]!.total) || 0, 2)}</TableCell>
+                  {blank}
+                </TableRow>
+              </TableFooter>
+            )
+          })()}
         </Table>
       </div>
       </Card>

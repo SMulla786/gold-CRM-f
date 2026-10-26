@@ -5,11 +5,13 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { MpinDialog } from '@/components/MpinDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useBusinessProfile } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
 import { downloadPdf } from '@/lib/share'
 import { useDeleteUdhar, useUdharTxn } from '@/lib/udhariQueries'
+import { cn } from '@/lib/utils'
 import type { BalanceDto } from '@/shared'
 
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
@@ -26,6 +28,7 @@ export function UdharView() {
   const { data: business } = useBusinessProfile()
   const del = useDeleteUdhar()
   const [deleting, setDeleting] = useState(false)
+  const [thermal, setThermal] = useState(false)
 
   if (isLoading || !txn) return <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
 
@@ -51,12 +54,19 @@ export function UdharView() {
           {can('udhari.entry', 'delete') && !txn.isDeleted && (
             <Button variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDeleting(true)}>{t('common.delete')}</Button>
           )}
+          <Select value={thermal ? 'THERMAL_80' : 'A4'} onValueChange={(v) => setThermal(v === 'THERMAL_80')}>
+            <SelectTrigger className="w-40" aria-label="Print layout"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="A4">A4</SelectItem>
+              <SelectItem value="THERMAL_80">{t('bill.thermal_80')}</SelectItem>
+            </SelectContent>
+          </Select>
           <Button variant="outline" onClick={downloadPdf}><FileDown aria-hidden />{t('udhari.download_pdf')}</Button>
           <Button onClick={() => window.print()}><Printer aria-hidden />{t('udhari.print')}</Button>
         </div>
       </div>
 
-      <div className="print-area mx-auto max-w-2xl space-y-4 rounded-3xl border border-white/80 bg-card p-6 text-sm shadow-sm sm:p-10 dark:border-border print:max-w-none print:rounded-none print:border-0 print:bg-transparent print:shadow-none">
+      <div className={cn('print-area mx-auto space-y-4 rounded-3xl border border-white/80 bg-card p-6 text-sm shadow-sm sm:p-10 dark:border-border print:max-w-none print:rounded-none print:border-0 print:bg-transparent print:shadow-none', thermal ? 'print-thermal max-w-sm' : 'max-w-2xl')}>
         <div className="text-center">
           <div className="text-lg font-bold">{business?.name ?? me?.business?.name ?? 'Shop'}</div>
           <div className="font-medium">{t('udhari.receipt_title')}</div>

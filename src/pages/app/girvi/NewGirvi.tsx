@@ -26,6 +26,15 @@ interface Row { key: string; category: string; name: string; gross: string; net:
 const blankRow = (category: string): Row => ({ key: k(), category, name: '', gross: '', net: '', purity: '', rate: '' })
 const fineOf = (r: Row) => (n(r.net) * n(r.purity)) / 100
 const valOf = (r: Row) => fineOf(r) * n(r.rate)
+/** Mirrors backend girvi/service.ts createGirvi: returnDate = addMonths(businessDate(issueDate), tenureMonths) via setUTCMonth on the
+ *  IST day at 00:00Z — no month-end clamp (e.g. 31 Jan + 1 → 3 Mar in a 28-day February), exactly what the server stores. */
+const returnDateOf = (issueISO: string, months: number): Date | null => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(issueISO) || !Number.isInteger(months) || months < 1 || months > 120) return null
+  const d = new Date(`${issueISO}T00:00:00Z`)
+  if (Number.isNaN(d.getTime())) return null
+  d.setUTCMonth(d.getUTCMonth() + months)
+  return d
+}
 
 export function NewGirvi() {
   const t = useT()
@@ -66,6 +75,9 @@ export function NewGirvi() {
   const stdPrincipal = def ? Math.round((def.stdPercent / 100) * valuation) : 0
   const effPrincipal = principalTouched ? n(principal) : stdPrincipal
   const payTotal = n(pay.cash) + n(pay.online)
+  // same tenure the submit sends (Number(...) || 1)
+  const returnDate = returnDateOf(issueDate, Number(terms.tenureMonths) || 1)
+  const tenureDays = returnDate ? Math.round((returnDate.getTime() - new Date(`${issueDate}T00:00:00Z`).getTime()) / 864e5) : null
 
   const valid = branchReady && !!party && rows.every((r) => r.name.trim() && n(r.gross) > 0 && n(r.net) > 0 && n(r.purity) > 0 && n(r.rate) > 0)
     && effPrincipal > 0 && effPrincipal <= valuation + 0.005 && Math.abs(payTotal - effPrincipal) < 0.005 && (n(pay.online) === 0 || pay.bankAccountId)
@@ -148,11 +160,33 @@ export function NewGirvi() {
               <Select value={terms.method} onValueChange={(v) => setTerm('method', v)}><SelectTrigger aria-label="Day count method"><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="FULL_MONTH">{t('girvi.full_month')}</SelectItem><SelectItem value="DAY_WISE">{t('girvi.day_wise')}</SelectItem></SelectContent></Select>
             </div>
-            <div className="space-y-1.5"><Label htmlFor="ng-tenure">{t('girvi.tenure_months')}</Label><Input id="ng-tenure" type="number" value={terms.tenureMonths} onChange={(e) => setTerm('tenureMonths', e.target.value)} /></div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ng-tenure">{t('girvi.tenure_months')}</Label>
+              <Input id="ng-tenure" type="number" value={terms.tenureMonths} onChange={(e) => setTerm('tenureMonths', e.target.value)} />
+              <p className="text-xs text-muted-foreground tabular-nums" aria-live="polite">{tenureDays != null ? `Tenure: ${tenureDays} days` : 'Tenure: whole months, 1 to 120'}</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ng-return">Return date</Label>
+              <Input id="ng-return" readOnly tabIndex={-1} className="bg-muted/40" value={returnDate ? returnDate.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : '—'} />
+            </div>
           </div>
         </Card>
 
         <Card className="space-y-3 self-start p-6 text-sm tabular-nums">
+          <table className="w-full border-collapse" aria-label="Item summary">
+            <thead>
+              <tr className="border-b text-left text-xs text-muted-foreground"><th className="py-1.5 pr-2 font-medium">SN</th><th className="py-1.5 pr-2 font-medium">Name</th><th className="py-1.5 text-right font-medium">Value</th></tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => (
+                <tr key={r.key} className="border-b last:border-0">
+                  <td className="py-1.5 pr-2 text-muted-foreground">{i + 1}</td>
+                  <td className="max-w-40 truncate py-1.5 pr-2">{r.name.trim() || '—'}</td>
+                  <td className="py-1.5 text-right">{inr(valOf(r))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
           <div className="flex items-baseline justify-between border-b-2 border-brand pb-3"><span className="text-muted-foreground">{t('girvi.total_valuation')}</span><span className="text-xl font-extrabold">{inr(valuation)}</span></div>
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground">{t('girvi.loan_principal')}</span>

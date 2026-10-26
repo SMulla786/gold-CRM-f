@@ -6,11 +6,13 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useT } from '@/lib/i18n'
 import { usePartyStatement } from '@/lib/udhariQueries'
 import { downloadPdf, shareOnWhatsApp } from '@/lib/share'
 import { sourceHref } from '@/lib/sourceLinks'
+import { cn } from '@/lib/utils'
 import type { BalanceDto } from '@/shared'
 
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
@@ -21,6 +23,7 @@ export function Statement() {
   const { partyId } = useParams()
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
+  const [thermal, setThermal] = useState(false) // Mini 80 mm: date, ref, ₹, balance only
   const { data, isLoading } = usePartyStatement(Number(partyId), { from: from || undefined, to: to || undefined })
 
   return (
@@ -33,6 +36,13 @@ export function Statement() {
         <div className="flex flex-wrap items-center gap-2">
           {/* WhatsApp message stays English (share template) */}
           <Button variant="outline" disabled={!data} onClick={() => data && shareOnWhatsApp(data.party.mobile, `${data.party.name}\nAccount statement · closing balance ${triple(data.closing)}`)}>{t('udhari.share')}</Button>
+          <Select value={thermal ? 'THERMAL_80' : 'A4'} onValueChange={(v) => setThermal(v === 'THERMAL_80')}>
+            <SelectTrigger className="w-40" aria-label="Print layout"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="A4">A4</SelectItem>
+              <SelectItem value="THERMAL_80">{t('bill.thermal_80')}</SelectItem>
+            </SelectContent>
+          </Select>
           <Button variant="outline" onClick={downloadPdf}><FileDown aria-hidden />{t('udhari.download_pdf')}</Button>
           <Button onClick={() => window.print()}><Printer aria-hidden />{t('udhari.print')}</Button>
         </div>
@@ -46,7 +56,7 @@ export function Statement() {
       {isLoading || !data ? (
         <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
       ) : (
-        <div className="print-area space-y-4 rounded-3xl border border-white/80 bg-card p-6 shadow-sm sm:p-10 dark:border-border print:rounded-none print:border-0 print:bg-transparent print:shadow-none">
+        <div className={cn('print-area space-y-4 rounded-3xl border border-white/80 bg-card p-6 shadow-sm sm:p-10 dark:border-border print:rounded-none print:border-0 print:bg-transparent print:shadow-none', thermal && 'print-thermal mx-auto max-w-sm')}>
           <div>
             <h2 className="text-xl font-bold">{data.party.name}</h2>
             <p className="text-sm text-muted-foreground">{data.party.mobile} · {t('udhari.stmt_sign_hint')}</p>
@@ -56,8 +66,8 @@ export function Statement() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t('udhari.date')}</TableHead><TableHead>{t('udhari.col_source')}</TableHead><TableHead>{t('udhari.col_ref')}</TableHead><TableHead>{t('udhari.col_narration')}</TableHead>
-                <TableHead className="text-right">₹</TableHead><TableHead className="text-right">{t('udhari.col_gold')}</TableHead><TableHead className="text-right">{t('udhari.col_silver')}</TableHead>
+                <TableHead>{t('udhari.date')}</TableHead>{!thermal && <TableHead>{t('udhari.col_source')}</TableHead>}<TableHead>{t('udhari.col_ref')}</TableHead>{!thermal && <TableHead>{t('udhari.col_narration')}</TableHead>}
+                <TableHead className="text-right">₹</TableHead>{!thermal && <><TableHead className="text-right">{t('udhari.col_gold')}</TableHead><TableHead className="text-right">{t('udhari.col_silver')}</TableHead></>}
                 <TableHead className="text-right">{t('udhari.col_balance_inr')}</TableHead>
               </TableRow>
             </TableHeader>
@@ -65,15 +75,17 @@ export function Statement() {
               {data.rows.length ? data.rows.map((r, i) => (
                 <TableRow key={i} className={r.isReversal ? 'text-muted-foreground line-through' : ''}>
                   <TableCell>{date(r.txnDate)}</TableCell>
-                  <TableCell>{r.source}</TableCell>
+                  {!thermal && <TableCell>{r.source}</TableCell>}
                   <TableCell>{(() => {
                     const href = sourceHref(r.source, r.sourceId)
                     return href ? <Link to={href} className="font-medium text-brand-strong hover:underline print:text-foreground print:no-underline">{r.reference}</Link> : r.reference
                   })()}</TableCell>
-                  <TableCell>{r.narration ?? '—'}</TableCell>
+                  {!thermal && <TableCell>{r.narration ?? '—'}</TableCell>}
                   <TableCell className="text-right">{Number(r.amount) ? r.amount : '—'}</TableCell>
-                  <TableCell className="text-right">{Number(r.gold) ? r.gold : '—'}</TableCell>
-                  <TableCell className="text-right">{Number(r.silver) ? r.silver : '—'}</TableCell>
+                  {!thermal && <>
+                    <TableCell className="text-right">{Number(r.gold) ? r.gold : '—'}</TableCell>
+                    <TableCell className="text-right">{Number(r.silver) ? r.silver : '—'}</TableCell>
+                  </>}
                   {/* running balance: ₹ always, metal lines only once the party has carried any */}
                   <TableCell className="text-right font-medium">
                     {r.balance.amount}
@@ -82,7 +94,7 @@ export function Statement() {
                   </TableCell>
                 </TableRow>
               )) : (
-                <TableRow><TableCell colSpan={8} className="h-16 text-center text-muted-foreground">{t('udhari.no_txns_range')}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={thermal ? 4 : 8} className="h-16 text-center text-muted-foreground">{t('udhari.no_txns_range')}</TableCell></TableRow>
               )}
             </TableBody>
           </Table>

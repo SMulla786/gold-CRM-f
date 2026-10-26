@@ -129,7 +129,7 @@ export function JustBill() {
             {rows.map((r, i) => (
               <TableRow key={r.key}>
                 <TableCell><Input className="w-40" aria-label="Item name" value={r.name} onChange={(e) => setRow(i, 'name', e.target.value)} /></TableCell>
-                <TableCell><Input className="w-20" aria-label="Karat" value={r.karat} onChange={(e) => setRow(i, 'karat', e.target.value)} /></TableCell>
+                <TableCell><Input className="w-20" aria-label="Karat" list="jb-karats" value={r.karat} onChange={(e) => setRow(i, 'karat', e.target.value)} /></TableCell>
                 <TableCell><Input className="w-16" type="number" aria-label="Purity" value={r.purity} onChange={(e) => setRow(i, 'purity', e.target.value)} /></TableCell>
                 <TableCell><Input className="w-20" type="number" aria-label="Quantity" value={r.quantity} onChange={(e) => setRow(i, 'quantity', e.target.value)} /></TableCell>
                 <TableCell>
@@ -153,6 +153,8 @@ export function JustBill() {
             ))}
           </TableBody>
         </Table>
+        {/* karat stays free text (custom karats allowed); these are suggestions */}
+        <datalist id="jb-karats">{['24K', '22K', '20K', '18K', '14K'].map((k) => <option key={k} value={k} />)}</datalist>
       </div>
       <div className="border-t bg-muted/40 px-6 py-3">
         <Button variant="outline" size="sm" onClick={() => setRows((rs) => [...rs, blankRow()])}>{t('jbill.add_line')}</Button>
@@ -179,11 +181,17 @@ export function JustBill() {
                     <SelectTrigger className="w-24" aria-label="Metal"><SelectValue /></SelectTrigger>
                     <SelectContent>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
                   </Select>
+                  <Select value={p.metalForm} onValueChange={(v) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, metalForm: v } : x))}>
+                    <SelectTrigger className="w-28" aria-label="Metal form"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="KACHA">{t('bill.form_kacha')}</SelectItem><SelectItem value="BULLION">{t('bill.form_bullion')}</SelectItem></SelectContent>
+                  </Select>
                   <Input className="w-20" type="number" placeholder={t('stock.col_gross')} aria-label="Gross" value={p.gross} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, gross: e.target.value } : x))} />
                   <Input className="w-16" type="number" placeholder={t('bill.col_less')} aria-label="Less" value={p.less} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, less: e.target.value } : x))} />
                   <Input className="w-16" type="number" placeholder={t('bill.col_tunch')} aria-label="Tunch" value={p.tunch} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, tunch: e.target.value } : x))} />
                   <Input className="w-24" type="number" placeholder={t('udhari.rate')} aria-label="Rate" value={p.rate} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, rate: e.target.value } : x))} />
-                  <span className="text-sm">= {inr(payAmount(p))}</span>
+                  <span className="text-sm tabular-nums">
+                    <span className="text-muted-foreground">{t('bill.pay_fine', { g: (((n(p.gross) - n(p.less)) * n(p.tunch)) / 100).toFixed(3) })}</span> = {inr(payAmount(p))}
+                  </span>
                 </>
               ) : (
                 <>
@@ -217,6 +225,8 @@ export function JustBill() {
             <span className="text-muted-foreground">{t('bill.gst_pct')}</span>
             <Input className="ml-auto w-24" type="number" aria-label="GST percent" value={gstPercent} onChange={(e) => setGstPercent(e.target.value)} />
           </div>
+          {Number(bill.discountAmount) > 0 && <div className="flex justify-between text-muted-foreground"><span>{t('jbill.discount_amount')}</span><span>− {inr(bill.discountAmount)}</span></div>}
+          {Number(bill.cgst) + Number(bill.sgst) > 0 && <div className="flex justify-between text-muted-foreground"><span>{t('jbill.gst_amount')}</span><span>{inr(Number(bill.cgst) + Number(bill.sgst))}</span></div>}
           <div className="flex justify-between border-t-2 border-brand pt-3 text-lg font-extrabold"><span>{t('bill.final')}</span><span>{inr(bill.final)}</span></div>
           <div className="flex justify-between"><span className="text-muted-foreground">{t('bill.paid')}</span><span>{inr(paid)}</span></div>
           <div className={`-mx-3 flex justify-between rounded-xl px-3 py-2 font-semibold ${balanceDue < 0 ? 'bg-green-500/10' : 'bg-muted/50'}`}><span>{t('bill.balance')}</span><span className={balanceDue < 0 ? 'text-green-600 dark:text-green-500' : ''}>{inr(balanceDue)}</span></div>

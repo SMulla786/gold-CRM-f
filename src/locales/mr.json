@@ -689,5 +689,7 @@
   "bill.pay_fine": "फाइन {g} g",
   "bill.pay_remark": "शेरा",
   "jbill.gst_amount": "GST रक्कम",
-  "jbill.discount_amount": "सवलत रक्कम"
+  "jbill.discount_amount": "सवलत रक्कम",
+
+  "bill.totals_row": "एकूण ({n} ओळी)"
 }

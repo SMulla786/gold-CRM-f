@@ -3,6 +3,7 @@ import { Search } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
+import { CsvExportButton } from '@/components/CsvExportButton'
 import { DataTable } from '@/components/DataTable'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -11,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useLedger } from '@/lib/accountsQueries'
 import { useBankAccounts } from '@/lib/appQueries'
 import { useT } from '@/lib/i18n'
+import { fetchAllPaged } from '@/lib/queries'
 import { sourceHref } from '@/lib/sourceLinks'
 import { businessDayISO, LEDGER_ASSETS, LEDGER_SOURCES, type LedgerRowDto } from '@/shared'
 
@@ -39,10 +41,18 @@ export function AssetLedger() {
   const [holder, setHolder] = useState('') // '' all, '0' shop cash, else bank id
   const [metalForm, setMetalForm] = useState('')
   const [q, setQ] = useState('')
-  const { data, isLoading } = useLedger({
-    asset, page, pageSize, from, to, direction: direction || undefined, source: source || undefined, q: q || undefined,
+  const filters = {
+    asset, from, to, direction: direction || undefined, source: source || undefined, q: q || undefined,
     bankAccountId: isMoney && holder !== '' ? holder : undefined, metalForm: isMetal ? metalForm || undefined : undefined,
-  })
+  }
+  const { data, isLoading } = useLedger({ ...filters, page, pageSize })
+  const exportRows = async () => {
+    const all = await fetchAllPaged<LedgerRowDto>('/app/ledgers', filters)
+    return [
+      ['Date', 'Time', 'Source', 'Ref', 'Dir', 'Party', 'Item / Narration', 'Account', 'Type', 'Karat', 'Gross', 'Net', 'Fine', 'Pcs', 'Amount', 'Balance', 'By'],
+      ...all.map((r) => [date(r.txnDate), time(r.createdAt), r.source, r.sourceId, r.direction, r.party?.name, r.item?.label ?? r.narration, r.bankAccount?.name, r.metalForm, r.karatCode, r.gross, r.net, r.fine, r.pcs, r.amount, r.balance, r.entryBy]),
+    ]
+  }
   const reset = <T,>(set: (v: T) => void) => (v: T) => { set(v); setPage(1) }
 
   if (!valid) return <p className="text-sm text-muted-foreground">{t('daybook.unknown_ledger')}</p>
@@ -136,8 +146,11 @@ export function AssetLedger() {
             </Select>
           </div>
         )}
-        <div className="ml-auto rounded-full bg-brand/15 px-4 py-2 text-sm text-muted-foreground">
-          {t('daybook.opening')} <span className="font-bold text-foreground tabular-nums">{data?.opening ?? '—'} {unit(asset)}</span>
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <div className="rounded-full bg-brand/15 px-4 py-2 text-sm text-muted-foreground">
+            {t('daybook.opening')} <span className="font-bold text-foreground tabular-nums">{data?.opening ?? '—'} {unit(asset)}</span>
+          </div>
+          <CsvExportButton filename={`${asset.toLowerCase()}-ledger-${from}-${to}.csv`} rows={exportRows} />
         </div>
       </Card>
 
