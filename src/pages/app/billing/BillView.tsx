@@ -1,4 +1,4 @@
-import { businessDayISO } from '@/shared'
+import { businessDayISO, INVOICE_FORMATS, type InvoiceFormat } from '@/shared'
 import { useState } from 'react'
 import { FileDown, Printer } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -12,8 +12,8 @@ import { useStates } from '@/lib/queries'
 import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
 import { downloadPdf, shareOnWhatsApp } from '@/lib/share'
-import { cn } from '@/lib/utils'
-import { BillInvoice } from '@/pages/app/billing/BillInvoice'
+import { InvoicePrint } from '@/pages/app/billing/InvoicePrint'
+import { defaultInvoiceFormat, FORMAT_LABEL_KEY } from '@/pages/app/billing/invoice/format'
 
 const todayISO = businessDayISO
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
@@ -27,12 +27,11 @@ export function BillView() {
   const { data: settings } = useSettings()
   const { data: business } = useBusinessProfile() // any tenant user; branch gstin/state override applied server-side
   const { data: states } = useStates()
-  const [override, setOverride] = useState<string | null>(null)
+  const [override, setOverride] = useState<InvoiceFormat | null>(null)
 
   if (isLoading || !bill) return <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
 
-  const layout = override ?? settings?.['print.defaults'].layout ?? 'A4'
-  const thermal = layout === 'THERMAL_80'
+  const layout = override ?? defaultInvoiceFormat(settings)
   const shopName = business?.name ?? me?.business?.name ?? 'Shop'
   const stateName = states?.find((s) => s.id === business?.stateId)?.name
   const canEdit = can(bill.kind === 'SELL' ? 'billing.sell_bill' : 'billing.purchase_bill', 'edit')
@@ -52,12 +51,10 @@ export function BillView() {
         <div className="flex flex-wrap items-center gap-2">
           {editable && <Button variant="outline" onClick={() => navigate(`/app/billing/edit/${bill.id}`)}>{t('common.edit')}</Button>}
           <Button variant="outline" onClick={() => shareOnWhatsApp(bill.party.mobile, summary)}>{t('bill.share')}</Button>
-          <Select value={layout} onValueChange={setOverride}>
-            <SelectTrigger className="w-40" aria-label="Print layout"><SelectValue /></SelectTrigger>
+          <Select value={layout} onValueChange={(v) => setOverride(v as InvoiceFormat)}>
+            <SelectTrigger className="w-44" aria-label="Print layout"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="A4">A4</SelectItem>
-              <SelectItem value="A5">A5</SelectItem>
-              <SelectItem value="THERMAL_80">{t('bill.thermal_80')}</SelectItem>
+              {INVOICE_FORMATS.map((f) => <SelectItem key={f} value={f}>{t(FORMAT_LABEL_KEY[f])}</SelectItem>)}
             </SelectContent>
           </Select>
           <Button variant="outline" onClick={downloadPdf}><FileDown aria-hidden />{t('bill.download_pdf')}</Button>
@@ -65,11 +62,7 @@ export function BillView() {
         </div>
       </div>
 
-      <div className={cn('print-area rounded-3xl border border-white/80 bg-card p-6 shadow-sm sm:p-10 dark:border-border print:rounded-none print:border-0 print:bg-transparent print:shadow-none', thermal && 'print-thermal')}>
-        <div className="overflow-x-auto print:overflow-visible">
-          <BillInvoice bill={bill} shopName={shopName} business={business} stateName={stateName} terms={settings?.['invoice.content'].terms} thermal={thermal} media={settings?.['invoice.media']} columns={settings?.['invoice.content'].columns} watermarkOpacity={settings?.['invoice.content'].watermarkOpacity} />
-        </div>
-      </div>
+      <InvoicePrint bill={bill} format={layout} settings={settings} shopName={shopName} business={business} stateName={stateName} />
     </div>
   )
 }

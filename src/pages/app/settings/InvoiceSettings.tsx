@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useSaveSetting, useSettings, useUploadInvoiceMedia } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { previewNo, type Numbering } from '@/lib/invoiceNumber'
+import { InvoiceFormatCard } from '@/pages/app/billing/invoice/InvoiceFormatCard'
 import { INVOICE_PRINT_COLUMNS, type SettingsDto } from '@/shared'
 
 type MpinAction = { title: string; run: (mpin: string) => Promise<unknown> }
@@ -24,6 +25,7 @@ export function InvoiceSettings() {
         <>
           <NumberingCard settings={settings} settingKey="invoice.sale" title="Sale invoice numbering" ask={setMpinAction} />
           <NumberingCard settings={settings} settingKey="invoice.purchase" title="Purchase invoice numbering" ask={setMpinAction} />
+          <InvoiceFormatCard settings={settings} ask={setMpinAction} />
           <ContentCard settings={settings} ask={setMpinAction} />
           <MediaCard settings={settings} ask={setMpinAction} />
           <AmountBasedRateCard settings={settings} ask={setMpinAction} />

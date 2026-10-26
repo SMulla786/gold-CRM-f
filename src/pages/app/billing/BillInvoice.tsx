@@ -27,10 +27,14 @@ interface Props {
   /** picked print columns; empty = all */
   columns?: string[]
   watermarkOpacity?: number
+  /** TASK-98 (billing.invoice): hide the amount-in-words line */
+  showWords?: boolean
+  /** TASK-98 (billing.invoice): extra row under the totals, e.g. the party's due balance */
+  due?: { label: string; value: string } | null
 }
 
 /** Printable invoice — A4 (full table) or 80 mm thermal (compact). Shop header + party + items + GST + amount in words + terms. */
-export function BillInvoice({ bill, shopName, business, stateName, terms, thermal, media, columns = [], watermarkOpacity = 10 }: Props) {
+export function BillInvoice({ bill, shopName, business, stateName, terms, thermal, media, columns = [], watermarkOpacity = 10, showWords = true, due }: Props) {
   const cols = INVOICE_PRINT_COLUMNS.filter((c) => columns.length === 0 || columns.includes(c))
   const header = (
     <header className="text-center">
@@ -67,10 +71,11 @@ export function BillInvoice({ bill, shopName, business, stateName, terms, therma
       <div className="flex justify-between border-t pt-1 font-bold"><span>Total</span><span>{inr(bill.final)}</span></div>
       <Row label="Paid" value={inr(bill.paid)} />
       <div className="flex justify-between font-medium"><span>Balance</span><span>{inr(bill.balance)}{Number(bill.balance) < 0 ? ' (adv)' : ''}</span></div>
+      {due && <Row label={due.label} value={due.value} />}
     </div>
   )
 
-  const words = <p className={thermal ? 'mt-1' : 'mt-2'}><span className="text-muted-foreground">In words:</span> {amountInWords(bill.final)}</p>
+  const words = showWords && <p className={thermal ? 'mt-1' : 'mt-2'}><span className="text-muted-foreground">In words:</span> {amountInWords(bill.final)}</p>
 
   if (thermal) {
     return (
