@@ -1,8 +1,10 @@
 import { businessDayISO } from '@/shared'
-import { TriangleAlert } from 'lucide-react'
+import { Landmark, Receipt, TriangleAlert, Wallet } from 'lucide-react'
 import { useState } from 'react'
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { KpiTile } from '@/components/KpiTile'
+import { SectionCard } from '@/components/SectionCard'
+import { Card } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { useT } from '@/lib/i18n'
 import { useGstr3b } from '@/lib/reportsQueries'
@@ -31,36 +33,31 @@ export function Gstr3bReport() {
       {isLoading || !data ? (
         <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
       ) : (
-        <>
-          <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">3.1(a) · {t('gst.outward')}</CardTitle></CardHeader>
-            <CardContent className="grid grid-cols-2 gap-3 text-sm tabular-nums sm:grid-cols-4">
-              <div><div className="text-muted-foreground">{t('gst.taxable')}</div><div className="text-lg font-semibold">{inr(data.outward.taxable)}</div></div>
-              <div><div className="text-muted-foreground">CGST</div><div className="text-lg font-semibold">{inr(data.outward.cgst)}</div></div>
-              <div><div className="text-muted-foreground">SGST</div><div className="text-lg font-semibold">{inr(data.outward.sgst)}</div></div>
-              <div><div className="text-muted-foreground">IGST</div><div className="text-lg font-semibold">{inr(data.outward.igst)}</div></div>
-            </CardContent>
-          </Card>
+        <div className="grid gap-6 xl:grid-cols-12">
+          <div className="space-y-6 xl:col-span-8">
+            <SectionCard title={<>3.1(a) · {t('gst.outward')}</>} bodyClassName="stagger grid grid-cols-2 gap-4 p-6 sm:grid-cols-4">
+              <KpiTile size="sm" label={t('gst.taxable')} value={inr(data.outward.taxable)} icon={Receipt} />
+              <KpiTile size="sm" tone="slate" label="CGST" value={inr(data.outward.cgst)} icon={Landmark} />
+              <KpiTile size="sm" tone="slate" label="SGST" value={inr(data.outward.sgst)} icon={Landmark} />
+              <KpiTile size="sm" tone="slate" label="IGST" value={inr(data.outward.igst)} icon={Landmark} />
+            </SectionCard>
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">4 · {t('gst.itc')}</CardTitle></CardHeader>
-              <CardContent className="space-y-1 text-sm tabular-nums">
-                <div className="flex justify-between"><span className="text-muted-foreground">CGST</span><span>{inr(data.itc.cgst)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">SGST</span><span>{inr(data.itc.sgst)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">IGST</span><span>{inr(data.itc.igst)}</span></div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">{t('gst.non_gst')}</CardTitle></CardHeader>
-              <CardContent className="text-2xl font-semibold tabular-nums">{inr(data.nonGst)}</CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">{t('gst.net_payable')}</CardTitle></CardHeader>
-              <CardContent><div className="text-2xl font-semibold tabular-nums">{inr(data.netPayableIndicative)}</div><p className="mt-1 text-xs text-muted-foreground">{t('gst.net_payable_note')}</p></CardContent>
-            </Card>
+            <SectionCard title={<>4 · {t('gst.itc')}</>} bodyClassName="divide-y px-6 py-2 text-sm tabular-nums">
+              {(['cgst', 'sgst', 'igst'] as const).map((k) => (
+                <div key={k} className="flex justify-between py-3"><span className="text-muted-foreground">{k.toUpperCase()}</span><span className="font-semibold">{inr(data.itc[k])}</span></div>
+              ))}
+            </SectionCard>
           </div>
-        </>
+
+          <div className="space-y-6 xl:col-span-4">
+            <div className="hero-card space-y-3 p-6">
+              <div className="text-xs font-semibold uppercase tracking-widest text-white/60">{t('gst.net_payable')}</div>
+              <div className="text-4xl font-extrabold tabular-nums break-words">{inr(data.netPayableIndicative)}</div>
+              <p className="text-sm text-white/70">{t('gst.net_payable_note')}</p>
+            </div>
+            <KpiTile tone="slate" label={t('gst.non_gst')} value={inr(data.nonGst)} icon={Wallet} />
+          </div>
+        </div>
       )}
     </div>
   )

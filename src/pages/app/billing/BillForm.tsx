@@ -1,3 +1,4 @@
+import { Columns3 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -5,8 +6,10 @@ import { toast } from 'sonner'
 import { MpinDialog } from '@/components/MpinDialog'
 import { NewPartyDialog } from '@/components/NewPartyDialog'
 import { PartyPicker } from '@/components/PartyPicker'
+import { TABLE_EDGES } from '@/components/SectionCard'
 import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -321,16 +324,23 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
   const metalRow = (r: Row) => r.stockClass === 'GOLD' || r.stockClass === 'SILVER'
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
+      <p className="text-sm text-muted-foreground">
+        {editBill
+          ? 'Editing a saved bill. Totals are recomputed and the change needs your PIN.'
+          : kind === 'SELL'
+            ? 'Pick a customer, scan tags or pull in a draft or ready order, take payment and save.'
+            : 'Record metal bought from a supplier; each line is added to stock on save.'}
+      </p>
       {!branchReady && <SelectBranchForTxn note="This bill posts to one branch. Select a branch to bill from." />}
 
       {/* Header */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <Card className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-4">
         <div className="space-y-1.5 lg:col-span-2">
           <Label htmlFor="bf-party">{kind === 'SELL' ? t('bill.customer') : t('bill.supplier')}</Label>
           <PartyPicker value={party} onChange={setParty} placeholder="Search name / mobile" id="bf-party" ariaLabel={kind === 'SELL' ? 'Customer' : 'Supplier'} />
           {party && (
-            <p className="text-xs text-muted-foreground">
+            <p className="w-fit rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">
               {party.mobile}
               {balance && ` · balance ₹${balance.amount}${Number(balance.gold) ? ` · ${balance.gold}g Au` : ''}${Number(balance.silver) ? ` · ${balance.silver}g Ag` : ''}`}
             </p>
@@ -355,9 +365,10 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
           <Label htmlFor="bf-due">{t('bill.due_date')}</Label>
           <Input id="bf-due" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
         </div>
-      </div>
+      </Card>
 
-      {/* Add-line controls */}
+      {/* Add-line controls. No overflow clipping or hover lift on this card: the stock dropdown overflows it. */}
+      <Card className="p-6">
       {kind === 'SELL' ? (
         <div className="relative max-w-md">
           <Label htmlFor="bf-stock-search">{t('bill.add_item')}</Label>
@@ -420,11 +431,13 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
           <Button type="button" variant="outline" onClick={addPurchaseRow}>{t('bill.add_row')}</Button>
         </div>
       )}
+      </Card>
 
-      {/* Item grid */}
-      <div className="flex justify-end">
+      {/* Item grid: must stay the first <table> on the page and before payments (specs use tbody tr / Rate .first()). */}
+      <Card className="overflow-hidden">
+      <div className="flex justify-end border-b bg-muted/40 px-6 py-3">
         <Popover>
-          <PopoverTrigger asChild><Button type="button" variant="outline" size="sm">Columns</Button></PopoverTrigger>
+          <PopoverTrigger asChild><Button type="button" variant="outline" size="sm"><Columns3 aria-hidden />Columns</Button></PopoverTrigger>
           <PopoverContent align="end" className="w-44 space-y-2">
             {OPTIONAL_COLS.map((c) => (
               <label key={c.key} className="flex items-center gap-2 text-sm">
@@ -434,7 +447,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
           </PopoverContent>
         </Popover>
       </div>
-      <div className="overflow-x-auto rounded-md border">
+      <div className={`overflow-x-auto ${TABLE_EDGES}`}>
         <Table>
           <TableHeader>
             <TableRow>
@@ -470,7 +483,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
                   <TableCell>
                     {r.stockItemId || kind === 'PURCHASE' ? (
                       <div className="text-sm">
-                        <div className="font-medium">{r.tagNo || r.description}</div>
+                        <div className="font-semibold">{r.tagNo || r.description}</div>
                         <div className="text-xs text-muted-foreground">{r.description}</div>
                       </div>
                     ) : (
@@ -518,28 +531,30 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
                     </div>
                   </TableCell>}
                   <TableCell className="whitespace-nowrap font-medium">{lr.total}</TableCell>
-                  <TableCell><Button variant="ghost" size="sm" aria-label="Remove line" onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} title="Remove">✕</Button></TableCell>
+                  <TableCell><Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive" aria-label="Remove line" onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} title="Remove">✕</Button></TableCell>
                 </TableRow>
               )
             })}
           </TableBody>
         </Table>
       </div>
+      </Card>
 
-      {/* Payments + summary */}
-      <div className="grid gap-5 lg:grid-cols-2">
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold">{t('bill.payments')}</h2>
-            <div className="ml-auto flex gap-1">
+      {/* Payments + summary (payments first in the DOM) */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
+        <Card className="overflow-hidden">
+          <div className="flex flex-wrap items-center gap-3 border-b bg-muted/40 px-6 py-4">
+            <h2 className="text-lg font-bold">{t('bill.payments')}</h2>
+            <div className="ml-auto flex flex-wrap gap-1">
               <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('CASH')])}>{t('bill.add_cash')}</Button>
               <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('ONLINE')])}>{t('bill.add_online')}</Button>
               <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('METAL')])}>{t('bill.add_metal')}</Button>
             </div>
           </div>
+          <div className="space-y-3 p-6">
           {pays.map((p, i) => (
-            <div key={p.key} className="flex flex-wrap items-end gap-2 rounded-md border p-2">
-              <span className="text-xs font-medium text-muted-foreground">{p.mode}</span>
+            <div key={p.key} className="flex flex-wrap items-center gap-2 rounded-2xl border bg-muted/40 p-3">
+              <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${p.mode === 'METAL' ? 'bg-brand/15 text-brand-strong' : 'bg-muted text-muted-foreground'}`}>{p.mode}</span>
               {p.mode === 'METAL' ? (
                 <>
                   <Select value={p.metal} onValueChange={(v) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, metal: v } : x))}>
@@ -587,9 +602,10 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
             )}
             {keepMetalWeight && <span className="pb-2 text-sm text-muted-foreground">≈ {keepMetalWeight} g</span>}
           </div>
-        </div>
+          </div>
+        </Card>
 
-        <div className="space-y-2 rounded-md border p-4 text-sm tabular-nums">
+        <Card className="space-y-2 self-start p-6 text-sm tabular-nums lg:sticky lg:top-6">
           <Row2 label={t('bill.subtotal')} value={inr(bill.sub)} />
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground">{t('bill.discount')}</span>
@@ -607,18 +623,18 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
           )}
           {billType === 'GST' && <Row2 label="CGST + SGST / IGST" value={`${inr(bill.cgst)} + ${inr(bill.sgst)} / ${inr(bill.igst)}`} muted />}
           <Row2 label={t('bill.round_off')} value={bill.round} muted />
-          <div className="flex justify-between border-t pt-2 text-base font-semibold"><span>{t('bill.final')}</span><span>{inr(bill.final)}</span></div>
+          <div className="flex justify-between border-t-2 border-brand pt-3 text-lg font-extrabold"><span>{t('bill.final')}</span><span>{inr(bill.final)}</span></div>
           <Row2 label={t('bill.paid')} value={inr(paid)} />
-          <div className="flex justify-between font-medium"><span>{t('bill.balance')}</span><span className={balanceDue < 0 ? 'text-green-600 dark:text-green-500' : ''}>{inr(balanceDue)}{balanceDue < 0 ? ' (advance)' : ''}</span></div>
+          <div className={`-mx-3 flex justify-between rounded-xl px-3 py-2 font-semibold ${balanceDue < 0 ? 'bg-green-500/10' : 'bg-muted/50'}`}><span>{t('bill.balance')}</span><span className={balanceDue < 0 ? 'text-green-600 dark:text-green-500' : ''}>{inr(balanceDue)}{balanceDue < 0 ? ' (advance)' : ''}</span></div>
           <p className="text-xs text-muted-foreground">Live preview — the server recomputes every line and total authoritatively on save (GST split uses the party's state).</p>
-          <Button className="hidden w-full lg:inline-flex" disabled={!valid || pending} onClick={onSaveClick}>
+          <Button size="lg" className="mt-2 hidden w-full lg:inline-flex" disabled={!valid || pending} onClick={onSaveClick}>
             {pending ? t('bill.saving') : editBill ? t('bill.update_mpin') : kind === 'SELL' ? t('bill.save_sell') : t('bill.save_purchase')}
           </Button>
-        </div>
+        </Card>
       </div>
 
       {/* Mobile sticky totals + Save bar (desktop uses the Save in the summary card). */}
-      <div className="sticky bottom-0 z-10 -mx-6 flex items-center gap-3 border-t bg-background/95 px-6 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] tabular-nums backdrop-blur lg:hidden">
+      <div className="sticky bottom-0 z-10 -mx-6 flex items-center gap-3 border-t bg-card/95 px-6 pt-3 shadow-[0_-4px_16px_rgb(0_0_0/0.06)] pb-[calc(0.75rem+env(safe-area-inset-bottom))] tabular-nums backdrop-blur lg:hidden">
         <div className="text-sm">
           <div className="font-semibold">{inr(bill.final)}</div>
           <div className="text-xs text-muted-foreground">Bal {inr(balanceDue)}</div>

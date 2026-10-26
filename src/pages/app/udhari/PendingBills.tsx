@@ -1,10 +1,12 @@
 import type { ColumnDef } from '@tanstack/react-table'
+import { Filter } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { DataTable } from '@/components/DataTable'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { AddPaymentDialog } from '@/pages/app/billing/AddPaymentDialog'
 import { usePendingBills } from '@/lib/udhariQueries'
@@ -22,7 +24,7 @@ export function PendingBills() {
   const [paying, setPaying] = useState<BillListItemDto | null>(null)
 
   const columns: ColumnDef<BillListItemDto, unknown>[] = [
-    { header: 'Bill', cell: ({ row }) => <Link to={`/app/billing/view/${row.original.id}`} className="font-medium text-primary hover:underline">{row.original.billNo}</Link> },
+    { header: 'Bill', cell: ({ row }) => <Link to={`/app/billing/view/${row.original.id}`} className="font-semibold text-brand-strong hover:underline">{row.original.billNo}</Link> },
     { header: 'Kind', cell: ({ row }) => <Badge variant="secondary">{row.original.kind}</Badge> },
     { header: 'Party', cell: ({ row }) => row.original.party.name },
     { header: 'Items', cell: ({ row }) => <span className="text-sm text-muted-foreground">{row.original.itemsSummary ?? '—'}</span> },
@@ -35,14 +37,18 @@ export function PendingBills() {
   ]
 
   return (
-    <div className="space-y-4">
-      <Select value={type || 'all'} onValueChange={(v) => { setType(v === 'all' ? '' : v); setPage(1) }}>
-        <SelectTrigger className="w-40" aria-label="Party type"><SelectValue /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All types</SelectItem>
-          {PARTY_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-        </SelectContent>
-      </Select>
+    <div className="space-y-6">
+      <p className="text-sm text-muted-foreground">Bills with an unpaid balance. Record a payment straight from the list.</p>
+      <Card className="flex flex-wrap items-center gap-3 p-4">
+        <Filter className="size-4 text-muted-foreground" aria-hidden />
+        <Select value={type || 'all'} onValueChange={(v) => { setType(v === 'all' ? '' : v); setPage(1) }}>
+          <SelectTrigger className="w-40" aria-label="Party type"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All types</SelectItem>
+            {PARTY_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </Card>
 
       <DataTable
         columns={columns}

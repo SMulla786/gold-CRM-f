@@ -2,8 +2,10 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { PartyPicker } from '@/components/PartyPicker'
+import { TABLE_EDGES } from '@/components/SectionCard'
 import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -73,15 +75,17 @@ export function NewGirvi() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {!branchReady && <SelectBranchForTxn note="A girvi loan is booked at one branch. Select a branch." />}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <Card className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-4">
         <div className="space-y-1.5 lg:col-span-2"><Label htmlFor="ng-party">Customer</Label><PartyPicker value={party} onChange={setParty} placeholder="Search name / mobile" id="ng-party" ariaLabel="Customer" /></div>
         <div className="space-y-1.5"><Label htmlFor="ng-date">Issue date</Label><Input id="ng-date" type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} /></div>
-      </div>
+      </Card>
 
-      <div className="overflow-x-auto rounded-md border">
+      {/* Items stay before Loan terms in the DOM (specs use .nth(i) on Rate/Gross/Net). */}
+      <Card className="overflow-hidden">
+      <div className={`overflow-x-auto ${TABLE_EDGES}`}>
         <Table>
           <TableHeader>
             <TableRow><TableHead>Category</TableHead><TableHead className="min-w-40">Item</TableHead><TableHead>Gross</TableHead><TableHead>Net</TableHead><TableHead>Purity%</TableHead><TableHead>Fine</TableHead><TableHead>Rate/g</TableHead><TableHead>Valuation</TableHead><TableHead /></TableRow>
@@ -102,18 +106,21 @@ export function NewGirvi() {
                 <TableCell className="whitespace-nowrap text-muted-foreground tabular-nums">{fineOf(r).toFixed(3)}</TableCell>
                 <TableCell><Input className="w-24" type="number" aria-label="Rate" value={r.rate} onChange={(e) => setRow(i, 'rate', e.target.value)} /></TableCell>
                 <TableCell className="whitespace-nowrap tabular-nums">{inr(valOf(r))}</TableCell>
-                <TableCell><Button variant="ghost" size="sm" aria-label="Remove item" disabled={rows.length === 1} onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))}>✕</Button></TableCell>
+                <TableCell><Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive" aria-label="Remove item" disabled={rows.length === 1} onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))}>✕</Button></TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </div>
-      <Button variant="outline" size="sm" onClick={() => setRows((rs) => [...rs, blankRow(categories[0] ?? 'Gold')])}>+ Add item</Button>
+      <div className="border-t bg-muted/40 px-6 py-3">
+        <Button variant="outline" size="sm" onClick={() => setRows((rs) => [...rs, blankRow(categories[0] ?? 'Gold')])}>+ Add item</Button>
+      </div>
+      </Card>
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        <div className="space-y-3 rounded-md border p-4">
-          <h2 className="text-sm font-semibold">Loan terms</h2>
-          <div className="grid grid-cols-2 gap-3">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
+        <Card className="self-start overflow-hidden">
+          <div className="border-b bg-muted/40 px-6 py-4"><h2 className="text-lg font-bold">Loan terms</h2></div>
+          <div className="grid gap-4 p-6 sm:grid-cols-2 xl:grid-cols-3">
             <div className="space-y-1.5"><Label htmlFor="ng-rate">Interest %</Label><Input id="ng-rate" type="number" step="0.01" value={terms.ratePercent} onChange={(e) => setTerm('ratePercent', e.target.value)} /></div>
             <div className="space-y-1.5"><Label>Per</Label>
               <Select value={terms.ratePeriod} onValueChange={(v) => setTerm('ratePeriod', v)}><SelectTrigger aria-label="Rate period"><SelectValue /></SelectTrigger>
@@ -135,16 +142,16 @@ export function NewGirvi() {
             </div>
             <div className="space-y-1.5"><Label htmlFor="ng-tenure">Tenure (months)</Label><Input id="ng-tenure" type="number" value={terms.tenureMonths} onChange={(e) => setTerm('tenureMonths', e.target.value)} /></div>
           </div>
-        </div>
+        </Card>
 
-        <div className="space-y-2 rounded-md border p-4 text-sm tabular-nums">
-          <div className="flex justify-between"><span className="text-muted-foreground">Total valuation</span><span className="font-medium">{inr(valuation)}</span></div>
+        <Card className="space-y-3 self-start p-6 text-sm tabular-nums">
+          <div className="flex items-baseline justify-between border-b-2 border-brand pb-3"><span className="text-muted-foreground">Total valuation</span><span className="text-xl font-extrabold">{inr(valuation)}</span></div>
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground">Loan (principal)</span>
             <Input className="ml-auto w-28" type="number" value={principalTouched ? principal : String(stdPrincipal)} onChange={(e) => { setPrincipalTouched(true); setPrincipal(e.target.value) }} aria-label="Principal" />
           </div>
           <p className="text-xs text-muted-foreground">Default {def?.stdPercent ?? 60}% of valuation. Must not exceed valuation.</p>
-          <div className="grid grid-cols-2 gap-2 border-t pt-2">
+          <div className="grid grid-cols-2 gap-4 border-t pt-3">
             <div className="space-y-1.5"><Label htmlFor="ng-cash">Pay cash ₹</Label><Input id="ng-cash" type="number" value={pay.cash} onChange={(e) => setPay((p) => ({ ...p, cash: e.target.value }))} /></div>
             <div className="space-y-1.5"><Label htmlFor="ng-online">Pay online ₹</Label><Input id="ng-online" type="number" value={pay.online} onChange={(e) => setPay((p) => ({ ...p, online: e.target.value }))} /></div>
             {n(pay.online) > 0 && (
@@ -156,10 +163,10 @@ export function NewGirvi() {
           </div>
           <div className="flex justify-between"><span className="text-muted-foreground">Payout vs loan</span><span className={Math.abs(payTotal - effPrincipal) < 0.005 ? '' : 'text-destructive'}>{inr(payTotal)} / {inr(effPrincipal)}</span></div>
           <div className="space-y-1.5"><Label htmlFor="ng-remark">Remark</Label><Input id="ng-remark" value={remark} onChange={(e) => setRemark(e.target.value)} /></div>
-          <Button className="w-full" disabled={!valid || create.isPending} onClick={() => void submit().catch(() => {})}>
+          <Button size="lg" className="mt-2 w-full" disabled={!valid || create.isPending} onClick={() => void submit().catch(() => {})}>
             {create.isPending ? 'Saving…' : 'Create loan'}
           </Button>
-        </div>
+        </Card>
       </div>
     </div>
   )

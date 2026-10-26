@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { DataTable } from '@/components/DataTable'
+import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -39,8 +40,8 @@ export function AssetLedger() {
   ]
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3">
+    <div className="space-y-6">
+      <Card className="flex flex-wrap items-end gap-4 p-4">
         <div className="space-y-1.5">
           <Label htmlFor="l-from">From</Label>
           <Input id="l-from" type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1) }} />
@@ -62,10 +63,10 @@ export function AssetLedger() {
             </SelectContent>
           </Select>
         </div>
-        <div className="ml-auto text-sm text-muted-foreground">
-          Opening: <span className="font-medium text-foreground">{data?.opening ?? '—'} {unit(asset)}</span>
+        <div className="ml-auto rounded-full bg-brand/15 px-4 py-2 text-sm text-muted-foreground">
+          Opening: <span className="font-bold text-foreground tabular-nums">{data?.opening ?? '—'} {unit(asset)}</span>
         </div>
-      </div>
+      </Card>
 
       <DataTable
         columns={columns}

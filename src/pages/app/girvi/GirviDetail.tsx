@@ -1,9 +1,11 @@
+import { FileDown, Printer } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { MpinDialog } from '@/components/MpinDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -96,7 +98,7 @@ function ReleaseDialog({ batch, onClose }: { batch: GirviBatchDto; onClose: () =
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Release items · #{batch.girviNo}</DialogTitle></DialogHeader>
         <p className="text-sm text-muted-foreground">Interest due {inr(batch.interestDue)}; interest paid + discount must equal it. Releasing the last items requires full principal ({inr(batch.principal)}).</p>
-        <div className="space-y-1 rounded-md border p-2 text-sm">
+        <div className="space-y-2 rounded-2xl border bg-muted/40 p-3 text-sm">
           {pledged.map((it) => (
             <label key={it.id} className="flex items-center gap-2"><Checkbox aria-label={`Release ${it.name}`} checked={ids.has(it.id)} onCheckedChange={() => toggle(it.id)} /> {it.name} · {it.net}g · {inr(it.valuation)}</label>
           ))}
@@ -132,30 +134,55 @@ export function GirviDetail() {
   const grantOnly = batch.txns.length === 1 && batch.txns[0]?.type === 'GRANT'
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3 print:hidden">
-        <Link to="/app/girvi" className="text-sm text-primary hover:underline">← Loans</Link>
-        <h2 className="text-lg font-semibold">Girvi #{batch.girviNo}</h2>
-        <Badge variant={batch.status === 'ACTIVE' ? (batch.overdue ? 'destructive' : 'secondary') : 'default'}>{batch.status}{batch.overdue && batch.status === 'ACTIVE' ? ' · OVERDUE' : ''}</Badge>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1"><Label htmlFor="g-asof" className="text-xs text-muted-foreground">As of</Label><Input id="g-asof" type="date" className="w-36" value={asOf} onChange={(e) => setAsOf(e.target.value)} /></div>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4 print:hidden">
+        <div className="space-y-1">
+          <Link to="/app/girvi" className="text-sm font-medium text-brand-strong hover:underline">← Loans</Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="text-xl font-bold">Girvi #{batch.girviNo}</h2>
+            <Badge variant={batch.status === 'ACTIVE' ? (batch.overdue ? 'destructive' : 'secondary') : 'default'}>{batch.status}{batch.overdue && batch.status === 'ACTIVE' ? ' · OVERDUE' : ''}</Badge>
+          </div>
+          <p className="text-sm text-muted-foreground">Pledge receipt, interest and release for this loan.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2"><Label htmlFor="g-asof" className="text-xs text-muted-foreground">As of</Label><Input id="g-asof" type="date" className="w-36" value={asOf} onChange={(e) => setAsOf(e.target.value)} /></div>
+          <Button size="sm" variant="outline" onClick={() => window.print()}><Printer aria-hidden />Print</Button>
+          <Button size="sm" variant="outline" onClick={downloadPdf}><FileDown aria-hidden />PDF</Button>
+          {canDelete && grantOnly && <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDeleting(true)}>Delete</Button>}
           {canEdit && batch.status === 'ACTIVE' && <>
             <Button size="sm" variant="outline" onClick={() => setDialog('interest')}>Pay interest</Button>
             <Button size="sm" variant="outline" onClick={() => setDialog('topup')}>Top-up</Button>
             <Button size="sm" onClick={() => setDialog('release')}>Release</Button>
           </>}
-          <Button size="sm" variant="outline" onClick={() => window.print()}>Print</Button>
-          <Button size="sm" variant="outline" onClick={downloadPdf}>PDF</Button>
-          {canDelete && grantOnly && <Button size="sm" variant="ghost" onClick={() => setDeleting(true)}>Delete</Button>}
         </div>
       </div>
 
-      <div className="print-area space-y-3 rounded-md border p-6 text-sm">
+      {/* Payable hero: screen only, a sibling of .print-area (never wrap the receipt). No action buttons here. */}
+      {batch.status === 'ACTIVE' && (
+        <div className="hero-card grid gap-6 p-6 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] print:hidden">
+          <div className="pointer-events-none absolute -top-12 -right-12 size-40 rounded-full bg-brand/20 blur-3xl" aria-hidden />
+          <div className="space-y-1">
+            <div className="text-xs font-semibold uppercase tracking-widest text-white/60">Payable</div>
+            <div className="text-4xl font-extrabold tabular-nums break-words">{inr(batch.payable)}</div>
+            <div className="text-sm text-white/70 tabular-nums">Principal {inr(batch.principal)} · Interest due {inr(batch.interestDue)}</div>
+          </div>
+          <div className="space-y-2 self-end">
+            <div className="flex justify-between text-xs text-white/60 tabular-nums"><span>Valuation</span><span>{inr(batch.valuation)}</span></div>
+            <div className="h-3 rounded-full bg-white/10 shadow-[inset_0_2px_4px_rgb(0_0_0/0.3)]" aria-hidden>
+              <div className="bar-grow h-3 rounded-full bg-gradient-to-r from-brand-strong to-brand shadow-[0_0_10px_rgb(212_175_55/0.5)]" style={{ width: `${Math.min(100, Math.max(4, (n(batch.principal) / (n(batch.valuation) || 1)) * 100))}%` }} />
+            </div>
+            <div className={`text-xs tabular-nums ${batch.overdue ? 'font-semibold text-red-300' : 'text-white/60'}`}>due {date(batch.returnDate)}</div>
+          </div>
+        </div>
+      )}
+
+      <div className="print-area space-y-4 rounded-3xl border border-white/80 bg-card p-6 text-sm shadow-sm sm:p-10 dark:border-border print:rounded-none print:border-0 print:bg-transparent print:shadow-none">
         <div className="text-center"><div className="text-lg font-bold">{business?.name ?? me?.business?.name ?? 'Shop'}</div><div className="font-medium">Girvi / Pledge Receipt</div></div>
         <div className="flex flex-wrap justify-between gap-2">
           <div>{batch.party.name} · {batch.party.mobile}</div>
           <div>#{batch.girviNo} · {date(batch.issueDate)} → due {date(batch.returnDate)}</div>
         </div>
+        <div className="overflow-x-auto print:overflow-visible">
         <Table>
           <TableHeader><TableRow><TableHead>Item</TableHead><TableHead>Gross</TableHead><TableHead>Net</TableHead><TableHead>Purity</TableHead><TableHead>Fine</TableHead><TableHead>Valuation</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
           <TableBody>
@@ -164,21 +191,23 @@ export function GirviDetail() {
             ))}
           </TableBody>
         </Table>
+        </div>
         <div className="ml-auto max-w-xs space-y-1 tabular-nums">
           <div className="flex justify-between"><span className="text-muted-foreground">Valuation</span><span>{inr(batch.valuation)}</span></div>
           <div className="flex justify-between"><span className="text-muted-foreground">Principal</span><span>{inr(batch.principal)}</span></div>
           <div className="flex justify-between"><span className="text-muted-foreground">Interest due (to {asOf ? date(asOf) : 'today'})</span><span>{inr(batch.interestDue)}</span></div>
-          <div className="flex justify-between border-t pt-1 font-semibold"><span>Payable</span><span>{inr(batch.payable)}</span></div>
+          <div className="flex justify-between border-t-2 border-brand pt-2 text-base font-bold"><span>Payable</span><span>{inr(batch.payable)}</span></div>
         </div>
         <div className="text-xs text-muted-foreground">{batch.ratePercent}% / {batch.ratePeriod === 'MONTHLY' ? 'month' : 'year'} · {batch.interestType === 'SI' ? 'simple' : `compound (${batch.ciPeriod?.toLowerCase()})`} · {batch.method === 'FULL_MONTH' ? 'full-month' : 'day-wise'} · interest from {date(batch.interestFrom)}</div>
       </div>
 
       {batch.txns.length > 0 && (
-        <div className="text-sm print:hidden"><h3 className="mb-1 font-medium">History</h3>
-          <ul className="space-y-0.5 text-muted-foreground">
-            {batch.txns.map((t) => <li key={t.id}>{date(t.txnDate)} · {t.type}{Number(t.principal) ? ` · principal ${inr(t.principal)}` : ''}{Number(t.interest) ? ` · interest ${inr(t.interest)}` : ''}{Number(t.discount) ? ` · disc ${inr(t.discount)}` : ''}</li>)}
+        <Card className="overflow-hidden text-sm print:hidden">
+          <div className="border-b bg-muted/40 px-6 py-4"><h3 className="text-lg font-bold">History</h3></div>
+          <ul className="divide-y px-6 text-muted-foreground">
+            {batch.txns.map((t) => <li key={t.id} className="py-3">{date(t.txnDate)} · {t.type}{Number(t.principal) ? ` · principal ${inr(t.principal)}` : ''}{Number(t.interest) ? ` · interest ${inr(t.interest)}` : ''}{Number(t.discount) ? ` · disc ${inr(t.discount)}` : ''}</li>)}
           </ul>
-        </div>
+        </Card>
       )}
 
       {dialog === 'interest' && <InterestDialog batch={batch} onClose={() => setDialog(null)} />}

@@ -1,6 +1,8 @@
 import { useState } from 'react'
 
+import { TableCard } from '@/components/SectionCard'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -19,23 +21,23 @@ export function DayBookAllInOne() {
   const { data, isLoading } = useDayBookAllInOne({ from, to, source: source || undefined, page })
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3">
+    <div className="space-y-6">
+      <Card className="flex flex-wrap items-end gap-4 p-4">
         <div className="space-y-1.5"><Label htmlFor="aio-from">From</Label><Input id="aio-from" type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1) }} /></div>
         <div className="space-y-1.5"><Label htmlFor="aio-to">To</Label><Input id="aio-to" type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1) }} /></div>
         <div className="space-y-1.5">
           <Label>Source</Label>
           <Select value={source || 'all'} onValueChange={(v) => { setSource(v === 'all' ? '' : v); setPage(1) }}>
-            <SelectTrigger className="w-48" aria-label="Source"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-48" aria-label="Source"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All sources</SelectItem>
               {LEDGER_SOURCES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
-      </div>
+      </Card>
 
-      <div className="overflow-x-auto rounded-md border">
+      <TableCard>
         <Table>
           <TableHeader>
             <TableRow>
@@ -61,15 +63,14 @@ export function DayBookAllInOne() {
               )) : <TableRow><TableCell colSpan={3 + LEDGER_ASSETS.length} className="h-16 text-center text-muted-foreground">No activity</TableCell></TableRow>}
           </TableBody>
         </Table>
-      </div>
-
       {data && data.total > data.pageSize && (
-        <div className="flex items-center justify-end gap-2 text-sm">
+        <div className="flex items-center justify-end gap-2 border-t bg-muted/40 px-6 py-3 text-sm">
           <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</Button>
           <span>Page {data.page}</span>
           <Button variant="outline" size="sm" disabled={page * data.pageSize >= data.total} onClick={() => setPage((p) => p + 1)}>Next</Button>
         </div>
       )}
+      </TableCard>
     </div>
   )
 }

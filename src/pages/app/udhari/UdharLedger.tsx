@@ -1,9 +1,11 @@
 import type { ColumnDef } from '@tanstack/react-table'
+import { Download, Search } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { DataTable } from '@/components/DataTable'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useUdharLedger } from '@/lib/udhariQueries'
@@ -46,7 +48,7 @@ export function UdharLedger() {
   }
 
   const columns: ColumnDef<PartyBalanceRowDto, unknown>[] = [
-    { header: t('udhari.col_party'), cell: ({ row }) => <span className="font-medium">{row.original.party.name}</span> },
+    { header: t('udhari.col_party'), cell: ({ row }) => <span className="font-semibold">{row.original.party.name}</span> },
     { header: t('udhari.col_mobile'), cell: ({ row }) => row.original.party.mobile },
     // Period Old/In/Out/Final (from/to set) for the chosen unit — the breakdown carries all three units.
     ...(period
@@ -65,9 +67,13 @@ export function UdharLedger() {
   ]
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <Input className="max-w-xs" placeholder={t('udhari.search')} value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
+    <div className="space-y-6">
+      <p className="text-sm text-muted-foreground">Outstanding money, gold and silver per party. Set a period to see opening, movement and closing.</p>
+      <Card className="flex flex-wrap items-center gap-3 p-4">
+        <div className="relative w-full sm:max-w-xs sm:flex-1">
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+          <Input className="pl-9" placeholder={t('udhari.search')} value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
+        </div>
         <Select value={type || 'all'} onValueChange={(v) => { setType(v === 'all' ? '' : v); setPage(1) }}>
           <SelectTrigger className="w-40" aria-label="Party type"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -91,8 +97,8 @@ export function UdharLedger() {
             </SelectContent>
           </Select>
         )}
-        <Button className="ml-auto" variant="outline" disabled={exporting} onClick={exportCsv}>{exporting ? 'Exporting…' : t('common.export_csv')}</Button>
-      </div>
+        <Button className="ml-auto" variant="outline" disabled={exporting} onClick={exportCsv}><Download aria-hidden />{exporting ? 'Exporting…' : t('common.export_csv')}</Button>
+      </Card>
 
       <DataTable
         columns={columns}

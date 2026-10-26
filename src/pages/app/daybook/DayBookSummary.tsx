@@ -1,10 +1,13 @@
 import { businessDayISO } from '@/shared'
+import { Coins, Gem, Lock, LockOpen, Scale, Sparkles, Store, Wallet, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 
+import { KpiTile } from '@/components/KpiTile'
 import { MpinDialog } from '@/components/MpinDialog'
+import { SectionCard } from '@/components/SectionCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -14,6 +17,7 @@ import { useAuth } from '@/lib/auth'
 
 const today = businessDayISO
 const unit = (asset: string) => (asset === 'MONEY' ? '₹' : asset === 'GOLD' || asset === 'SILVER' ? 'g' : 'pcs')
+const ASSET_ICON: Record<string, LucideIcon> = { MONEY: Wallet, GOLD: Coins, SILVER: Coins, STONE: Gem, ARTIFICIAL: Sparkles, FRANCHISE: Store }
 
 export function DayBookSummary() {
   const { can } = useAuth()
@@ -28,7 +32,8 @@ export function DayBookSummary() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end gap-3">
+      {/* Filters stay outside the loading branch (daybook-close fills #db-from/#db-to before data arrives). */}
+      <Card className="flex flex-wrap items-end gap-4 p-4">
         <div className="space-y-1.5">
           <Label htmlFor="db-from">From</Label>
           <Input id="db-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -38,14 +43,14 @@ export function DayBookSummary() {
           <Input id="db-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
         </div>
         {singleDay && data?.status && (
-          <div className="flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-3">
             <Badge variant={data.status === 'OPEN' ? 'default' : 'destructive'}>{data.status}</Badge>
             {canManageDay && (data.status === 'OPEN'
-              ? <Button variant="outline" size="sm" onClick={() => setConfirm('close')}>Close day</Button>
-              : <Button variant="outline" size="sm" onClick={() => setConfirm('open')}>Reopen day</Button>)}
+              ? <Button onClick={() => setConfirm('close')}><Lock aria-hidden />Close day</Button>
+              : <Button variant="outline" onClick={() => setConfirm('open')}><LockOpen aria-hidden />Reopen day</Button>)}
           </div>
         )}
-      </div>
+      </Card>
 
       <MpinDialog
         open={!!confirm}
@@ -55,14 +60,22 @@ export function DayBookSummary() {
       />
 
       {isLoading || !data ? (
-        <div className="space-y-3"><Skeleton className="h-40" /><Skeleton className="h-40" /></div>
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">{Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}</div>
+          <Skeleton className="h-40 rounded-3xl" /><Skeleton className="h-40 rounded-3xl" />
+        </div>
       ) : (
         <>
-          <Card>
-            <CardHeader>
-              <CardTitle>Totals</CardTitle>
-            </CardHeader>
-            <CardContent>
+          {data.totals.length > 0 && (
+            <div className="stagger grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
+              {data.totals.map((t) => (
+                <KpiTile key={t.asset} size="sm" label={t.asset} value={`${t.closing} ${unit(t.asset)}`} sub={`₹${t.value}`}
+                  icon={ASSET_ICON[t.asset] ?? Scale} tone={t.asset === 'MONEY' || t.asset === 'GOLD' ? 'gold' : 'slate'} />
+              ))}
+            </div>
+          )}
+
+          <SectionCard title="Totals">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -87,14 +100,9 @@ export function DayBookSummary() {
                   ))}
                 </TableBody>
               </Table>
-            </CardContent>
-          </Card>
+          </SectionCard>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>By source</CardTitle>
-            </CardHeader>
-            <CardContent>
+          <SectionCard title="By source">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -119,8 +127,7 @@ export function DayBookSummary() {
                   )}
                 </TableBody>
               </Table>
-            </CardContent>
-          </Card>
+          </SectionCard>
         </>
       )}
     </div>

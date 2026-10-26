@@ -2,8 +2,10 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { PartyPicker } from '@/components/PartyPicker'
+import { TABLE_EDGES } from '@/components/SectionCard'
 import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -92,10 +94,11 @@ export function JustBill() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
+      <p className="text-sm text-muted-foreground">Quick bill with free-form items: no stock tags needed.</p>
       {!branchReady && <SelectBranchForTxn note="A Just Bill posts to one branch. Select a branch." />}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <Card className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-4">
         <div className="space-y-1.5 lg:col-span-2">
           <Label htmlFor="jb-party">Customer</Label>
           <PartyPicker value={party} onChange={setParty} placeholder="Search name / mobile" id="jb-party" ariaLabel="Customer" />
@@ -108,9 +111,11 @@ export function JustBill() {
         </div>
         <div className="space-y-1.5"><Label>Bill no.</Label><Input value={nextNo?.billNo ?? '—'} readOnly aria-label="Bill number" /></div>
         <div className="space-y-1.5"><Label htmlFor="jb-date">Date</Label><Input id="jb-date" type="date" value={billDate} onChange={(e) => setBillDate(e.target.value)} /></div>
-      </div>
+      </Card>
 
-      <div className="overflow-x-auto rounded-md border">
+      {/* Line table must stay before Payments in the DOM (specs use Rate .first()/.last()). */}
+      <Card className="overflow-hidden">
+      <div className={`overflow-x-auto ${TABLE_EDGES}`}>
         <Table>
           <TableHeader>
             <TableRow>
@@ -141,27 +146,31 @@ export function JustBill() {
                 </TableCell>
                 <TableCell><Input className="w-20" type="number" aria-label="Other" value={r.other} onChange={(e) => setRow(i, 'other', e.target.value)} /></TableCell>
                 <TableCell className="whitespace-nowrap font-medium tabular-nums">{lineOf(r).total}</TableCell>
-                <TableCell><Button variant="ghost" size="sm" aria-label="Remove line" disabled={rows.length === 1} onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))}>✕</Button></TableCell>
+                <TableCell><Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive" aria-label="Remove line" disabled={rows.length === 1} onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))}>✕</Button></TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </div>
-      <Button variant="outline" size="sm" onClick={() => setRows((rs) => [...rs, blankRow()])}>+ Add line</Button>
+      <div className="border-t bg-muted/40 px-6 py-3">
+        <Button variant="outline" size="sm" onClick={() => setRows((rs) => [...rs, blankRow()])}>+ Add line</Button>
+      </div>
+      </Card>
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold">Payments</h2>
-            <div className="ml-auto flex gap-1">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
+        <Card className="overflow-hidden">
+          <div className="flex flex-wrap items-center gap-3 border-b bg-muted/40 px-6 py-4">
+            <h2 className="text-lg font-bold">Payments</h2>
+            <div className="ml-auto flex flex-wrap gap-1">
               <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('CASH')])}>+ Cash</Button>
               <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('ONLINE')])}>+ Online</Button>
               <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('METAL')])}>+ Old gold/metal</Button>
             </div>
           </div>
+          <div className="space-y-3 p-6">
           {pays.map((p, i) => (
-            <div key={p.key} className="flex flex-wrap items-end gap-2 rounded-md border p-2 tabular-nums">
-              <span className="text-xs font-medium text-muted-foreground">{p.mode === 'METAL' ? 'OLD METAL' : p.mode}</span>
+            <div key={p.key} className="flex flex-wrap items-center gap-2 rounded-2xl border bg-muted/40 p-3 tabular-nums">
+              <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${p.mode === 'METAL' ? 'bg-brand/15 text-brand-strong' : 'bg-muted text-muted-foreground'}`}>{p.mode === 'METAL' ? 'OLD METAL' : p.mode}</span>
               {p.mode === 'METAL' ? (
                 <>
                   <Select value={p.metal} onValueChange={(v) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, metal: v } : x))}>
@@ -189,9 +198,10 @@ export function JustBill() {
             </div>
           ))}
           <div className="space-y-1.5"><Label htmlFor="jb-remark">Remark</Label><Input id="jb-remark" value={remark} onChange={(e) => setRemark(e.target.value)} /></div>
-        </div>
+          </div>
+        </Card>
 
-        <div className="space-y-2 rounded-md border p-4 text-sm tabular-nums">
+        <Card className="space-y-2 self-start p-6 text-sm tabular-nums lg:sticky lg:top-6">
           <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>{inr(bill.sub)}</span></div>
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground">Discount</span>
@@ -205,14 +215,14 @@ export function JustBill() {
             <span className="text-muted-foreground">GST %</span>
             <Input className="ml-auto w-24" type="number" aria-label="GST percent" value={gstPercent} onChange={(e) => setGstPercent(e.target.value)} />
           </div>
-          <div className="flex justify-between border-t pt-2 text-base font-semibold"><span>Final</span><span>{inr(bill.final)}</span></div>
+          <div className="flex justify-between border-t-2 border-brand pt-3 text-lg font-extrabold"><span>Final</span><span>{inr(bill.final)}</span></div>
           <div className="flex justify-between"><span className="text-muted-foreground">Paid</span><span>{inr(paid)}</span></div>
-          <div className="flex justify-between font-medium"><span>Balance</span><span className={balanceDue < 0 ? 'text-green-600 dark:text-green-500' : ''}>{inr(balanceDue)}</span></div>
+          <div className={`-mx-3 flex justify-between rounded-xl px-3 py-2 font-semibold ${balanceDue < 0 ? 'bg-green-500/10' : 'bg-muted/50'}`}><span>Balance</span><span className={balanceDue < 0 ? 'text-green-600 dark:text-green-500' : ''}>{inr(balanceDue)}</span></div>
           {!party && balanceDue !== 0 && <p className="text-xs text-destructive">A walk-in bill must be fully paid — link a party to carry a balance.</p>}
-          <Button className="w-full" disabled={!valid || create.isPending} onClick={() => void submit().catch(() => {})}>
+          <Button size="lg" className="mt-2 w-full" disabled={!valid || create.isPending} onClick={() => void submit().catch(() => {})}>
             {create.isPending ? 'Saving…' : 'Save Just Bill'}
           </Button>
-        </div>
+        </Card>
       </div>
     </div>
   )

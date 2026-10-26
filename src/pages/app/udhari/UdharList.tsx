@@ -1,7 +1,9 @@
 import type { ColumnDef } from '@tanstack/react-table'
+import { Filter } from 'lucide-react'
 import { useState } from 'react'
 
 import { DataTable } from '@/components/DataTable'
+import { Card } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useUdharEntries } from '@/lib/udhariQueries'
 import { LEDGER_SOURCES, type UdharEntryRowDto } from '@/shared'
@@ -25,14 +27,18 @@ export function UdharList() {
   ]
 
   return (
-    <div className="space-y-4">
-      <Select value={source || 'all'} onValueChange={(v) => { setSource(v === 'all' ? '' : v); setPage(1) }}>
-        <SelectTrigger className="w-48" aria-label="Source"><SelectValue /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All sources</SelectItem>
-          {LEDGER_SOURCES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-        </SelectContent>
-      </Select>
+    <div className="space-y-6">
+      <p className="text-sm text-muted-foreground">Every udhar movement across parties. Filter by where it came from.</p>
+      <Card className="flex flex-wrap items-center gap-3 p-4">
+        <Filter className="size-4 text-muted-foreground" aria-hidden />
+        <Select value={source || 'all'} onValueChange={(v) => { setSource(v === 'all' ? '' : v); setPage(1) }}>
+          <SelectTrigger className="w-48" aria-label="Source"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All sources</SelectItem>
+            {LEDGER_SOURCES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </Card>
 
       <DataTable
         columns={columns}
