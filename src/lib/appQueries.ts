@@ -22,7 +22,7 @@ import type {
 // ───── Parties ─────
 export const useOccasions = (days = 7) =>
   useQuery({ queryKey: ['occasions', days], queryFn: () => api.get<OccasionDto[]>(`/app/parties/occasions?days=${days}`) })
-export const useParties = (params: { page?: number; q?: string; type?: string; active?: string }) =>
+export const useParties = (params: { page?: number; pageSize?: number; q?: string; type?: string; active?: string }) =>
   useQuery({ queryKey: ['parties', params], queryFn: () => api.get<Paged<PartyListItemDto>>(`/app/parties${qs(params)}`) })
 export const useParty = (id?: number) =>
   useQuery({ queryKey: ['party', id], queryFn: () => api.get<PartyDto>(`/app/parties/${id}`), enabled: !!id })

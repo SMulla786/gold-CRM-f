@@ -1,4 +1,4 @@
-import { ChevronDown, Columns3 } from 'lucide-react'
+import { ChevronDown, Columns3, Copy } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -22,12 +22,13 @@ import { api } from '@/lib/api'
 import { useBankAccounts, useKarats, useSettings } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
-import { fetchDraftByNo } from '@/lib/draftsQueries'
+import { fetchDraftByNo, useDrafts } from '@/lib/draftsQueries'
 import { ApiException } from '@/lib/errors'
 import { shareOnWhatsApp } from '@/lib/share'
 import { lineRateUnitGrams, metalRateUnitGrams, useCreateBill, useNextBillNo, usePartyBalance, useUpdateBill } from '@/lib/billingQueries'
 import { SchemeEnrollmentSelect } from '@/pages/app/billing/SchemeEnrollmentSelect'
-import { useItemNames, useStock } from '@/lib/inventoryQueries'
+import { useItemGroups, useItemNames, useStock } from '@/lib/inventoryQueries'
+import { qs } from '@/lib/queries'
 import { useOrder, useOrders } from '@/lib/ordersQueries'
 import {
   BILL_TYPES,
@@ -45,9 +46,11 @@ import {
   type BillKind,
   type BillLineDto,
   type BillPaymentDto,
+  type ItemNameDto,
   type OrderDto,
   type PartyRefDto,
   type StockItemDto,
+  type StockListPage,
 } from '@/shared'
 
 let uid = 0
@@ -59,6 +62,7 @@ const inr = (s: string | number) => new Intl.NumberFormat('en-IN', { style: 'cur
 // the rest are show/hide, remembered per browser. Default all-on → grid is unchanged out of the box.
 // `label` stays English (checkbox aria-label); `tk` is the i18n key for the visible text.
 const OPTIONAL_COLS = [
+  { key: 'hsn', label: 'HSN', tk: 'bill98.col_hsn' },
   { key: 'karat', label: 'Karat', tk: 'stock.col_karat' }, { key: 'pcs', label: 'Pcs', tk: 'stock.col_pcs' }, { key: 'less', label: 'Less', tk: 'bill.col_less' },
   { key: 'tunch', label: 'Tunch', tk: 'bill.col_tunch' }, { key: 'wastage', label: 'Wst%', tk: 'bill.col_wastage' }, { key: 'net', label: 'Net', tk: 'stock.col_net' },
   { key: 'fine', label: 'Fine', tk: 'stock.col_fine' }, { key: 'stone', label: 'Stone', tk: 'class.STONE' }, { key: 'rate', label: 'Rate', tk: 'udhari.rate' },
@@ -98,16 +102,28 @@ interface Row {
   discountUnit: string
   /** TAG stock item → weights come from the item, grid is read-only */
   locked: boolean
+  /** read-only HSN: stock item / item name code; group fallback resolved at render via groupId */
+  hsn: string
+  groupId?: number
+  /** amount-based rate: the typed line total while the input is being edited (undefined = show computed) */
+  totalIn?: string
+  /** PURCHASE default sale value for the created stock item ('' = use the purchase values) */
+  saleRate: string
+  saleLabour: string
+  saleLabourUnit: string
+  saleOpen: boolean
 }
 const blankRow = (over: Partial<Row>): Row => ({
   key: nextKey(), description: '', stockClass: 'GOLD', tagNo: '', karatCode: '', pcs: '1', gross: '', less: '0', tunch: '',
-  wastage: '0', stoneCharge: '0', rate: '0', labour: '0', labourUnit: 'PER_GRAM', other: '0', discount: '0', discountUnit: 'FIXED', locked: false, ...over,
+  wastage: '0', stoneCharge: '0', rate: '0', labour: '0', labourUnit: 'PER_GRAM', other: '0', discount: '0', discountUnit: 'FIXED', locked: false,
+  hsn: '', saleRate: '', saleLabour: '', saleLabourUnit: '', saleOpen: false, ...over,
 })
 const rowFromStock = (it: StockItemDto): Row =>
   blankRow({
     stockItemId: it.id, itemNameId: it.itemName.id, description: it.itemName.name, stockClass: it.stockClass, tagNo: it.tagNo ?? '',
     karatCode: it.karatCode ?? '', pcs: String(it.pcs), gross: it.gross, less: it.less, tunch: it.tunch, wastage: it.wastage,
     stoneCharge: it.stoneCharge, labour: it.labour, labourUnit: it.labourUnit, other: it.other, locked: it.method === 'TAG',
+    hsn: it.hsnCode ?? '', groupId: it.group.id,
   })
 
 interface PayRow {
@@ -124,8 +140,10 @@ interface PayRow {
   remark: string
   /** SCHEME pay rows (TASK-98) */
   enrollmentId: string
+  /** METAL rows with calc.metalPayRate.fromAmount: ₹ amount the rate is worked back from ('' = rate typed directly) */
+  amountIn: string
 }
-const blankPay = (mode: string): PayRow => ({ key: nextKey(), mode, amount: '', bankAccountId: '', metal: 'GOLD', metalForm: 'BULLION', gross: '', less: '0', tunch: '', rate: '', remark: '', enrollmentId: '' })
+const blankPay = (mode: string): PayRow => ({ key: nextKey(), mode, amount: '', bankAccountId: '', metal: 'GOLD', metalForm: 'BULLION', gross: '', less: '0', tunch: '', rate: '', remark: '', enrollmentId: '', amountIn: '' })
 
 // ── edit-mode prefill: map a saved bill's lines/payments back into editable rows ──
 const rowFromLine = (it: BillLineDto): Row =>
@@ -134,12 +152,14 @@ const rowFromLine = (it: BillLineDto): Row =>
     tagNo: it.tagNo ?? '', karatCode: it.karatCode ?? '', pcs: String(it.pcs), gross: it.gross, less: it.less, tunch: it.tunch, wastage: it.wastage,
     stoneCharge: it.stoneCharge, rate: it.rate, labour: it.labour, labourUnit: it.labourUnit, other: it.other, discount: it.discount, discountUnit: it.discountUnit,
     locked: !!it.stockItemId && !!it.tagNo, // TAG stock line → weights from the item
+    hsn: it.hsnCode ?? '',
   })
 const payFromDto = (p: BillPaymentDto): PayRow => ({
   key: nextKey(), mode: p.mode, amount: p.mode === 'METAL' ? '' : p.amount, bankAccountId: p.bankAccount ? String(p.bankAccount.id) : '',
   metal: p.metal ?? 'GOLD', metalForm: p.metalForm ?? 'BULLION',
   gross: p.gross ?? '', less: p.gross && p.net ? String(Number(p.gross) - Number(p.net)) : '0', tunch: p.tunch ?? '', rate: p.rate ?? '', remark: p.remark ?? '',
   enrollmentId: p.schemeEnrollmentId != null ? String(p.schemeEnrollmentId) : '',
+  amountIn: '',
 })
 
 // [value, i18n key] for the GST details block
@@ -211,8 +231,9 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
   }, [orderData, orderLoaded])
   const [walkInDraft, setWalkInDraft] = useState<{ name: string; mobile: string } | null>(null) // walk-in draft needs a party before billing
 
-  const retrieveDraft = async () => {
-    const no = Number(draftNo)
+  const [draftSearch, setDraftSearch] = useState(false) // TASK-98: find an APPROVED draft by customer name/mobile
+  const retrieveDraft = async (pickedNo?: number) => {
+    const no = pickedNo ?? Number(draftNo)
     if (!no) return
     try {
       const draft = await fetchDraftByNo(no)
@@ -244,6 +265,20 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
   const [buyClass, setBuyClass] = useState('GOLD')
   const [buyItemId, setBuyItemId] = useState('')
   const { data: buyNames } = useItemNames({ stockClass: buyClass, page: 1 })
+  // TASK-98 purchase entry type (filters item names by method; BOTH names fit either), repeat count, clear-after-add
+  const [buyMethod, setBuyMethod] = useState<'ALL' | 'LOOSE' | 'TAG'>('ALL')
+  const buyList = buyNames?.items.filter((n) => buyMethod === 'ALL' || n.method === buyMethod || n.method === 'BOTH')
+  const [repeatN, setRepeatN] = useState('1')
+  const [clearAfterAdd, setClearAfterAdd] = useState(false)
+  const repeatCount = Math.min(50, Math.max(1, Math.floor(Number(repeatN)) || 1))
+
+  // HSN column: item-name / stock code on the row, else its item group's code
+  const { data: groups } = useItemGroups({ page: 1, pageSize: 100 })
+  const groupHsn = useMemo(() => new Map((groups?.items ?? []).map((g) => [g.id, g.hsn?.code ?? ''])), [groups])
+  const hsnOf = (r: Row) => r.hsn || (r.groupId != null ? groupHsn.get(r.groupId) : '') || ''
+
+  const amountBased = kind === 'SELL' && !!settings?.['calc.amountBasedRate']?.enabled
+  const metalFromAmount = !!settings?.['calc.metalPayRate']?.fromAmount
 
   const basis = (settings?.['calc.basis'][kind === 'SELL' ? 'sale' : 'purchase'] ?? 'NET')
 
@@ -263,6 +298,43 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
       labour: Number(r.labour) || 0, labourUnit: r.labourUnit as 'PER_GRAM', other: Number(r.other) || 0,
       discount: Number(r.discount) || 0, discountUnit: r.discountUnit as 'FIXED', basis: basis as 'NET',
     })
+
+  // calc.amountBasedRate: line total is linear in rate (incl. % discount) → rate = (target − total(0)) / slope.
+  // A large probe rate keeps the 2-dp rounding of computeLine's total out of the slope.
+  const rateForTotal = (r: Row, target: number): string | null => {
+    const PROBE = 100000
+    const t0 = Number(lineOf({ ...r, rate: '0' }).total)
+    const slope = (Number(lineOf({ ...r, rate: String(PROBE) }).total) - t0) / PROBE
+    if (!(slope > 0) || !Number.isFinite(target)) return null
+    return String(Math.max(0, Math.round(((target - t0) / slope) * 100) / 100))
+  }
+  const setLineTotal = (i: number, v: string) =>
+    setRows((rs) => rs.map((r, j) => {
+      if (j !== i) return r
+      const rate = v === '' ? null : rateForTotal(r, Number(v))
+      return { ...r, totalIn: v, ...(rate != null ? { rate } : {}) }
+    }))
+
+  // calc.metalPayRate.fromAmount: rate = amount × rate-unit grams / fine (re-derived when weights change)
+  const payFine = (p: PayRow) => (((Number(p.gross) || 0) - (Number(p.less) || 0)) * (Number(p.tunch) || 0)) / 100
+  const withAmountRate = (p: PayRow): PayRow => {
+    if (p.mode !== 'METAL' || p.amountIn === '') return p
+    const fine = payFine(p)
+    if (!(fine > 0)) return p
+    return { ...p, rate: String(Math.round((((Number(p.amountIn) || 0) * metalRateUnitGrams(p.metal, settings)) / fine) * 100) / 100) }
+  }
+  const patchPay = (i: number, patch: Partial<PayRow>) => setPays((ps) => ps.map((x, j) => (j === i ? withAmountRate({ ...x, ...patch }) : x)))
+
+  // purchase tag no.: warn (advisory) when the tag already exists in stock or on another line
+  const checkTag = async (i: number, raw: string) => {
+    const tag = raw.trim().toUpperCase()
+    if (!tag) return
+    if (rows.some((r, j) => j !== i && r.tagNo.trim().toUpperCase() === tag)) { toast.warning(t('bill98.tag_dup_row', { tag })); return }
+    try {
+      const res = await api.get<StockListPage>(`/app/stock${qs({ q: tag, status: 'ALL', pageSize: 20 })}`)
+      if (res.items.some((it) => (it.tagNo ?? '').toUpperCase() === tag)) toast.warning(t('bill98.tag_exists', { tag }))
+    } catch { /* lookup is advisory only */ }
+  }
 
   const payAmount = (p: PayRow): number => {
     if (p.mode === 'METAL') {
@@ -295,8 +367,12 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
   const addPurchaseRow = () => {
     const n = buyNames?.items.find((x) => String(x.id) === buyItemId)
     if (!n) { toast.error(t('bill.pick_item_name')); return }
-    setRows((rs) => [...rs, blankRow({ itemNameId: n.id, description: n.name, stockClass: buyClass })])
+    setRows((rs) => [...rs, ...Array.from({ length: repeatCount }, () => blankRow({ itemNameId: n.id, description: n.name, stockClass: buyClass, hsn: n.hsn?.code ?? '', groupId: n.group.id }))])
+    if (clearAfterAdd) { setBuyItemId(''); setRepeatN('1') }
   }
+  // purchase row "repeat": append the row N more times with the same values (own tag no. cleared — tags are unique)
+  const repeatRow = (i: number) =>
+    setRows((rs) => { const src = rs[i]; return src ? [...rs, ...Array.from({ length: repeatCount }, () => ({ ...src, key: nextKey(), tagNo: '', totalIn: undefined }))] : rs })
 
   const valid = branchReady && !!party && rows.length > 0 && rows.every((r) => Number(r.gross) > 0 && (r.stockItemId || r.itemNameId || (r.description && r.stockClass)))
 
@@ -313,6 +389,11 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
         tunch: r.tunch !== '' ? Number(r.tunch) : undefined, wastage: Number(r.wastage) || 0, stoneCharge: Number(r.stoneCharge) || 0,
         rate: Number(r.rate) || 0, labour: Number(r.labour) || 0, labourUnit: r.labourUnit, other: Number(r.other) || 0,
         discount: Number(r.discount) || 0, discountUnit: r.discountUnit,
+        ...(kind === 'PURCHASE' && !r.stockItemId ? {
+          saleRate: r.saleRate !== '' ? Number(r.saleRate) || 0 : undefined,
+          saleLabour: r.saleLabour !== '' ? Number(r.saleLabour) || 0 : undefined,
+          saleLabourUnit: r.saleLabourUnit || undefined,
+        } : {}),
       })),
       discount: Number(discount) || 0, discountUnit, gstPercent: Number(gstPercent) || 0,
       payments: pays.map((p) =>
@@ -431,10 +512,14 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
                 {/* QR scanners type the draft no. + Enter here (the slip QR is the bare no.) */}
                 <Input className="w-32" placeholder={t('bill.draft_no_ph')} aria-label="Draft number" aria-describedby="bf-draft-help" value={draftNo} onChange={(e) => setDraftNo(e.target.value.replace(/[\s#]/g, ''))} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void retrieveDraft() } }} />
                 <Button type="button" variant="outline" size="sm" onClick={() => void retrieveDraft()}>{t('bill.retrieve_draft')}</Button>
+                <Button type="button" variant="ghost" size="sm" aria-expanded={draftSearch} onClick={() => setDraftSearch((o) => !o)}>{t('bill98.find_draft')}</Button>
               </>
             )}
           </div>
-          {!editBill && <p id="bf-draft-help" className="mt-1 text-xs text-muted-foreground">Scan the draft slip QR or type the draft no.</p>}
+          {!editBill && draftSearch && (
+            <DraftByCustomer onPick={(no) => { setDraftNo(String(no)); void retrieveDraft(no) }} />
+          )}
+          {!editBill && <p id="bf-draft-help" className="mt-1 text-xs text-muted-foreground">{t('bill.draft_scan_help')}</p>}
           {draftId && <p className="text-xs text-muted-foreground">{t('bill.from_draft')}</p>}
           {!editBill && (
             <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -466,13 +551,32 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
             </Select>
           </div>
           <div className="space-y-1.5">
+            <Label>{t('bill98.entry_type')}</Label>
+            <Select value={buyMethod} onValueChange={(v) => { setBuyMethod(v as typeof buyMethod); setBuyItemId('') }}>
+              <SelectTrigger className="w-28" aria-label="Entry type"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">{t('bill98.entry_both')}</SelectItem>
+                <SelectItem value="LOOSE">{t('bill98.entry_loose')}</SelectItem>
+                <SelectItem value="TAG">{t('bill98.entry_tag')}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
             <Label>{t('bill.item_name')}</Label>
             <Select value={buyItemId} onValueChange={setBuyItemId}>
               <SelectTrigger className="w-56" aria-label="Item name"><SelectValue placeholder={t('bill.select')} /></SelectTrigger>
-              <SelectContent>{buyNames?.items.map((n) => <SelectItem key={n.id} value={String(n.id)}>{n.name}</SelectItem>)}</SelectContent>
+              <SelectContent>{buyList?.map((n) => <SelectItem key={n.id} value={String(n.id)}>{n.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="bf-repeat">{t('bill98.repeat')}</Label>
+            <Input id="bf-repeat" className="w-20" type="number" min="1" max="50" aria-label="Repeat count" value={repeatN} onChange={(e) => setRepeatN(e.target.value)} />
+          </div>
           <Button type="button" variant="outline" onClick={addPurchaseRow}>{t('bill.add_row')}</Button>
+          <div className="flex items-center gap-2 pb-2">
+            <Checkbox id="bf-clear-after" checked={clearAfterAdd} onCheckedChange={(v) => setClearAfterAdd(!!v)} />
+            <Label htmlFor="bf-clear-after" className="font-normal">{t('bill98.clear_after_add')}</Label>
+          </div>
         </div>
       )}
       </Card>
@@ -502,6 +606,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
           <TableHeader>
             <TableRow>
               <TableHead className="min-w-44">{t('bill.col_item')}</TableHead>
+              {cols.hsn && <TableHead>{t('bill98.col_hsn')}</TableHead>}
               {cols.karat && <TableHead>{t('stock.col_karat')}</TableHead>}
               {cols.pcs && <TableHead>{t('stock.col_pcs')}</TableHead>}
               <TableHead>{t('stock.col_gross')}</TableHead>
@@ -536,7 +641,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
                         <div className="font-semibold">{r.stockItemId ? r.tagNo || r.description : r.description}</div>
                         {r.stockItemId ? <div className="text-xs text-muted-foreground">{r.description}</div> : (
                           // purchase: optional own tag no. (blank → server auto-tags)
-                          <Input className="mt-1 h-8 w-32" placeholder={t('bill.tag_no_ph')} aria-label="Tag number" value={r.tagNo} onChange={(e) => setRow(i, 'tagNo', e.target.value)} />
+                          <Input className="mt-1 h-8 w-32" placeholder={t('bill.tag_no_ph')} aria-label="Tag number" value={r.tagNo} onChange={(e) => setRow(i, 'tagNo', e.target.value)} onBlur={(e) => void checkTag(i, e.target.value)} />
                         )}
                       </div>
                     ) : (
@@ -549,11 +654,12 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
                         <DirectItemName
                           stockClass={r.stockClass}
                           value={r.itemNameId}
-                          onPick={(n) => setRows((rs) => rs.map((x, j) => (j === i ? { ...x, itemNameId: n?.id, description: n ? n.name : x.description } : x)))}
+                          onPick={(n) => setRows((rs) => rs.map((x, j) => (j === i ? { ...x, itemNameId: n?.id, description: n ? n.name : x.description, hsn: n?.hsn?.code ?? '', groupId: n?.group.id } : x)))}
                         />
                       </div>
                     )}
                   </TableCell>
+                  {cols.hsn && <TableCell className="whitespace-nowrap text-muted-foreground">{hsnOf(r) || '—'}</TableCell>}
                   {cols.karat && <TableCell>
                     {metalRow(r) ? (
                       <Select value={r.karatCode} onValueChange={(v) => setRow(i, 'karatCode', v)} disabled={fixedRO}>
@@ -588,8 +694,38 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
                       </Select>
                     </div>
                   </TableCell>}
-                  <TableCell className="whitespace-nowrap font-medium">{lr.total}</TableCell>
-                  <TableCell><Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive" aria-label="Remove line" onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} title="Remove">✕</Button></TableCell>
+                  <TableCell className="whitespace-nowrap font-medium">
+                    {amountBased ? (
+                      // calc.amountBasedRate: type the total, the rate is worked back
+                      <Input className="w-28" type="number" step="0.01" min="0" aria-label="Line total" title={t('bill98.line_total_hint')} value={r.totalIn ?? lr.total}
+                        onChange={(e) => setLineTotal(i, e.target.value)} onBlur={() => setRows((rs) => rs.map((x, j) => (j === i ? { ...x, totalIn: undefined } : x)))} />
+                    ) : lr.total}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-start gap-1">
+                      {kind === 'PURCHASE' && !r.stockItemId && (
+                        <div className="space-y-1">
+                          <div className="flex gap-1">
+                            <Button type="button" variant="ghost" size="sm" aria-expanded={r.saleOpen} onClick={() => setRows((rs) => rs.map((x, j) => (j === i ? { ...x, saleOpen: !x.saleOpen } : x)))}>
+                              {t('bill98.sale_value')}<ChevronDown className={`size-3 transition-transform ${r.saleOpen ? 'rotate-180' : ''}`} aria-hidden />
+                            </Button>
+                            <Button type="button" variant="ghost" size="sm" aria-label="Repeat line" title={t('bill98.repeat_line', { n: repeatCount })} onClick={() => repeatRow(i)}><Copy aria-hidden /></Button>
+                          </div>
+                          {r.saleOpen && (
+                            <div className="flex gap-1">
+                              <Input className="h-8 w-24" type="number" min="0" placeholder={t('bill98.sale_rate_ph')} aria-label="Default sale value" value={r.saleRate} onChange={(e) => setRow(i, 'saleRate', e.target.value)} />
+                              <Input className="h-8 w-20" type="number" min="0" placeholder={t('bill98.sale_labour_ph')} aria-label="Default sale making" value={r.saleLabour} onChange={(e) => setRow(i, 'saleLabour', e.target.value)} />
+                              <Select value={r.saleLabourUnit} onValueChange={(v) => setRow(i, 'saleLabourUnit', v)}>
+                                <SelectTrigger className="h-8 w-28" aria-label="Default sale making unit"><SelectValue placeholder={t('bill98.sale_unit_ph')} /></SelectTrigger>
+                                <SelectContent>{CHARGE_UNITS.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+                              </Select>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive" aria-label="Remove line" onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} title="Remove">✕</Button>
+                    </div>
+                  </TableCell>
                 </TableRow>
               )
             })}
@@ -603,6 +739,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
               <TableFooter>
                 <TableRow className="font-semibold tabular-nums">
                   <TableCell>{t('bill.totals_row', { n: rows.length })}</TableCell>
+                  {cols.hsn && blank}
                   {cols.karat && blank}
                   {cols.pcs && <TableCell>{sum((i) => Number(rows[i]!.pcs) || 0, 0)}</TableCell>}
                   <TableCell>{sum((i) => Number(rows[i]!.gross) || 0, 3)}</TableCell>
@@ -650,7 +787,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
               <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${p.mode === 'METAL' ? 'bg-brand/15 text-brand-strong' : 'bg-muted text-muted-foreground'}`}>{p.mode}</span>
               {p.mode === 'METAL' ? (
                 <>
-                  <Select value={p.metal} onValueChange={(v) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, metal: v } : x))}>
+                  <Select value={p.metal} onValueChange={(v) => patchPay(i, { metal: v })}>
                     <SelectTrigger className="w-24" aria-label="Metal"><SelectValue /></SelectTrigger>
                     <SelectContent>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
                   </Select>
@@ -658,10 +795,15 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
                     <SelectTrigger className="w-28" aria-label="Metal form"><SelectValue /></SelectTrigger>
                     <SelectContent><SelectItem value="BULLION">{t('bill.form_bullion')}</SelectItem><SelectItem value="KACHA">{t('bill.form_kacha')}</SelectItem></SelectContent>
                   </Select>
-                  <Input className="w-20" type="number" placeholder={t('stock.col_gross')} aria-label="Gross" value={p.gross} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, gross: e.target.value } : x))} />
-                  <Input className="w-16" type="number" placeholder={t('bill.col_less')} aria-label="Less" value={p.less} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, less: e.target.value } : x))} />
-                  <Input className="w-16" type="number" placeholder={t('bill.col_tunch')} aria-label="Tunch" value={p.tunch} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, tunch: e.target.value } : x))} />
-                  <Input className="w-24" type="number" placeholder={t('udhari.rate')} aria-label="Rate" value={p.rate} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, rate: e.target.value } : x))} />
+                  <Input className="w-20" type="number" placeholder={t('stock.col_gross')} aria-label="Gross" value={p.gross} onChange={(e) => patchPay(i, { gross: e.target.value })} />
+                  <Input className="w-16" type="number" placeholder={t('bill.col_less')} aria-label="Less" value={p.less} onChange={(e) => patchPay(i, { less: e.target.value })} />
+                  <Input className="w-16" type="number" placeholder={t('bill.col_tunch')} aria-label="Tunch" value={p.tunch} onChange={(e) => patchPay(i, { tunch: e.target.value })} />
+                  <SampleLookupButton metal={p.metal} />
+                  <Input className="w-24" type="number" placeholder={t('udhari.rate')} aria-label="Rate" value={p.rate} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, rate: e.target.value, amountIn: '' } : x))} />
+                  {metalFromAmount && (
+                    // calc.metalPayRate.fromAmount: rate = amount × rate unit / fine
+                    <Input className="w-28" type="number" min="0" placeholder={t('bill98.metal_amount_ph')} title={t('bill98.metal_amount_hint')} aria-label="Metal value ₹" value={p.amountIn} onChange={(e) => patchPay(i, { amountIn: e.target.value })} />
+                  )}
                   <span className="text-sm tabular-nums">
                     <span className="text-muted-foreground">{t('bill.pay_fine', { g: (((Number(p.gross) || 0) - (Number(p.less) || 0)) * (Number(p.tunch) || 0) / 100).toFixed(3) })}</span> = {inr(payAmount(p))}
                   </span>
@@ -822,7 +964,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
 }
 
 /** Direct (non-stock) line: optionally tie it to an item-master name of its class (custom text otherwise). */
-function DirectItemName({ stockClass, value, onPick }: { stockClass: string; value?: number; onPick: (n: { id: number; name: string } | null) => void }) {
+function DirectItemName({ stockClass, value, onPick }: { stockClass: string; value?: number; onPick: (n: ItemNameDto | null) => void }) {
   const t = useT()
   const { data } = useItemNames({ stockClass, page: 1 })
   return (
@@ -833,6 +975,35 @@ function DirectItemName({ stockClass, value, onPick }: { stockClass: string; val
         {data?.items.map((n) => <SelectItem key={n.id} value={String(n.id)}>{n.name}</SelectItem>)}
       </SelectContent>
     </Select>
+  )
+}
+
+/** TASK-98: pick an APPROVED draft by customer name / mobile (server q); mounted only while open. */
+function DraftByCustomer({ onPick }: { onPick: (draftNo: number) => void }) {
+  const t = useT()
+  const [query, setQuery] = useState('')
+  const [q, setQ] = useState('')
+  useEffect(() => {
+    const timer = setTimeout(() => setQ(query.trim()), 250)
+    return () => clearTimeout(timer)
+  }, [query])
+  const { data, isLoading, isError } = useDrafts({ status: 'APPROVED', q: q || undefined, page: 1, pageSize: 20 })
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+      <Input className="w-48" type="search" placeholder={t('bill98.draft_search_ph')} aria-label="Search approved drafts" value={query} onChange={(e) => setQuery(e.target.value)} />
+      <Select value="" onValueChange={(v) => onPick(Number(v))}>
+        <SelectTrigger className="w-72" aria-label="Approved draft"><SelectValue placeholder={isLoading ? t('bill98.loading') : t('bill98.pick_draft')} /></SelectTrigger>
+        <SelectContent>
+          {isError
+            ? <div className="px-3 py-2 text-sm text-muted-foreground">{t('bill98.drafts_error')}</div>
+            : data?.items.length
+              ? data.items.map((d) => (
+                <SelectItem key={d.id} value={String(d.draftNo)}>#{d.draftNo} · {d.party?.name ?? d.customerName}{d.mobile ? ` · ${d.mobile}` : ''} · {inr(d.estTotal)}</SelectItem>
+              ))
+              : <div className="px-3 py-2 text-sm text-muted-foreground">{t('bill98.no_drafts')}</div>}
+        </SelectContent>
+      </Select>
+    </div>
   )
 }
 

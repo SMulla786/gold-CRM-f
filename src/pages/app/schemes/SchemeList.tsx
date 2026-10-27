@@ -27,7 +27,7 @@ const today = businessDayISO
 const n = (s: string) => Number(s) || 0
 const BONUS_LABEL: Record<string, string> = { NONE: 'No bonus', ONE_EMI: 'One free EMI', PERCENT: '% of paid', FIXED: 'Fixed amount' }
 /** Anjuman tab shortcuts: the shared Members / Dues / Transactions screens pre-filtered to kind=ANJUMAN. */
-const ANJUMAN_VIEWS = [
+const ANJUMAN_VIEWS: { to: string; label: string; key: string; alt?: string }[] = [
   { to: '/app/schemes/members', label: 'Anjuman members', key: 'schemes.all' },
   { to: '/app/schemes/dues', label: 'Anjuman dues', key: 'schemes.due_list', alt: 'schemes.due_amount' },
   { to: '/app/schemes/transactions', label: 'Anjuman transactions', key: 'schemes.transactions' },
@@ -205,7 +205,7 @@ export function SchemeList({ kind = 'SAVING' }: { kind?: SchemeKind }) {
           <p className="text-sm text-muted-foreground">{anjuman ? 'Anjuman savings plans offered at this branch.' : 'EMI savings plans, their tenure and bonus rules.'}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {anjuman && ANJUMAN_VIEWS.filter((v) => can(v.key, 'view') || ('alt' in v && can(v.alt, 'view'))).map((v) => (
+          {anjuman && ANJUMAN_VIEWS.filter((v) => can(v.key, 'view') || (!!v.alt && can(v.alt, 'view'))).map((v) => (
             <Button key={v.to} asChild variant="outline" size="sm"><Link to={`${v.to}?kind=ANJUMAN`}>{v.label}</Link></Button>
           ))}
           {canEdit && <NewSchemeDialog kind={kind} />}

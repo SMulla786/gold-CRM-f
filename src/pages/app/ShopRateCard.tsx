@@ -1,5 +1,6 @@
 import { Pencil } from 'lucide-react'
 import { useState } from 'react'
+import { toast } from 'sonner'
 
 import { SectionCard } from '@/components/SectionCard'
 import { Button } from '@/components/ui/button'
@@ -10,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useCurrentRates, useSetRates } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
-import { RATE_UNIT_GRAMS, type RateRowDto, type RateUnitKey } from '@/shared'
+import { RATE_UNIT_GRAMS, setRatesBody, type RateRowDto } from '@/shared'
 
 // Unit labels are i18n keys: `rates.unit.<RateUnitKey | display key>` (e.g. rates.unit.TOLA = 'per tola').
 const money = (s: string | number) => new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(Number(s))
@@ -26,8 +27,19 @@ const DISPLAY_UNITS: { key: string; grams: number | null }[] = [
   { key: 'KG_1', grams: 1000 },
 ]
 
-interface EditRow { karatCode: string; title: string; sell: string; buy: string }
-const toEdit = (r: RateRowDto): EditRow => ({ karatCode: r.karatCode, title: r.title, sell: r.sellRate, buy: r.buyRate })
+interface EditRow { karatCode: string; title: string; touch: string; sell: string; buy: string }
+const toEdit = (r: RateRowDto): EditRow => ({ karatCode: r.karatCode, title: r.title, touch: r.touch, sell: r.sellRate, buy: r.buyRate })
+// Purest row (highest touch: 24K / 999) — the base for auto-calc and the one rate that must be set.
+const purest = (rows: EditRow[]) => rows.reduce<EditRow | undefined>((a, b) => (!a || Number(b.touch) > Number(a.touch) ? b : a), undefined)
+
+/** "Updated 5 min ago" from the newer of the two metals' updatedAt. */
+function updatedAgo(iso: string): string {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000)
+  if (mins < 1) return 'Updated just now'
+  if (mins < 60) return `Updated ${mins} min ago`
+  if (mins < 24 * 60) return `Updated ${Math.floor(mins / 60)} h ago`
+  return `Updated on ${new Date(iso).toLocaleDateString('en-IN')}`
+}
 
 function EditRatesDialog({ onClose }: { onClose: () => void }) {
   const t = useT()
@@ -38,14 +50,32 @@ function EditRatesDialog({ onClose }: { onClose: () => void }) {
   const set = (metal: 'gold' | 'silver', i: number, k: 'sell' | 'buy', v: string) =>
     (metal === 'gold' ? setGold : setSilver)((rs) => rs.map((r, j) => (j === i ? { ...r, [k]: v } : r)))
 
+  // Same as Settings → Rates: every karat = purest rate × touch / 100.
+  const autoCalc = (metal: 'gold' | 'silver') =>
+    (metal === 'gold' ? setGold : setSilver)((rs) => {
+      const base = purest(rs)
+      if (!base) return rs
+      return rs.map((r) => ({ ...r, sell: String(Math.round((Number(base.sell) * Number(r.touch)) / 100)), buy: String(Math.round((Number(base.buy) * Number(r.touch)) / 100)) }))
+    })
+
   const save = async () => {
     if (!data) return
-    const body = (metal: 'GOLD' | 'SILVER', unit: RateUnitKey, rows: EditRow[]) => ({
-      metal, rateUnit: unit, rates: rows.map((r) => ({ karatCode: r.karatCode, sellRate: Number(r.sell) || 0, buyRate: Number(r.buy) || 0 })),
-    })
-    await setRates.mutateAsync({ body: body('GOLD', data.gold.rateUnit, gold) })
-    await setRates.mutateAsync({ body: body('SILVER', data.silver.rateUnit, silver) })
-    onClose()
+    const bodies: Record<string, unknown>[] = []
+    for (const [metal, rows] of [['gold', gold], ['silver', silver]] as const) {
+      if (!rows.length) continue
+      const base = purest(rows)
+      if (!base || !(Number(base.sell) > 0)) return toast.error(`Enter the ${metal === 'gold' ? 'gold' : 'silver'} ${base?.title ?? ''} sell rate (must be more than 0)`)
+      // shared zod coerces + rejects blanks (blank -> error, not a silent 0)
+      const parsed = setRatesBody.safeParse({ metal: metal === 'gold' ? 'GOLD' : 'SILVER', rateUnit: data[metal].rateUnit, rates: rows.map((r) => ({ karatCode: r.karatCode, sellRate: r.sell, buyRate: r.buy })) })
+      if (!parsed.success) return toast.error(parsed.error.issues[0]?.message ?? 'Enter valid rates')
+      bodies.push(parsed.data as Record<string, unknown>)
+    }
+    try {
+      for (const body of bodies) await setRates.mutateAsync({ body })
+      onClose()
+    } catch {
+      /* the mutation already shows the error toast; keep the dialog open */
+    }
   }
 
   const section = (metal: 'gold' | 'silver', rows: EditRow[]) => (
@@ -53,6 +83,16 @@ function EditRatesDialog({ onClose }: { onClose: () => void }) {
       <div className="flex items-center gap-2 text-sm font-semibold capitalize">
         <span aria-hidden className={metal === 'gold' ? 'size-2 rounded-full bg-brand' : 'size-2 rounded-full bg-slate-400'} />
         {t(metal === 'gold' ? 'class.GOLD' : 'class.SILVER')} ({data ? t(`rates.unit.${data[metal].rateUnit}`) : ''})
+      </div>
+      {rows.length > 1 && (
+        <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => autoCalc(metal)}>
+          Auto-calculate from {purest(rows)?.title ?? (metal === 'gold' ? '24K' : '999')}
+        </Button>
+      )}
+      <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground" aria-hidden>
+        <span className="w-16" />
+        <span className="w-28">{t('rates.sell')}</span>
+        <span className="w-28">{t('rates.buy')}</span>
       </div>
       {rows.map((r, i) => (
         <div key={r.karatCode} className="flex items-center gap-2">
@@ -104,6 +144,8 @@ export function ShopRateCard() {
       </TableRow>
     ))
 
+  const lastUpdated = [data.gold.updatedAt, data.silver.updatedAt].filter((d): d is string => !!d).sort().at(-1)
+
   const unitLabel = to === null
     ? t('rates.both_units', { gold: t(`rates.unit.${data.gold.rateUnit}`), silver: t(`rates.unit.${data.silver.rateUnit}`) })
     : t(`rates.unit.${unit}`)
@@ -125,6 +167,7 @@ export function ShopRateCard() {
         <TableHeader><TableRow><TableHead>{t('udhari.metal')}</TableHead><TableHead className="text-right">{t('rates.sell')}</TableHead><TableHead className="text-right">{t('rates.buy')}</TableHead></TableRow></TableHeader>
         <TableBody>{rows('gold')}{rows('silver')}</TableBody>
       </Table>
+      {lastUpdated && <p className="px-6 pb-4 pt-2 text-xs text-muted-foreground" title={new Date(lastUpdated).toLocaleString('en-IN')}>{updatedAgo(lastUpdated)}</p>}
       {edit && <EditRatesDialog onClose={() => setEdit(false)} />}
     </SectionCard>
   )

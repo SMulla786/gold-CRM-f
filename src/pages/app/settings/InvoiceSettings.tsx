@@ -9,8 +9,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useSaveSetting, useSettings, useUploadInvoiceMedia } from '@/lib/appQueries'
+import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
+import { useT } from '@/lib/i18n'
 import { previewNo, type Numbering } from '@/lib/invoiceNumber'
+import { useApiMutation } from '@/lib/queries'
 import { InvoiceFormatCard } from '@/pages/app/billing/invoice/InvoiceFormatCard'
 import { INVOICE_PRINT_COLUMNS, type SettingsDto } from '@/shared'
 
@@ -29,6 +32,7 @@ export function InvoiceSettings() {
           <ContentCard settings={settings} ask={setMpinAction} />
           <MediaCard settings={settings} ask={setMpinAction} />
           <AmountBasedRateCard settings={settings} ask={setMpinAction} />
+          <JustBillPrefsCard settings={settings} ask={setMpinAction} />
         </>
       ) : (
         <p className="text-sm text-muted-foreground">Loading…</p>
@@ -119,6 +123,7 @@ function NumberingCard({ settings, settingKey, title, ask }: { settings: Setting
 }
 
 function ContentCard({ settings, ask }: { settings: SettingsDto; ask: (a: MpinAction) => void }) {
+  const t = useT()
   const save = useSaveSetting()
   const [v, setV] = useState(settings['invoice.content'])
   return (
@@ -146,7 +151,11 @@ function ContentCard({ settings, ask }: { settings: SettingsDto; ask: (a: MpinAc
         <textarea id="inv-disc" rows={2} className="w-full rounded-md border bg-transparent px-3 py-2 text-sm" value={v.justBillDisclaimer} onChange={(e) => setV({ ...v, justBillDisclaimer: e.target.value })} />
       </div>
       <div className="space-y-1.5">
-        <Label>Printed item columns <span className="font-normal text-muted-foreground">(none ticked = show all)</span></Label>
+        <div className="flex flex-wrap items-center gap-2">
+          <Label>Printed item columns <span className="font-normal text-muted-foreground">(none ticked = show all)</span></Label>
+          <Button type="button" size="sm" variant="outline" className="h-7" onClick={() => setV({ ...v, columns: [...INVOICE_PRINT_COLUMNS] })}>{t('jb98.select_all')}</Button>
+          <Button type="button" size="sm" variant="outline" className="h-7" onClick={() => setV({ ...v, columns: [] })}>{t('jb98.deselect_all')}</Button>
+        </div>
         <div className="flex flex-wrap gap-x-4 gap-y-2">
           {INVOICE_PRINT_COLUMNS.map((c) => (
             <label key={c} className="flex items-center gap-2 text-sm capitalize">
@@ -169,19 +178,32 @@ function ContentCard({ settings, ask }: { settings: SettingsDto; ask: (a: MpinAc
 }
 
 function MediaCard({ settings, ask }: { settings: SettingsDto; ask: (a: MpinAction) => void }) {
+  const t = useT()
   const { can } = useAuth()
   const upload = useUploadInvoiceMedia()
+  // TASK-98: DELETE /settings/invoice/:kind (settings.misc edit + MPIN) nulls the invoice.media field
+  const remove = useApiMutation(({ kind, mpin }: { kind: 'logo' | 'signature' | 'watermark'; mpin: string }) => api.del(`/app/settings/invoice/${kind}`, { mpin }), { invalidate: [['settings']] })
   const media = settings['invoice.media']
   const [ver, setVer] = useState(0)
+  // uploaded this session (ver > 0 shows a fresh upload before settings refetch); a removed kind hides until re-uploaded
+  const [removed, setRemoved] = useState<string[]>([])
   const row = (kind: 'logo' | 'signature' | 'watermark', label: string, urlKey: 'logoUrl' | 'signatureUrl' | 'watermarkUrl') => (
     <div className="flex flex-wrap items-center gap-3">
       <span className="w-24 text-sm font-medium">{label}</span>
-      {(media[urlKey] || ver > 0) && <AuthedImage path={`/app/files/invoice/${kind}`} ver={ver} alt={label} className="h-12 max-w-[160px] rounded border object-contain" />}
+      {(media[urlKey] || ver > 0) && !removed.includes(kind) && <AuthedImage path={`/app/files/invoice/${kind}`} ver={ver} alt={label} className="h-12 max-w-[160px] rounded border object-contain" />}
       {can('settings.misc', 'edit') && (
         <Input
           type="file" accept="image/jpeg,image/png,image/webp" className="max-w-xs" aria-label={`Upload ${label}`}
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) ask({ title: `Upload ${label}`, run: async (mpin) => { await upload.mutateAsync({ kind, file: f, mpin }); setVer((n) => n + 1) } }) }}
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) ask({ title: `Upload ${label}`, run: async (mpin) => { await upload.mutateAsync({ kind, file: f, mpin }); setRemoved((r) => r.filter((x) => x !== kind)); setVer((n) => n + 1) } }) }}
         />
+      )}
+      {can('settings.misc', 'edit') && media[urlKey] && !removed.includes(kind) && (
+        <Button
+          type="button" size="sm" variant="outline" className="text-destructive"
+          onClick={() => ask({ title: t('jb98.remove_title', { label }), run: async (mpin) => { await remove.mutateAsync({ kind, mpin }); setRemoved((r) => [...r, kind]) } })}
+        >
+          {t('jb98.remove')}
+        </Button>
       )}
     </div>
   )
@@ -207,6 +229,36 @@ function AmountBasedRateCard({ settings, ask }: { settings: SettingsDto; ask: (a
         <Checkbox checked={v.enabled} onCheckedChange={(c) => setV({ ...v, enabled: Boolean(c) })} />
         Enter the line total and derive the rate (instead of rate → total)
       </label>
+    </SaveSettingCard>
+  )
+}
+
+/** TASK-98 Just Bill preferences ('justbill.prefs'): which columns / pay rows New Just Bill and its print show. Presentation only. */
+type JbPrefKey = keyof SettingsDto['justbill.prefs']
+const JB_PREFS: [JbPrefKey, string][] = [
+  ['showRate', 'jb98.show_rate'],
+  ['showMaking', 'jb98.show_making'],
+  ['showGst', 'jb98.show_gst'],
+  ['showOther', 'jb98.show_other'],
+  ['showAdvance', 'jb98.show_advance'],
+  ['showReturn', 'jb98.show_return'],
+]
+
+function JustBillPrefsCard({ settings, ask }: { settings: SettingsDto; ask: (a: MpinAction) => void }) {
+  const t = useT()
+  const save = useSaveSetting()
+  const [v, setV] = useState(settings['justbill.prefs'])
+  return (
+    <SaveSettingCard title={t('jb98.prefs_title')} ask={ask} onSave={(mpin) => save.mutateAsync({ key: 'justbill.prefs', value: v, mpin })}>
+      <p className="text-xs text-muted-foreground">{t('jb98.prefs_hint')}</p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {JB_PREFS.map(([k, key]) => (
+          <label key={k} className="flex items-center gap-2 text-sm">
+            <Checkbox checked={v[k]} onCheckedChange={(c) => setV({ ...v, [k]: c === true })} />
+            {t(key)}
+          </label>
+        ))}
+      </div>
     </SaveSettingCard>
   )
 }

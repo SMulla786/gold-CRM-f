@@ -22,9 +22,11 @@ interface Props {
   shopName: string
   business?: BusinessProfileDto | null
   stateName?: string
+  /** TASK-98: on-screen preview only (Settings › Invoice "Full view") — no .print-area wrapper and no print CSS, so it can live in a dialog */
+  bare?: boolean
 }
 
-export function InvoicePrint({ bill, format, settings, shopName, business, stateName }: Props) {
+export function InvoicePrint({ bill, format, settings, shopName, business, stateName, bare }: Props) {
   const opt = settings?.['billing.invoice']
   const showDue = opt?.showDueBalance ?? false
   // Party's current udhar balance (+ = party owes the shop); falls back to this bill's balance if unavailable.
@@ -57,6 +59,8 @@ export function InvoicePrint({ bill, format, settings, shopName, business, state
     default:
       body = <BillInvoice bill={bill} shopName={shopName} business={business} stateName={stateName} terms={p.terms} thermal={format === 'THERMAL_80'} media={p.media} columns={billCols} watermarkOpacity={p.watermarkOpacity} showWords={p.showWords} due={p.due} />
   }
+
+  if (bare) return <div className="overflow-x-auto rounded-xl border bg-card p-4">{body}</div>
 
   const css = PRINT_CSS[format]
   return (

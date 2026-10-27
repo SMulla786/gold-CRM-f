@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { ColumnDef } from '@tanstack/react-table'
-import { ArrowDownLeft, ArrowUpRight, Plus, Search, TrendingUp } from 'lucide-react'
+import { ArrowDownLeft, ArrowUpRight, FileDown, Plus, Printer, Search, TrendingUp } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link } from 'react-router-dom'
@@ -23,6 +23,7 @@ import { useCreateIncomeExpense, useDeleteIncomeExpense, useIncomeExpense, useIn
 import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
 import { fetchAllPaged } from '@/lib/queries'
+import { downloadPdf } from '@/lib/share'
 import { sourceHref } from '@/lib/sourceLinks'
 import { businessDayISO, IE_SOURCE_TYPES, incomeExpenseBody, type IncomeExpenseDto } from '@/shared'
 
@@ -145,6 +146,7 @@ function IEDialog({ entry, onClose }: { entry?: IncomeExpenseDto; onClose: () =>
 
 const inr = (s: string | number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
+const SUMMARY_PER_PAGE = 15
 
 export function IncomeExpense() {
   const t = useT()
@@ -159,6 +161,7 @@ export function IncomeExpense() {
   const [summaryView, setSummaryView] = useState(false)
   const [q, setQ] = useState('')
   const [pageSize, setPageSize] = useState(20)
+  const [sumPage, setSumPage] = useState(1) // client-side paging of the daily summary
   const filters = { type: type || undefined, sourceType: sourceType || undefined, from: from || undefined, to: to || undefined }
   const { data, isLoading } = useIncomeExpense({ page, pageSize, q: q || undefined, ...filters }, canList && !summaryView)
   const { data: summary, isLoading: summaryLoading } = useIncomeExpenseSummary(filters, canList && summaryView)
@@ -168,6 +171,9 @@ export function IncomeExpense() {
   const [deleting, setDeleting] = useState<IncomeExpenseDto | null>(null)
 
   const sum = (k: 'cashIn' | 'cashOut' | 'profit') => (summary ?? []).reduce((acc, d) => acc + Number(d[k]), 0)
+  const sumPages = Math.max(1, Math.ceil((summary?.length ?? 0) / SUMMARY_PER_PAGE))
+  const sp = Math.min(sumPage, sumPages) // filters shrink the list: stay on a valid page
+  const summaryRows = (summary ?? []).slice((sp - 1) * SUMMARY_PER_PAGE, sp * SUMMARY_PER_PAGE)
 
   const columns: ColumnDef<IncomeExpenseDto, unknown>[] = [
     { accessorKey: 'txnDate', header: t('udhari.date'), cell: ({ row }) => date(row.original.txnDate) },
@@ -248,7 +254,10 @@ export function IncomeExpense() {
           </Select>
           <Input className="w-40" type="date" aria-label="From" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1) }} />
           <Input className="w-40" type="date" aria-label="To" value={to} onChange={(e) => { setTo(e.target.value); setPage(1) }} />
-          <Button variant="outline" className="ml-auto" onClick={() => setSummaryView((v) => !v)}>{summaryView ? t('ie.entries') : t('ie.daily_summary')}</Button>
+          {/* print / "PDF" (browser Save as PDF) the list on screen — the .print-area below */}
+          <Button variant="outline" className="ml-auto" onClick={() => window.print()}><Printer aria-hidden />{t('bill.print')}</Button>
+          <Button variant="outline" onClick={downloadPdf}><FileDown aria-hidden />{t('bill.download_pdf')}</Button>
+          <Button variant="outline" onClick={() => setSummaryView((v) => !v)}>{summaryView ? t('ie.entries') : t('ie.daily_summary')}</Button>
           {!summaryView && (
             <CsvExportButton
               filename="income-expense.csv"
@@ -264,6 +273,11 @@ export function IncomeExpense() {
         </Card>
       )}
 
+      <div className="print-area space-y-8">
+      <div className="hidden print:block">
+        <h2 className="text-lg font-semibold">{t('ie.title')}{summaryView ? ` — ${t('ie.daily_summary')}` : ''}</h2>
+        {(from || to) && <p className="text-sm">{from ? date(from) : '…'} – {to ? date(to) : '…'}</p>}
+      </div>
       {!canList ? (
         <Card className="p-6 text-sm text-muted-foreground">{t('ie.no_list_perm')}</Card>
       ) : summaryView ? (
@@ -279,7 +293,8 @@ export function IncomeExpense() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="pl-6">{t('udhari.date')}</TableHead>
+                  <TableHead className="pl-6">{t('db98.sn')}</TableHead>
+                  <TableHead>{t('udhari.date')}</TableHead>
                   <TableHead className="text-right">{t('ie.cash_in')}</TableHead>
                   <TableHead className="text-right">{t('ie.cash_out')}</TableHead>
                   <TableHead className="text-right">{t('ie.profit')}</TableHead>
@@ -288,10 +303,11 @@ export function IncomeExpense() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {summaryLoading ? <TableRow><TableCell colSpan={6} className="h-16 text-center text-muted-foreground">{t('common.loading')}</TableCell></TableRow>
-                  : summary?.length ? summary.map((d) => (
+                {summaryLoading ? <TableRow><TableCell colSpan={7} className="h-16 text-center text-muted-foreground">{t('common.loading')}</TableCell></TableRow>
+                  : summary?.length ? summaryRows.map((d, i) => (
                     <TableRow key={d.date}>
-                      <TableCell className="pl-6 font-medium">
+                      <TableCell className="pl-6 text-muted-foreground tabular-nums">{(sp - 1) * SUMMARY_PER_PAGE + i + 1}</TableCell>
+                      <TableCell className="font-medium">
                         {/* open that day's entries */}
                         <button type="button" className="font-semibold text-brand-strong hover:underline" onClick={() => { const day = d.date.slice(0, 10); setFrom(day); setTo(day); setPage(1); setSummaryView(false) }}>{date(d.date)}</button>
                       </TableCell>
@@ -306,9 +322,16 @@ export function IncomeExpense() {
                         </TableCell>
                       ))}
                     </TableRow>
-                  )) : <TableRow><TableCell colSpan={6} className="h-16 text-center text-muted-foreground">{t('dash.no_activity')}</TableCell></TableRow>}
+                  )) : <TableRow><TableCell colSpan={7} className="h-16 text-center text-muted-foreground">{t('dash.no_activity')}</TableCell></TableRow>}
               </TableBody>
             </Table>
+            {sumPages > 1 && (
+              <div className="flex items-center justify-end gap-2 border-t px-6 py-3 text-sm print:hidden">
+                <span className="text-muted-foreground">{t('table.page_of', { page: sp, pages: sumPages, total: summary?.length ?? 0 })}</span>
+                <Button variant="outline" size="sm" disabled={sp <= 1} onClick={() => setSumPage(sp - 1)}>{t('table.previous')}</Button>
+                <Button variant="outline" size="sm" disabled={sp >= sumPages} onClick={() => setSumPage(sp + 1)}>{t('table.next')}</Button>
+              </div>
+            )}
           </Card>
         </>
       ) : (
@@ -320,6 +343,7 @@ export function IncomeExpense() {
           pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: setPageSize } : undefined}
         />
       )}
+      </div>
 
       {creating && <IEDialog onClose={() => setCreating(false)} />}
       {editing && <IEDialog entry={editing} onClose={() => setEditing(null)} />}

@@ -64,6 +64,7 @@ export function NewUdhar() {
   const [bhavBy, setBhavBy] = useState<'AMOUNT' | 'WEIGHT'>('AMOUNT')
   const [settleBillId, setSettleBillId] = useState('')
   const [billQ, setBillQ] = useState('')
+  const [bankQ, setBankQ] = useState('') // bank picker filter (only one bank select is open at a time)
 
   // ?edit=<udhar id> (receipt "Edit"): load the txn into the form once; Save then re-posts it under MPIN
   const editId = Number(params.get('edit')) || undefined
@@ -143,9 +144,16 @@ export function NewUdhar() {
     banks && banks.length === 0 ? (
       <p className="text-sm text-muted-foreground">{t('udhari.no_banks')} <Link to="/app/settings/bank-accounts" className="font-medium text-brand-strong hover:underline">{t('udhari.add_bank')}</Link></p>
     ) : (
-      <Select value={value} onValueChange={onChange}>
+      <Select value={value} onValueChange={(v) => { onChange(v); setBankQ('') }} onOpenChange={(o) => { if (!o) setBankQ('') }}>
         <SelectTrigger aria-label={label}><SelectValue placeholder={t('udhari.bank')} /></SelectTrigger>
-        <SelectContent>{banks?.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.bankName} · {b.accountNo}</SelectItem>)}</SelectContent>
+        <SelectContent>
+          {/* filter by bank name / account no; stopPropagation keeps Select's typeahead from eating the keys */}
+          <div className="p-1">
+            <Input className="h-8" placeholder="Search bank" aria-label={`Search ${label.toLowerCase()}`} value={bankQ} onChange={(e) => setBankQ(e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
+          </div>
+          {banks?.filter((b) => String(b.id) === value || !bankQ.trim() || `${b.bankName} ${b.accountNo}`.toLowerCase().includes(bankQ.trim().toLowerCase())).map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.bankName} · {b.accountNo}</SelectItem>)}
+          {bankQ.trim() && !banks?.some((b) => `${b.bankName} ${b.accountNo}`.toLowerCase().includes(bankQ.trim().toLowerCase())) && <p className="px-2 py-1.5 text-sm text-muted-foreground">No bank matches</p>}
+        </SelectContent>
       </Select>
     )
   )

@@ -78,7 +78,16 @@ function MetalRates({ metal, unit, rows, updatedAt, ask }: { metal: Metal; unit:
   const setRates = useSetRates()
   const [edit, setEdit] = useState<EditRow[]>(rows.map(toEdit))
   const [override, setOverride] = useState(false)
-  useEffect(() => setEdit(rows.map(toEdit)), [rows])
+  // "Select rate type": rates may be typed per another unit; they are converted back to the stored unit on save,
+  // so billing (which reads the stored unit) is unaffected.
+  const [entryUnit, setEntryUnit] = useState<RateUnitKey>(unit)
+  useEffect(() => { setEdit(rows.map(toEdit)); setEntryUnit(unit) }, [rows, unit])
+  const scale = (v: string, from: RateUnitKey, to: RateUnitKey) => (v === '' ? '' : String(Math.round(((Number(v) * RATE_UNIT_GRAMS[to]) / RATE_UNIT_GRAMS[from]) * 100) / 100))
+  const changeEntryUnit = (next: RateUnitKey) => {
+    setEdit((e) => e.map((r) => ({ ...r, sell: scale(r.sell, entryUnit, next), buy: scale(r.buy, entryUnit, next) })))
+    setEntryUnit(next)
+  }
+  const entryOptions = LIMIT_UNITS[metal].includes(unit) ? LIMIT_UNITS[metal] : [unit, ...LIMIT_UNITS[metal]]
 
   const set = (i: number, k: 'sell' | 'buy', val: string) => setEdit((e) => e.map((r, j) => (j === i ? { ...r, [k]: val } : r)))
 
@@ -91,7 +100,7 @@ function MetalRates({ metal, unit, rows, updatedAt, ask }: { metal: Metal; unit:
 
   const save = () => {
     // shared zod coerces + rejects blanks (decimalInput: blank -> NaN -> error, not 0)
-    const parsed = setRatesBody.safeParse({ metal, rateUnit: unit, overrideLimits: override, rates: edit.map((r) => ({ karatCode: r.karatCode, sellRate: r.sell, buyRate: r.buy })) })
+    const parsed = setRatesBody.safeParse({ metal, rateUnit: unit, overrideLimits: override, rates: edit.map((r) => ({ karatCode: r.karatCode, sellRate: scale(r.sell, entryUnit, unit), buyRate: scale(r.buy, entryUnit, unit) })) })
     if (!parsed.success) return toast.error(parsed.error.issues[0]?.message ?? 'Enter valid rates')
     const body = parsed.data as Record<string, unknown>
     if (override) ask({ title: 'Override rate limits', run: (mpin) => setRates.mutateAsync({ body, mpin }) })
@@ -106,6 +115,18 @@ function MetalRates({ metal, unit, rows, updatedAt, ask }: { metal: Metal; unit:
         </CardTitle>
         {canEdit && (
           <div className="flex flex-wrap gap-2">
+            <Select value={entryUnit} onValueChange={(v) => changeEntryUnit(v as RateUnitKey)}>
+              <SelectTrigger className="h-8 w-36" aria-label={`${metal === 'GOLD' ? 'Gold' : 'Silver'} rate type`} title="Rate type you are typing in; saved in the active unit">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {entryOptions.map((u) => (
+                  <SelectItem key={u} value={u}>
+                    {UNIT_LABEL[u]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button size="sm" variant="outline" onClick={autoCalc}>
               Auto-calc from {metal === 'GOLD' ? '24K' : '999'}
             </Button>

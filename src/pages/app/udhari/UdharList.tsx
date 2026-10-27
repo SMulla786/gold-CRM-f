@@ -12,10 +12,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useT } from '@/lib/i18n'
 import { fetchAllPaged } from '@/lib/queries'
 import { useUdharEntries } from '@/lib/udhariQueries'
-import { LEDGER_SOURCES, type UdharEntryRowDto } from '@/shared'
+import { LEDGER_SOURCES, type BalanceDto, type UdharEntryRowDto } from '@/shared'
 
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
 const time = (s: string) => new Date(s).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+
+/** compact balance: ₹ always, gold/silver lines only when non-zero. + party owes (red), − shop owes (green). */
+function BalanceCell({ b, strong }: { b?: BalanceDto; strong?: boolean }) {
+  if (!b) return <span className="text-muted-foreground">—</span>
+  const tone = (v: string) => (Number(v) > 0 ? 'text-destructive' : Number(v) < 0 ? 'text-green-600 dark:text-green-500' : 'text-muted-foreground')
+  return (
+    <div className={`tabular-nums whitespace-nowrap ${strong ? 'font-medium' : ''}`}>
+      <div className={tone(b.amount)}>₹{b.amount}</div>
+      {Number(b.gold) ? <div className={`text-xs ${tone(b.gold)}`}>{b.gold}g Au</div> : null}
+      {Number(b.silver) ? <div className={`text-xs ${tone(b.silver)}`}>{b.silver}g Ag</div> : null}
+    </div>
+  )
+}
 
 export function UdharList() {
   const t = useT()
@@ -30,8 +43,9 @@ export function UdharList() {
   const exportRows = async () => {
     const all = await fetchAllPaged<UdharEntryRowDto>('/app/udhar/entries', filters)
     return [
-      ['Date', 'Time', 'Source', 'Ref', 'Party', 'Mobile', 'Amount', 'Gold', 'Silver', 'Narration', 'Reversal'],
-      ...all.map((r) => [date(r.txnDate), time(r.createdAt), r.source, r.reference, r.party.name, r.party.mobile, r.amount, r.gold, r.silver, r.narration, r.isReversal ? 'yes' : '']),
+      ['Date', 'Time', 'Source', 'Ref', 'Party', 'Mobile', 'Amount', 'Gold', 'Silver', 'Narration', 'Reversal', 'Old amount', 'Old gold', 'Old silver', 'Final amount', 'Final gold', 'Final silver'],
+      ...all.map((r) => [date(r.txnDate), time(r.createdAt), r.source, r.reference, r.party.name, r.party.mobile, r.amount, r.gold, r.silver, r.narration, r.isReversal ? 'yes' : '',
+        r.old?.amount ?? '', r.old?.gold ?? '', r.old?.silver ?? '', r.final?.amount ?? '', r.final?.gold ?? '', r.final?.silver ?? '']),
     ]
   }
 
@@ -48,6 +62,9 @@ export function UdharList() {
     { header: '₹', cell: ({ row }) => <span className={row.original.isReversal ? 'line-through' : ''}>{Number(row.original.amount) ? row.original.amount : '—'}</span> },
     { header: t('udhari.col_gold'), cell: ({ row }) => (Number(row.original.gold) ? `${row.original.gold}g` : '—') },
     { header: t('udhari.col_silver'), cell: ({ row }) => (Number(row.original.silver) ? `${row.original.silver}g` : '—') },
+    // display-only running balance of the party around this row (server: txnDate,id order, as the Statement)
+    { id: 'old', header: 'Old', cell: ({ row }) => <BalanceCell b={row.original.old} /> },
+    { id: 'final', header: 'Final', cell: ({ row }) => <BalanceCell b={row.original.final} strong /> },
     { header: t('udhari.col_narration'), cell: ({ row }) => row.original.narration ?? '—' },
     {
       id: 'actions', header: '',

@@ -1,8 +1,9 @@
-import { FileDown, Pencil, Printer } from 'lucide-react'
+import { FileDown, Pencil, Printer, Share2 } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { MpinDialog } from '@/components/MpinDialog'
+import { WhatsAppShareDialog, type ShareSize } from '@/components/WhatsAppShareDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -29,6 +30,7 @@ export function UdharView() {
   const del = useDeleteUdhar()
   const [deleting, setDeleting] = useState(false)
   const [thermal, setThermal] = useState(false)
+  const [sharing, setSharing] = useState(false)
 
   if (isLoading || !txn) return <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
 
@@ -38,6 +40,24 @@ export function UdharView() {
     { label: t('udhari.gold_g'), given: show(txn.goldOut, 'g'), received: show(txn.goldIn, 'g') },
     { label: t('udhari.silver_g'), given: show(txn.silverOut, 'g'), received: show(txn.silverIn, 'g') },
   ]
+
+  // WhatsApp receipt text stays English (share template). Mini = old/new balance only.
+  const shareText = (size: ShareSize) => {
+    const shop = business?.name ?? me?.business?.name ?? 'Shop'
+    const head = `${shop}\nUdhar receipt #${txn.txnNo} · ${date(txn.txnDate)}\n${txn.party.name}`
+    if (size === 'MINI') return `${head}\nOld: ${triple(txn.old)}\nNew: ${triple(txn.final)}`
+    const line = (label: string, given: string, received: string) => (given === '—' && received === '—' ? null : `${label}: given ${given} / received ${received}`)
+    const body = [
+      line('Cash', show(txn.cashOut, '₹'), show(txn.cashIn, '₹')),
+      line('Online', show(txn.onlineOut, '₹'), show(txn.onlineIn, '₹')),
+      line('Gold', show(txn.goldOut, 'g'), show(txn.goldIn, 'g')),
+      line('Silver', show(txn.silverOut, 'g'), show(txn.silverIn, 'g')),
+      txn.bhav ? `Bhav cut: ${txn.bhav.metal} ₹${txn.bhav.amount} @ ₹${txn.bhav.rate}/${txn.bhav.unitGrams === 1000 ? '1 kg' : `${txn.bhav.unitGrams} g`} = ${txn.bhav.weight} g` : null,
+      txn.settleBill ? `Settled bill: ${txn.settleBill.billNo}` : null,
+      txn.remark ? `Remark: ${txn.remark}` : null,
+    ].filter(Boolean)
+    return [head, ...body, `Old balance: ${triple(txn.old)}`, `New balance: ${triple(txn.final)}`].join('\n')
+  }
 
   return (
     <div className="space-y-6">
@@ -64,6 +84,7 @@ export function UdharView() {
               <SelectItem value="THERMAL_80">{t('bill.thermal_80')}</SelectItem>
             </SelectContent>
           </Select>
+          <Button variant="outline" onClick={() => setSharing(true)}><Share2 aria-hidden />Share</Button>
           <Button variant="outline" onClick={downloadPdf}><FileDown aria-hidden />{t('udhari.download_pdf')}</Button>
           <Button onClick={() => window.print()}><Printer aria-hidden />{t('udhari.print')}</Button>
         </div>
@@ -124,6 +145,7 @@ export function UdharView() {
         {txn.remark && <div className="text-muted-foreground">{t('udhari.remark')}: {txn.remark}</div>}
       </div>
 
+      <WhatsAppShareDialog open={sharing} onClose={() => setSharing(false)} name={txn.party.name} mobile={txn.party.mobile} buildText={shareText} />
       <MpinDialog
         open={deleting}
         title={t('udhari.delete_title', { no: txn.txnNo })}

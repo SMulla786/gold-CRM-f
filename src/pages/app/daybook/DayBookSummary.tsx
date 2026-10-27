@@ -1,6 +1,7 @@
 import { businessDayISO } from '@/shared'
 import { Coins, Gem, Lock, LockOpen, Scale, Sparkles, Store, Wallet, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { KpiTile } from '@/components/KpiTile'
 import { MpinDialog } from '@/components/MpinDialog'
@@ -15,17 +16,22 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useCloseDay, useDayBook, useOpenDay } from '@/lib/accountsQueries'
 import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
+import { sourceLabel } from '@/lib/sourceLinks'
 
 const today = businessDayISO
 const unit = (asset: string) => (asset === 'MONEY' ? '₹' : asset === 'GOLD' || asset === 'SILVER' ? 'g' : 'pcs')
+const DAYS_PER_PAGE = 10
 const ASSET_ICON: Record<string, LucideIcon> = { MONEY: Wallet, GOLD: Coins, SILVER: Coins, STONE: Gem, ARTIFICIAL: Sparkles, FRANCHISE: Store }
 
 export function DayBookSummary() {
   const { can } = useAuth()
   const t = useT()
   const canManageDay = can('daybook.all_in_one', 'edit')
-  const [from, setFrom] = useState(today())
-  const [to, setTo] = useState(today())
+  const [from, setFromRaw] = useState(today())
+  const [to, setToRaw] = useState(today())
+  const [dayPage, setDayPage] = useState(1) // client-side paging of the day-wise list
+  const setFrom = (v: string) => { setFromRaw(v); setDayPage(1) }
+  const setTo = (v: string) => { setToRaw(v); setDayPage(1) }
   const singleDay = from === to // status + open/close only make sense for one day
   const { data, isLoading } = useDayBook({ from, to, groupBy: singleDay ? undefined : 'DATE' })
   const openDay = useOpenDay()
@@ -110,6 +116,7 @@ export function DayBookSummary() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>{t('db98.sn')}</TableHead>
                       <TableHead>{t('daybook.col_date')}</TableHead>
                       <TableHead>{t('daybook.col_status')}</TableHead>
                       {data.days[0]!.totals.map((a) => <TableHead key={a.asset} className="text-right whitespace-nowrap">{a.asset}</TableHead>)}
@@ -117,8 +124,9 @@ export function DayBookSummary() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {data.days.map((d) => (
+                    {data.days.slice((dayPage - 1) * DAYS_PER_PAGE, dayPage * DAYS_PER_PAGE).map((d, i) => (
                       <TableRow key={d.date}>
+                        <TableCell className="text-muted-foreground tabular-nums">{(dayPage - 1) * DAYS_PER_PAGE + i + 1}</TableCell>
                         <TableCell className="whitespace-nowrap font-medium">{new Date(d.date).toLocaleDateString('en-IN')}</TableCell>
                         <TableCell>{d.status ? <Badge variant={d.status === 'OPEN' ? 'secondary' : 'destructive'}>{d.status}</Badge> : '—'}</TableCell>
                         {/* opening → closing per asset; in/out on hover */}
@@ -127,12 +135,22 @@ export function DayBookSummary() {
                             <span className="text-muted-foreground">{a.opening}</span> → <span className="font-medium">{a.closing}</span>
                           </TableCell>
                         ))}
-                        <TableCell><Button variant="ghost" size="sm" onClick={() => { setFrom(d.date); setTo(d.date) }}>{t('daybook.open_day')}</Button></TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          <Button variant="ghost" size="sm" onClick={() => { setFrom(d.date); setTo(d.date) }}>{t('daybook.open_day')}</Button>
+                          <Button asChild variant="ghost" size="sm"><Link to={`/app/daybook/all-in-one?from=${d.date}&to=${d.date}`}>{t('db98.view_all_in_one')}</Link></Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </div>
+              {data.days.length > DAYS_PER_PAGE && (
+                <div className="flex items-center justify-end gap-2 border-t px-6 py-3 text-sm">
+                  <span className="text-muted-foreground">{t('table.page_of', { page: dayPage, pages: Math.ceil(data.days.length / DAYS_PER_PAGE), total: data.days.length })}</span>
+                  <Button variant="outline" size="sm" disabled={dayPage <= 1} onClick={() => setDayPage((p) => p - 1)}>{t('table.previous')}</Button>
+                  <Button variant="outline" size="sm" disabled={dayPage * DAYS_PER_PAGE >= data.days.length} onClick={() => setDayPage((p) => p + 1)}>{t('table.next')}</Button>
+                </div>
+              )}
             </SectionCard>
           )}
 
@@ -150,7 +168,7 @@ export function DayBookSummary() {
                   {data.bySource.length ? (
                     data.bySource.map((s, i) => (
                       <TableRow key={i}>
-                        <TableCell>{s.source}</TableCell>
+                        <TableCell>{sourceLabel(t, s.source)}</TableCell>
                         <TableCell>{s.asset}</TableCell>
                         <TableCell className="text-green-600 dark:text-green-500">{s.in}</TableCell>
                         <TableCell className="text-destructive">{s.out}</TableCell>

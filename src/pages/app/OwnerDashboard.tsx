@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { KpiTile } from '@/components/KpiTile'
+import { NewPartyDialog } from '@/components/NewPartyDialog'
 import { SectionCard } from '@/components/SectionCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -15,11 +16,19 @@ import { ShopRateCard } from '@/pages/app/ShopRateCard'
 import { useOccasions } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
+import { useUsers } from '@/lib/queries'
 import { useActivity, useDashboard } from '@/lib/reportsQueries'
-import { ACTIVITY_ACTIONS, MODULES } from '@/shared'
+import { sourceHref } from '@/lib/sourceLinks'
+import { ACTIVITY_ACTIONS, MODULES, type ActivityDto } from '@/shared'
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Number(s))
 const CLASS_LABEL: Record<string, string> = { GOLD: 'Gold', SILVER: 'Silver', STONE: 'Stone', ARTIFICIAL: 'Artificial', FRANCHISE: 'Franchise' }
+const inrCompact = (n: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', notation: 'compact', maximumFractionDigits: 1 }).format(n)
+// Round the chart's top up to 1 / 2 / 2.5 / 5 x 10^k so the axis ticks are readable.
+const niceMax = (v: number) => {
+  const mag = 10 ** Math.floor(Math.log10(v))
+  return ([1, 2, 2.5, 5, 10].find((f) => f * mag >= v) ?? 10) * mag
+}
 const monthLabel = (m: string) => new Date(m + '-01').toLocaleDateString('en-IN', { month: 'short' })
 
 type MonthRow = { month: string; sales: string; purchases: string }
@@ -39,7 +48,9 @@ function MonthlyChart({ data: monthly }: { data: MonthRow[] }) {
   const t = useT()
   const [range, setRange] = useState<'month' | 'quarter'>('month')
   const data = range === 'month' ? monthly.map((m) => ({ ...m, label: monthLabel(m.month) })) : toQuarters(monthly)
-  const max = Math.max(1, ...data.flatMap((m) => [Number(m.sales), Number(m.purchases)]))
+  const max = niceMax(Math.max(1, ...data.flatMap((m) => [Number(m.sales), Number(m.purchases)])))
+  const ticks = [max, max / 2, 0]
+  const pctTop = (v: number) => `${100 - (v / max) * 100}%`
   return (
     <SectionCard
       title={t('dash.last_12')}
@@ -57,23 +68,71 @@ function MonthlyChart({ data: monthly }: { data: MonthRow[] }) {
       }
       bodyClassName="p-6"
     >
-      <div className="flex h-56 items-end gap-2">
-        {data.map((m, i) => (
-          <div key={m.month} className="flex flex-1 flex-col items-center gap-2">
-            <div className="flex h-48 w-full items-end justify-center gap-1">
-              <div className="w-1/2 max-w-4 rounded-t-md bg-gradient-to-t from-brand-strong to-brand" style={{ height: `${(Number(m.sales) / max) * 100}%` }} title={`Sales ${inr(m.sales)}`} />
-              <div className="w-1/2 max-w-4 rounded-t-md bg-slate-300 dark:bg-slate-600" style={{ height: `${(Number(m.purchases) / max) * 100}%` }} title={`Purchases ${inr(m.purchases)}`} />
+      <div className="flex gap-2">
+        {/* value axis: 0 / half / top, with matching gridlines behind the bars */}
+        <div className="relative h-48 w-14 shrink-0 text-[10px] text-muted-foreground" aria-hidden>
+          {ticks.map((v) => <span key={v} className="absolute right-0 -translate-y-1/2 whitespace-nowrap" style={{ top: pctTop(v) }}>{inrCompact(v)}</span>)}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="relative h-48">
+            {ticks.map((v) => <div key={v} aria-hidden className="absolute inset-x-0 border-t border-dashed border-border" style={{ top: pctTop(v) }} />)}
+            <div className="relative flex h-full items-end gap-2">
+              {data.map((m) => (
+                <div key={m.month} className="flex h-full flex-1 items-end justify-center gap-1">
+                  <div className="w-1/2 max-w-4 rounded-t-md bg-gradient-to-t from-brand-strong to-brand" style={{ height: `${(Number(m.sales) / max) * 100}%` }} title={`Sales ${inr(m.sales)}`} />
+                  <div className="w-1/2 max-w-4 rounded-t-md bg-slate-300 dark:bg-slate-600" style={{ height: `${(Number(m.purchases) / max) * 100}%` }} title={`Purchases ${inr(m.purchases)}`} />
+                </div>
+              ))}
             </div>
-            <span className={i === data.length - 1 ? 'rounded-md bg-brand/15 px-1.5 text-[10px] font-semibold' : 'text-[10px] text-muted-foreground'}>{m.label}</span>
           </div>
-        ))}
+          <div className="mt-2 flex gap-2">
+            {data.map((m, i) => (
+              <div key={m.month} className="flex-1 text-center">
+                <span className={i === data.length - 1 ? 'rounded-md bg-brand/15 px-1.5 text-[10px] font-semibold' : 'text-[10px] text-muted-foreground'}>{m.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </SectionCard>
   )
 }
 
+// Record page behind an activity row (entity + entityId as logged by the services); null = no page of its own.
+function activityHref(a: ActivityDto): string | null {
+  if (a.entity === 'Party' || a.entity === 'PARTY') return '/app/settings/parties'
+  if (a.action === 'DELETED' || !/^\d+$/.test(a.entityId)) return null // record gone, or a multi-id / non-numeric ref
+  switch (a.entity) {
+    case 'BILL': return sourceHref('SELL_BILL', a.entityId)
+    case 'UdharTxn': return sourceHref('UDHAR', a.entityId)
+    case 'GIRVI': return `/app/girvi/${a.entityId}`
+    case 'SchemeEnrollment': return `/app/schemes/members/${a.entityId}`
+    case 'Order': return `/app/orders/${a.entityId}`
+    case 'JUST_BILL': return `/app/billing/just/view/${a.entityId}`
+    case 'SALES_DRAFT': return `/app/billing/drafts/${a.entityId}/slip`
+    case 'RepairTicket': return `/app/repair/slip/${a.entityId}`
+    default: return null
+  }
+}
+
+/** Operator filter. Mounted only for ADMIN-level users (/admin/users is an admin route). */
+function OperatorSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { data } = useUsers({ pageSize: 100 })
+  return (
+    <Select value={value || 'all'} onValueChange={(v) => onChange(v === 'all' ? '' : v)}>
+      <SelectTrigger className="h-8 w-36 rounded-xl" aria-label="Operator"><SelectValue /></SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">All operators</SelectItem>
+        {data?.items.map((u) => <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  )
+}
+
 function ActivityFeed() {
   const t = useT()
+  const { me } = useAuth()
+  const [userId, setUserId] = useState('')
   const [module, setModule] = useState('')
   const [action, setAction] = useState('')
   const [q, setQ] = useState('')
@@ -84,6 +143,7 @@ function ActivityFeed() {
   const { data } = useActivity({
     module: module || undefined,
     action: action || undefined,
+    userId: userId || undefined,
     q: q.trim() || undefined,
     from: from || undefined,
     // `to` is a date; make it inclusive of that whole day.
@@ -115,6 +175,7 @@ function ActivityFeed() {
               {ACTIVITY_ACTIONS.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
             </SelectContent>
           </Select>
+          {me?.level === 'ADMIN' && <OperatorSelect value={userId} onChange={reset(setUserId)} />}
         </>
       }
     >
@@ -123,16 +184,19 @@ function ActivityFeed() {
           <TableRow><TableHead>{t('dash.when')}</TableHead><TableHead>{t('dash.col_module')}</TableHead><TableHead>{t('dash.col_action')}</TableHead><TableHead>{t('dash.col_summary')}</TableHead><TableHead>{t('udhari.party')}</TableHead><TableHead>{t('dash.col_by')}</TableHead></TableRow>
         </TableHeader>
         <TableBody>
-          {data?.items.length ? data.items.map((a) => (
+          {data?.items.length ? data.items.map((a) => {
+            const href = activityHref(a)
+            return (
             <TableRow key={a.id}>
               <TableCell className="whitespace-nowrap text-muted-foreground">{new Date(a.createdAt).toLocaleString('en-IN')}</TableCell>
               <TableCell>{a.module}</TableCell>
               <TableCell><Badge variant="secondary">{a.action}</Badge></TableCell>
-              <TableCell>{a.summary}</TableCell>
+              <TableCell>{href ? <Link to={href} className="font-medium text-brand hover:underline">{a.summary}</Link> : a.summary}</TableCell>
               <TableCell>{a.partyName ?? '—'}</TableCell>
               <TableCell className="text-muted-foreground">{a.user ?? '—'}</TableCell>
             </TableRow>
-          )) : (
+            )
+          }) : (
             <TableRow><TableCell colSpan={6} className="h-16 text-center text-muted-foreground">{t('dash.no_activity')}</TableCell></TableRow>
           )}
         </TableBody>
@@ -195,7 +259,9 @@ function StockHero({ stock }: { stock: Array<{ stockClass: string; items: number
             ) : CLASS_LABEL[s.stockClass] ? t(`class.${s.stockClass}`) : s.stockClass}
             <span className="ml-2 normal-case tracking-normal">{t('dash.items_count', { n: s.items })}</span>
           </div>
-          <div className="text-3xl font-extrabold">{s.net} <span className="text-base font-medium text-white/60">g</span></div>
+          {s.stockClass === 'SILVER'
+            ? <div className="text-3xl font-extrabold">{(Number(s.net) / 1000).toFixed(3)} <span className="text-base font-medium text-white/60">kg</span></div>
+            : <div className="text-3xl font-extrabold">{s.net} <span className="text-base font-medium text-white/60">g</span></div>}
           <div className="h-3 rounded-full bg-white/10 shadow-[inset_0_2px_4px_rgb(0_0_0/0.3)]">
             <div
               className={`bar-grow h-3 rounded-full bg-gradient-to-r ${s.stockClass === 'GOLD' ? 'from-brand-strong to-brand shadow-[0_0_10px_rgb(212_175_55/0.5)]' : 'from-slate-400 to-slate-200'}`}
@@ -232,6 +298,7 @@ export function OwnerDashboard() {
   const t = useT()
   const { can, hasModule } = useAuth()
   const prefs = useDashboardPrefs()
+  const [newParty, setNewParty] = useState<'CUSTOMER' | 'SUPPLIER' | null>(null)
   const { data, isLoading, isError } = useDashboard()
   if (isError) return <div className="space-y-8"><Header /><p className="text-sm text-muted-foreground">{t('dash.load_error')}</p></div>
   if (isLoading || !data) {
@@ -245,8 +312,10 @@ export function OwnerDashboard() {
     )
   }
 
-  const metal = (g: string, sym: string) => (Number(g) ? ` · ${g}g ${sym}` : '')
   const lm = data.lastMonth
+  const canAddParty = can('settings.parties', 'edit') // same rule as the Shell's "New party" button
+  // Small action on a tile, kept outside the tile's <Link> (no button inside an anchor).
+  const tileAction = 'absolute bottom-3 right-3 h-7 rounded-full px-2.5 text-xs'
   return (
     <div className="space-y-8 tabular-nums">
       <Header actions={<DisplaySettings prefs={prefs} />} />
@@ -260,10 +329,25 @@ export function OwnerDashboard() {
       )}
       {prefs.show('secondary') && (
         <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <TileLink to="/app/udhari/ledger"><KpiTile size="sm" icon={HandCoins} label={t('dash.udhari_receivable')} value={inr(data.udhari.amount)} sub={<>{`${t('dash.collected_month', { amt: inr(data.udhari.collectedThisMonth) })}${metal(data.udhari.gold, 'Au')}${metal(data.udhari.silver, 'Ag')}`}<Trend cur={data.udhari.collectedThisMonth} prev={lm?.collectedThisMonth} prefix="Collected" /></>} /></TileLink>
+          <div className="relative">
+            <TileLink to="/app/udhari/ledger">
+              <KpiTile
+                size="sm" icon={HandCoins} label={t('dash.udhari_receivable')}
+                value={<>{inr(data.udhari.amount)}<span className="mt-1 flex flex-wrap gap-x-3 text-sm font-semibold"><span>Gold {data.udhari.gold} g</span><span>Silver {data.udhari.silver} g</span></span></>}
+                sub={<>{t('dash.collected_month', { amt: inr(data.udhari.collectedThisMonth) })}<Trend cur={data.udhari.collectedThisMonth} prev={lm?.collectedThisMonth} prefix="Collected" /></>}
+              />
+            </TileLink>
+            {can('udhari.entry', 'edit') && <Button asChild size="sm" variant="secondary" className={tileAction}><Link to="/app/udhari">New txn</Link></Button>}
+          </div>
           <TileLink to="/app/daybook"><KpiTile size="sm" icon={Wallet} tone="slate" label={t('dash.cash_in_hand')} value={inr(data.cash.inHand)} sub={t('dash.bank', { amt: inr(data.cash.bank) })} /></TileLink>
-          <TileLink to="/app/settings/parties?type=CUSTOMER"><KpiTile size="sm" icon={Users} tone="slate" label={t('dash.customers')} value={String(data.parties.customers)} sub={<>{t('dash.new_this_month', { n: data.parties.customersNewThisMonth })}<Trend cur={data.parties.customersNewThisMonth} prev={lm?.customersNewThisMonth} prefix="New" /></>} /></TileLink>
-          <TileLink to="/app/settings/parties?type=SUPPLIER"><KpiTile size="sm" icon={Factory} tone="slate" label={t('dash.suppliers')} value={String(data.parties.suppliers)} /></TileLink>
+          <div className="relative">
+            <TileLink to="/app/settings/parties?type=CUSTOMER"><KpiTile size="sm" icon={Users} tone="slate" label={t('dash.customers')} value={String(data.parties.customers)} sub={<>{t('dash.new_this_month', { n: data.parties.customersNewThisMonth })}<Trend cur={data.parties.customersNewThisMonth} prev={lm?.customersNewThisMonth} prefix="New" /></>} /></TileLink>
+            {canAddParty && <Button size="sm" variant="secondary" className={tileAction} aria-label="New customer" onClick={() => setNewParty('CUSTOMER')}>+ New</Button>}
+          </div>
+          <div className="relative">
+            <TileLink to="/app/settings/parties?type=SUPPLIER"><KpiTile size="sm" icon={Factory} tone="slate" label={t('dash.suppliers')} value={String(data.parties.suppliers)} sub={data.parties.suppliersNewThisMonth != null ? <>{t('dash.new_this_month', { n: data.parties.suppliersNewThisMonth })}<Trend cur={data.parties.suppliersNewThisMonth} prev={lm?.suppliersNewThisMonth} prefix="New" /></> : undefined} /></TileLink>
+            {canAddParty && <Button size="sm" variant="secondary" className={tileAction} aria-label="New supplier" onClick={() => setNewParty('SUPPLIER')}>+ New</Button>}
+          </div>
         </div>
       )}
       {prefs.show('today') && <TodayActivity counts={data.activityToday} />}
@@ -292,12 +376,13 @@ export function OwnerDashboard() {
               </Table>
             </SectionCard>
           )}
-          {prefs.show('overdue') && <UdharOverdueCard rows={data.udharOverdue} />}
+          {prefs.show('overdue') && <UdharOverdueCard rows={data.udharOverdue} total={data.udharOverdueTotal} />}
           {prefs.show('occasions') && <OccasionsCard />}
         </div>
       </div>
 
       {prefs.show('activity') && <ActivityFeed />}
+      {newParty && <NewPartyDialog open defaultType={newParty} onClose={() => setNewParty(null)} />}
     </div>
   )
 }

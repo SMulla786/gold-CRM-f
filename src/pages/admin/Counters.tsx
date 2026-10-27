@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useT } from '@/lib/i18n'
-import { useBranches, useCounters, useCreateCounter, useRenameCounter } from '@/lib/queries'
+import { useBranches, useCounters, useCreateCounter, useRenameCounter, useSetCounterActive } from '@/lib/queries'
 import type { BranchNodeDto, CounterDto } from '@/shared'
 
 const flatten = (n: BranchNodeDto, out: BranchNodeDto[] = []): BranchNodeDto[] => {
@@ -49,19 +49,23 @@ function RenameDialog({ counter, onClose }: { counter: CounterDto; onClose: () =
   )
 }
 
-/** Billing counters per branch (TASK-94a): list, add, rename. The API has no delete/deactivate. */
+/** Billing counters per branch (TASK-94a): list, add, rename, deactivate/reactivate (never hard-deleted). */
 export function Counters() {
   const t = useT()
   const { data: root } = useBranches()
   const branches = root ? flatten(root) : []
   const [filter, setFilter] = useState('')
+  const [nameQ, setNameQ] = useState('')
   const { data: counters, isLoading } = useCounters(filter ? Number(filter) : undefined)
+  const setActive = useSetCounterActive()
   const create = useCreateCounter()
   const [branchId, setBranchId] = useState('')
   const [name, setName] = useState('')
   const [editing, setEditing] = useState<CounterDto | null>(null)
 
-  const rows = counters ?? []
+  const all = counters ?? []
+  const needle = nameQ.trim().toLowerCase()
+  const rows = needle ? all.filter((c) => c.name.toLowerCase().includes(needle)) : all
   const branchCount = new Set(rows.map((c) => c.branchId)).size
   const branchSelect = (value: string, onChange: (v: string) => void, label: string, withAll: boolean) => (
     <Select value={value || (withAll ? 'all' : '')} onValueChange={(v) => onChange(v === 'all' ? '' : v)}>
@@ -134,7 +138,10 @@ export function Counters() {
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
           <CardTitle>{t('counters.all')}</CardTitle>
-          {branchSelect(filter, setFilter, 'Filter by branch', true)}
+          <div className="flex flex-wrap items-center gap-2">
+            <Input className="w-48" placeholder="Counter name" aria-label="Filter by counter name" value={nameQ} onChange={(e) => setNameQ(e.target.value)} />
+            {branchSelect(filter, setFilter, 'Filter by branch', true)}
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -148,6 +155,15 @@ export function Counters() {
                   {!c.isActive && <Badge variant="destructive">{t('counters.inactive')}</Badge>}
                   <Button className="ml-auto" variant="ghost" size="sm" aria-label={`Rename ${c.name}`} onClick={() => setEditing(c)}>
                     <Pencil className="size-4" aria-hidden /> {t('counters.rename')}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`${c.isActive ? 'Deactivate' : 'Activate'} ${c.name}`}
+                    disabled={setActive.isPending}
+                    onClick={() => setActive.mutate({ id: c.id, isActive: !c.isActive })}
+                  >
+                    {c.isActive ? 'Deactivate' : 'Activate'}
                   </Button>
                 </li>
               ))}

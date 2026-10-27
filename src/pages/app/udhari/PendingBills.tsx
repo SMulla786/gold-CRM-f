@@ -35,7 +35,7 @@ export function PendingBills() {
     { header: t('udhari.col_kind'), cell: ({ row }) => <Badge variant="secondary">{row.original.kind}</Badge> },
     {
       header: t('udhari.col_party'),
-      cell: ({ row }) => <div><div className="font-medium">{row.original.party.name}</div><div className="text-xs text-muted-foreground">{[row.original.party.mobile, row.original.party.type].filter(Boolean).join(' · ')}</div></div>,
+      cell: ({ row }) => <div><div className="font-medium">{row.original.party.name}</div><div className="text-xs text-muted-foreground">{[row.original.party.shopName, row.original.party.mobile, row.original.party.type].filter(Boolean).join(' · ')}</div></div>,
     },
     { header: t('udhari.col_items'), cell: ({ row }) => <span className="text-sm text-muted-foreground">{row.original.itemsSummary ?? '—'}</span> },
     { header: t('bill.final'), cell: ({ row }) => inr(row.original.final) },

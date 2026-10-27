@@ -1,20 +1,38 @@
 import type { ColumnDef } from '@tanstack/react-table'
-import { Download, Search } from 'lucide-react'
+import { Download, FileDown, MessageCircle, Search, Trash2 } from 'lucide-react'
 import { useState } from 'react'
+import { flushSync } from 'react-dom'
 import { Link, useSearchParams } from 'react-router-dom'
 
 import { DataTable } from '@/components/DataTable'
+import { MpinDialog } from '@/components/MpinDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { api } from '@/lib/api'
+import { useAuth } from '@/lib/auth'
 import { downloadCsv } from '@/lib/csv'
-import { useGirviList } from '@/lib/girviQueries'
+import { useDeleteGirvi, useGirviList } from '@/lib/girviQueries'
 import { useT } from '@/lib/i18n'
 import { qs } from '@/lib/queries'
-import type { GirviListItemDto, Paged } from '@/shared'
+import { businessDayISO, type GirviListItemDto, type Paged } from '@/shared'
+import { downloadPdf, shareOnWhatsApp } from '@/lib/share'
+
+/** "Group by customer" subtotal row (client-side, current page only). */
+type Subtotal = { subtotal: true; party: GirviListItemDto['party']; count: number; principal: number; interestDue: number }
+type GroupRow = GirviListItemDto | Subtotal
+const isSub = (r: GroupRow): r is Subtotal => 'subtotal' in r
+const groupByParty = (rows: GirviListItemDto[]): GroupRow[] => {
+  const groups = new Map<number, GirviListItemDto[]>()
+  for (const r of rows) groups.set(r.party.id, [...(groups.get(r.party.id) ?? []), r])
+  return [...groups.values()].flatMap((g) => [
+    ...g,
+    { subtotal: true as const, party: g[0]!.party, count: g.length, principal: g.reduce((a, r) => a + Number(r.principal), 0), interestDue: g.reduce((a, r) => a + Number(r.interestDue), 0) },
+  ])
+}
 
 const inr = (s: string | undefined) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s ?? 0))
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
@@ -36,14 +54,45 @@ export function GirviList() {
   const filters = { status: status || undefined, q: q || undefined, from: from || undefined, to: to || undefined, partyType: partyType || undefined, partyId, pageSize }
   const { data, isLoading } = useGirviList({ ...filters, page })
   const reset = <T,>(set: (v: T) => void) => (v: T) => { set(v); setPage(1) }
+  const { can, me } = useAuth()
+  const canDelete = can('girvi.entry', 'delete')
+  const del = useDeleteGirvi()
+  const [deleting, setDeleting] = useState<GirviListItemDto | null>(null)
+  const [grouped, setGrouped] = useState(false)
+  const [printRows, setPrintRows] = useState<GirviListItemDto[] | null>(null)
 
-  const exportCsv = async () => {
+  /** every row matching the current filters (pages of 100) */
+  const fetchAll = async () => {
     const all: GirviListItemDto[] = []
     for (let p = 1; ; p++) {
       const res = await api.get<Paged<GirviListItemDto>>(`/app/girvi${qs({ ...filters, pageSize: 100, page: p })}`)
       all.push(...res.items)
       if (all.length >= res.total || res.items.length === 0) break
     }
+    return all
+  }
+  // PDF = browser print of all filtered rows via a hidden .print-area (same pattern as SchemeDues / GroupStock).
+  const exportPdf = async () => {
+    const all = await fetchAll()
+    flushSync(() => setPrintRows(all))
+    window.addEventListener('afterprint', () => setPrintRows(null), { once: true })
+    downloadPdf()
+  }
+  const share = (r: GirviListItemDto) =>
+    shareOnWhatsApp(r.party.mobile, [me?.business?.name, `Girvi #${r.girviNo} · ${r.party.name}`, `Principal ${inr(r.principal)} · Interest due ${inr(r.interestDue)}`, `Return by ${date(r.returnDate)}`].filter(Boolean).join('\n'))
+
+  const statusBadge = (r: GirviListItemDto) => <Badge variant={r.status === 'ACTIVE' ? (r.overdue ? 'destructive' : 'secondary') : 'default'}>{r.overdue && r.status === 'ACTIVE' ? 'OVERDUE' : r.status}</Badge>
+  const actions = (r: GirviListItemDto) => (
+    <span className="flex gap-1">
+      <Button size="icon" variant="ghost" className="size-8" aria-label={`Share girvi #${r.girviNo} on WhatsApp`} title="Share on WhatsApp" onClick={() => share(r)}><MessageCircle className="size-4" aria-hidden /></Button>
+      {canDelete && r.deletable && (
+        <Button size="icon" variant="ghost" className="size-8 text-destructive hover:text-destructive" aria-label={`Delete girvi #${r.girviNo}`} title="Delete (MPIN)" onClick={() => setDeleting(r)}><Trash2 className="size-4" aria-hidden /></Button>
+      )}
+    </span>
+  )
+
+  const exportCsv = async () => {
+    const all = await fetchAll()
     downloadCsv('girvi-loans.csv', [
       ['Girvi', 'Date/time', 'Customer', 'Mobile', 'Items', 'SI/CI', 'Rate %', 'Payout', 'Principal given', 'Principal returned', 'Outstanding', 'Interest paid', 'Interest due', 'Return by', 'Status'],
       ...all.map((r) => [
@@ -93,7 +142,20 @@ export function GirviList() {
       ),
     },
     { header: t('girvi.col_return_by'), cell: ({ row }) => <span className={row.original.overdue ? 'text-destructive' : ''}>{date(row.original.returnDate)}</span> },
-    { header: t('stock.col_status'), cell: ({ row }) => <Badge variant={row.original.status === 'ACTIVE' ? (row.original.overdue ? 'destructive' : 'secondary') : 'default'}>{row.original.overdue && row.original.status === 'ACTIVE' ? 'OVERDUE' : row.original.status}</Badge> },
+    { header: t('stock.col_status'), cell: ({ row }) => statusBadge(row.original) },
+    { id: 'actions', header: 'Actions', cell: ({ row }) => actions(row.original) },
+  ]
+
+  // Group by customer: rows of the current page grouped by party, with a subtotal row per customer
+  const groupedColumns: ColumnDef<GroupRow, unknown>[] = [
+    { header: t('girvi.title'), cell: ({ row }) => (isSub(row.original) ? <span className="font-semibold">Subtotal ({row.original.count})</span> : <Link to={`/app/girvi/${row.original.id}`} className="font-semibold text-brand-strong hover:underline">#{row.original.girviNo}</Link>) },
+    { header: t('udhari.col_party'), cell: ({ row }) => <span className={isSub(row.original) ? 'font-semibold' : ''}>{row.original.party.name}</span> },
+    { header: t('girvi.col_issued'), cell: ({ row }) => (isSub(row.original) ? '' : date(row.original.issueDate)) },
+    { header: t('girvi.principal'), cell: ({ row }) => <span className={`whitespace-nowrap tabular-nums ${isSub(row.original) ? 'font-semibold' : ''}`}>{inr(String(row.original.principal))}</span> },
+    { header: 'Interest due', cell: ({ row }) => <span className={`whitespace-nowrap tabular-nums ${isSub(row.original) ? 'font-semibold' : ''}`}>{inr(String(row.original.interestDue))}</span> },
+    { header: t('girvi.col_return_by'), cell: ({ row }) => (isSub(row.original) ? '' : <span className={row.original.overdue ? 'text-destructive' : ''}>{date(row.original.returnDate)}</span>) },
+    { header: t('stock.col_status'), cell: ({ row }) => (isSub(row.original) ? null : statusBadge(row.original)) },
+    { id: 'actions', header: 'Actions', cell: ({ row }) => (isSub(row.original) ? null : actions(row.original)) },
   ]
 
   return (
@@ -117,8 +179,14 @@ export function GirviList() {
           <SelectTrigger className="w-24" aria-label="Rows per page"><SelectValue /></SelectTrigger>
           <SelectContent>{[10, 20, 50, 100].map((n) => <SelectItem key={n} value={String(n)}>{t('girvi.n_rows', { n })}</SelectItem>)}</SelectContent>
         </Select>
+        <label className="flex h-9 items-center gap-2 text-sm">
+          <Checkbox checked={grouped} onCheckedChange={(c) => setGrouped(c === true)} /> Group by customer
+        </label>
         <Button variant="outline" className="ml-auto" onClick={() => void exportCsv()} disabled={!data?.total}>
           <Download aria-hidden /> {t('girvi.excel_csv')}
+        </Button>
+        <Button variant="outline" onClick={() => void exportPdf().catch(() => {})} disabled={!data?.total}>
+          <FileDown aria-hidden /> PDF
         </Button>
       </Card>
       {partyId && (
@@ -128,7 +196,31 @@ export function GirviList() {
           <button type="button" className="ml-auto font-medium hover:underline" onClick={() => { setParams({}); setPage(1) }}>{t('girvi.show_all_customers')}</button>
         </div>
       )}
-      <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} emptyText={t('girvi.no_loans')} pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined} />
+      {grouped
+        ? <DataTable columns={groupedColumns} data={groupByParty(data?.items ?? [])} isLoading={isLoading} emptyText={t('girvi.no_loans')} pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined} />
+        : <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} emptyText={t('girvi.no_loans')} pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined} />}
+      <MpinDialog open={!!deleting} title={deleting ? t('girvi.delete_title', { no: deleting.girviNo }) : undefined} onConfirm={(mpin) => del.mutateAsync({ id: deleting!.id, mpin })} onClose={() => setDeleting(null)} />
+
+      {printRows && (
+        <div className="print-area hidden print:block">
+          <h2 className="mb-1 text-lg font-semibold">Girvi loans · {businessDayISO()}</h2>
+          <p className="mb-3 text-xs">{printRows.length} loans · Principal {inr(String(printRows.reduce((a, r) => a + Number(r.principal), 0)))} · Interest due {inr(String(printRows.reduce((a, r) => a + Number(r.interestDue), 0)))}</p>
+          <table className="w-full border-collapse text-xs">
+            <thead>
+              <tr className="border-b text-left">{['Girvi', 'Issued', 'Customer', 'Mobile', 'Items', 'Principal', 'Interest due', 'Return by', 'Status'].map((h) => <th key={h} className="p-1">{h}</th>)}</tr>
+            </thead>
+            <tbody>
+              {printRows.map((r) => (
+                <tr key={r.id} className="border-b">
+                  <td className="p-1">#{r.girviNo}</td><td className="p-1">{date(r.issueDate)}</td><td className="p-1">{r.party.name}</td><td className="p-1">{r.party.mobile}</td>
+                  <td className="p-1">{(r.itemNames ?? []).join(', ')}</td><td className="p-1">{inr(r.principal)}</td><td className="p-1">{inr(r.interestDue)}</td>
+                  <td className="p-1">{date(r.returnDate)}</td><td className="p-1">{r.overdue && r.status === 'ACTIVE' ? 'OVERDUE' : r.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }

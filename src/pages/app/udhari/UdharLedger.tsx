@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { DataTable } from '@/components/DataTable'
+import { WhatsAppShareDialog } from '@/components/WhatsAppShareDialog'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -12,7 +13,6 @@ import { useUdharLedger } from '@/lib/udhariQueries'
 import { downloadCsv } from '@/lib/csv'
 import { useT } from '@/lib/i18n'
 import { fetchAllPaged } from '@/lib/queries'
-import { shareOnWhatsApp } from '@/lib/share'
 import { PARTY_TYPES, type PartyBalanceRowDto } from '@/shared'
 
 // + = party owes shop (red), − = shop owes party (green)
@@ -33,6 +33,7 @@ export function UdharLedger() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [exporting, setExporting] = useState(false)
+  const [shareRow, setShareRow] = useState<PartyBalanceRowDto | null>(null)
   const period = !!(from || to) // when a period is set the server fills old/in/out/final
   const unitSuffix = unit === 'amount' ? '' : 'g'
   const { data, isLoading } = useUdharLedger({ type: type || undefined, nonZero, q: q || undefined, from: from || undefined, to: to || undefined, page, pageSize })
@@ -77,7 +78,7 @@ export function UdharLedger() {
       cell: ({ row }) => (
         <div className="flex justify-end gap-2">
           {/* WhatsApp text stays English (share template) */}
-          <Button variant="ghost" size="sm" onClick={() => shareOnWhatsApp(row.original.party.mobile, `${row.original.party.name}\nUdhar balance: ₹${row.original.amount}${Number(row.original.gold) ? ` · ${row.original.gold}g gold` : ''}${Number(row.original.silver) ? ` · ${row.original.silver}g silver` : ''}`)}>{t('udhari.share')}</Button>
+          <Button variant="ghost" size="sm" onClick={() => setShareRow(row.original)}>{t('udhari.share')}</Button>
           <Button asChild variant="ghost" size="sm"><Link to={`/app/udhari?partyId=${row.original.party.id}`}>{t('udhari.new_txn')}</Link></Button>
           <Button asChild variant="outline" size="sm"><Link to={`/app/udhari/statement/${row.original.party.id}`}>{t('udhari.statement')}</Link></Button>
         </div>
@@ -125,6 +126,18 @@ export function UdharLedger() {
         isLoading={isLoading}
         emptyText={t('udhari.no_balances')}
         pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: setPageSize } : undefined}
+      />
+      <WhatsAppShareDialog
+        open={!!shareRow}
+        onClose={() => setShareRow(null)}
+        name={shareRow?.party.name}
+        mobile={shareRow?.party.mobile}
+        buildText={(size) => {
+          const r = shareRow!
+          const metal = `${Number(r.gold) ? ` · ${r.gold}g gold` : ''}${Number(r.silver) ? ` · ${r.silver}g silver` : ''}`
+          if (size === 'MINI') return `${r.party.name}\nBal ₹${r.amount}${metal}`
+          return `${r.party.name}${r.party.shopName ? ` (${r.party.shopName})` : ''}\nUdhar balance: ₹${r.amount}${metal}${r.lastTxnDate ? `\nLast transaction: ${new Date(r.lastTxnDate).toLocaleDateString('en-IN')}` : ''}`
+        }}
       />
     </div>
   )

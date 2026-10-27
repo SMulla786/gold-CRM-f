@@ -175,6 +175,10 @@ export function GirviDefaults() {
           </div>
           <div className="space-y-1.5"><Label htmlFor="gd-tenure">Default tenure (months)</Label><Input id="gd-tenure" type="number" value={cur.tenureMonths} onChange={(e) => set('tenureMonths', Number(e.target.value))} /></div>
           <div className="space-y-1.5"><Label htmlFor="gd-penalty">Penalty % per month (after due)</Label><Input id="gd-penalty" type="number" step="0.01" min={0} max={100} value={cur.penaltyRatePercent ?? 0} onChange={(e) => set('penaltyRatePercent', Number(e.target.value))} /></div>
+          <label className="flex items-center gap-2 self-end text-sm">
+            <Checkbox checked={cur.showStdPercent !== false} disabled={!canEdit} onCheckedChange={(c) => set('showStdPercent', c === true)} />
+            Show STD % hint on New Girvi
+          </label>
         </CardContent>
       </Card>
 

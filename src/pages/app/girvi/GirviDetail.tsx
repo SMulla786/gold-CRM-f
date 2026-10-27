@@ -1,7 +1,8 @@
-import { FileDown, History as HistoryIcon, MessageCircle, Printer } from 'lucide-react'
-import { useState } from 'react'
+import { FileDown, FileText, FileUp, History as HistoryIcon, MessageCircle, Printer } from 'lucide-react'
+import { useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
+import { AuthedImage } from '@/components/AuthedImage'
 import { MpinDialog } from '@/components/MpinDialog'
 import { QrImage } from '@/components/QrImage'
 import { Badge } from '@/components/ui/badge'
@@ -14,9 +15,10 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { api } from '@/lib/api'
 import { useBankAccounts, useBusinessProfile, useParty, useSettings } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
-import { useDeleteGirvi, useGirvi, useGirviInterest, useGirviRelease, useGirviTopup } from '@/lib/girviQueries'
+import { useDeleteGirvi, useGirvi, useGirviInterest, useGirviRelease, useGirviTopup, useUploadGirviDoc } from '@/lib/girviQueries'
 import { useT } from '@/lib/i18n'
 import { downloadPdf, shareOnWhatsApp } from '@/lib/share'
 import { cn } from '@/lib/utils'
@@ -57,6 +59,63 @@ function ItemHistoryDialog({ batch, itemId, onClose }: { batch: GirviBatchDto; i
         <DialogHeader><DialogTitle>{t('girvi.item_history_title', { name: item?.name ?? '' })}</DialogTitle></DialogHeader>
         {item && <p className="text-sm text-muted-foreground">{item.category} · {item.net}g · {inr(item.valuation)} · {item.status}{item.releasedAt ? ` ${t('girvi.released_on', { date: date(item.releasedAt) })}` : ''}</p>}
         {txns.length ? <ul className="divide-y text-sm text-muted-foreground">{txns.map((tx) => <TxnLine key={tx.id} tx={tx} />)}</ul> : <p className="text-sm text-muted-foreground">{t('girvi.no_item_txns')}</p>}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** WhatsApp share (text only): edit the number and pick A4 (full) or Thermal (short) wording, then open wa.me. */
+function WhatsAppDialog({ batch, shopName, defaultFormat, onClose }: { batch: GirviBatchDto; shopName: string; defaultFormat: 'A4' | 'THERMAL_80'; onClose: () => void }) {
+  const [mobile, setMobile] = useState(batch.party.mobile ?? '')
+  const [format, setFormat] = useState<string>(defaultFormat)
+  const pledged = batch.items.filter((it) => it.status === 'PLEDGED')
+  const text = format === 'THERMAL_80'
+    ? [shopName, `Girvi #${batch.girviNo} · ${batch.party.name}`, `Principal ${inr(batch.principal)} · Due ${date(batch.returnDate)}`].join('\n')
+    : [
+        shopName,
+        `Girvi #${batch.girviNo} · ${batch.party.name}`,
+        `Issued ${date(batch.issueDate)} · Return by ${date(batch.returnDate)}`,
+        `Items: ${pledged.map((it) => `${it.name} ${it.net}g`).join(', ') || '—'}`,
+        `Principal ${inr(batch.principal)} @ ${batch.ratePercent}% / ${batch.ratePeriod === 'MONTHLY' ? 'month' : 'year'}`,
+        `Interest due ${inr(batch.interestDue)} · Payable ${inr(batch.payable)}`,
+      ].join('\n')
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Share on WhatsApp</DialogTitle></DialogHeader>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5"><Label htmlFor="g-wa-mobile">Mobile number</Label><Input id="g-wa-mobile" inputMode="tel" value={mobile} onChange={(e) => setMobile(e.target.value)} /></div>
+          <div className="space-y-1.5"><Label>Message format</Label>
+            <Select value={format} onValueChange={setFormat}><SelectTrigger aria-label="Message format"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="A4">A4 (full)</SelectItem><SelectItem value="THERMAL_80">Thermal (short)</SelectItem></SelectContent></Select>
+          </div>
+        </div>
+        <pre className="whitespace-pre-wrap rounded-2xl border bg-muted/40 p-3 text-xs">{text}</pre>
+        <DialogFooter>
+          <Button disabled={mobile.replace(/\D/g, '').length < 10} onClick={() => { shareOnWhatsApp(mobile, text); onClose() }}><MessageCircle aria-hidden />Open WhatsApp</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** Customer document on the loan: image preview (AuthedImage) or a PDF opened in a new tab. */
+function DocPreviewDialog({ batch, ver, onClose }: { batch: GirviBatchDto; ver: number; onClose: () => void }) {
+  const path = `/app/girvi/${batch.id}/doc`
+  const isPdf = /\.pdf$/i.test(batch.docUrl ?? '')
+  const openPdf = async () => {
+    const blob = await api.blob(path)
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  }
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Customer document · Girvi #{batch.girviNo}</DialogTitle></DialogHeader>
+        {isPdf
+          ? <Button variant="outline" onClick={() => void openPdf().catch(() => {})}><FileText aria-hidden />Open PDF document</Button>
+          : <AuthedImage path={path} ver={ver} alt={`Girvi #${batch.girviNo} document`} className="max-h-[70vh] w-full rounded-md border object-contain" />}
       </DialogContent>
     </Dialog>
   )
@@ -241,6 +300,11 @@ export function GirviDetail() {
   const [historyItem, setHistoryItem] = useState<number | null>(null)
   const [replacing, setReplacing] = useState<GirviItemDto | null>(null)
   const [layoutOverride, setLayoutOverride] = useState<string | null>(null)
+  const [sharing, setSharing] = useState(false)
+  const [docOpen, setDocOpen] = useState(false)
+  const [docVer, setDocVer] = useState(0)
+  const docInput = useRef<HTMLInputElement>(null)
+  const uploadDoc = useUploadGirviDoc()
 
   if (isLoading || !batch) return <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
   const canEdit = can('girvi.entry', 'edit')
@@ -259,7 +323,17 @@ export function GirviDetail() {
     : null
   const shopName = business?.name ?? me?.business?.name ?? t('girvi.shop')
   const customerAddress = partyFull?.address
-  const summary = `${shopName}\nGirvi #${batch.girviNo} · ${batch.party.name}\nPrincipal ${inr(batch.principal)} · Due ${date(batch.returnDate)}`
+  // Receipt extras (presentation only): monthly interest at the loan's effective rate (annual rate / 12), grant payout mode
+  const rate = n(ib?.effectiveRate ?? batch.ratePercent)
+  const monthlyInterest = (n(batch.principal) * rate) / 100 / (batch.ratePeriod === 'ANNUAL' ? 12 : 1)
+  const grant = batch.txns.find((tx) => tx.type === 'GRANT')
+  const grantMode = grant ? payMode(grant, t) : ''
+  const saveDoc = async (file: File | undefined) => {
+    if (!file) return
+    await uploadDoc.mutateAsync({ id: batch.id, file })
+    setDocVer((v) => v + 1) // same path after a re-upload: bust AuthedImage's fetch
+    if (docInput.current) docInput.current.value = ''
+  }
 
   return (
     <div className="space-y-6">
@@ -278,7 +352,12 @@ export function GirviDetail() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2"><Label htmlFor="g-asof" className="text-xs text-muted-foreground">{t('girvi.as_of')}</Label><Input id="g-asof" type="date" className="w-36" value={asOf} onChange={(e) => setAsOf(e.target.value)} /></div>
-          <Button size="sm" variant="outline" onClick={() => shareOnWhatsApp(batch.party.mobile, summary)}><MessageCircle aria-hidden />{t('girvi.share_whatsapp')}</Button>
+          <Button size="sm" variant="outline" onClick={() => setSharing(true)}><MessageCircle aria-hidden />{t('girvi.share_whatsapp')}</Button>
+          {canEdit && <>
+            <input ref={docInput} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="hidden" aria-label="Customer document file" onChange={(e) => void saveDoc(e.target.files?.[0]).catch(() => {})} />
+            <Button size="sm" variant="outline" disabled={uploadDoc.isPending} onClick={() => docInput.current?.click()}><FileUp aria-hidden />{batch.docUrl ? 'Replace document' : 'Upload document'}</Button>
+          </>}
+          {batch.docUrl && <Button size="sm" variant="outline" onClick={() => setDocOpen(true)}><FileText aria-hidden />Preview document</Button>}
           <Select value={layout} onValueChange={setLayoutOverride}>
             <SelectTrigger size="sm" className="w-36" aria-label="Print layout"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -321,7 +400,7 @@ export function GirviDetail() {
 
       <div className={cn('print-area space-y-4 rounded-3xl border border-white/80 bg-card p-6 text-sm shadow-sm sm:p-10 dark:border-border print:rounded-none print:border-0 print:bg-transparent print:shadow-none', thermal && 'print-thermal mx-auto max-w-sm sm:p-6 print:max-w-none')}>
         <div className="relative min-h-13 px-14 text-center">
-          <QrImage text={String(batch.girviNo)} size={52} className="absolute right-0 top-0" />
+          {show('showGirviQr') && <QrImage text={String(batch.girviNo)} size={52} className="absolute right-0 top-0" />}
           {show('showShopName') && <div className="text-lg font-bold">{shopName}</div>}
           {show('showShopAddress') && business?.address && <div>{business.address}</div>}
           {((show('showShopMobile') && business?.mobile) || (show('showShopGst') && business?.gstin)) && (
@@ -330,11 +409,14 @@ export function GirviDetail() {
           <div className="mt-1 font-medium">{t('girvi.receipt_title')}</div>
         </div>
         <div className="flex flex-wrap justify-between gap-2">
+          <div className="flex items-start gap-3">
+          {show('showCustomerPhoto') && partyFull?.photoUrl && <AuthedImage path={`/app/files/parties/${batch.party.id}/photo`} alt={`${batch.party.name} photo`} className="size-14 rounded-md border object-cover" />}
           <div>
             {show('showCustomerName') && <Link to={`/app/girvi?partyId=${batch.party.id}`} className="font-medium hover:underline print:no-underline" title="Show all loans of this customer">{batch.party.name}</Link>}
             {show('showCustomerName') && show('showCustomerMobile') && ' · '}
             {show('showCustomerMobile') && batch.party.mobile}
             {show('showCustomerAddress') && customerAddress && <div className="text-muted-foreground">{customerAddress}</div>}
+          </div>
           </div>
           <div>{t('girvi.receipt_dates', { no: batch.girviNo, issued: date(batch.issueDate), due: date(batch.returnDate) })}</div>
         </div>
@@ -369,11 +451,21 @@ export function GirviDetail() {
         <div className="ml-auto max-w-xs space-y-1 tabular-nums">
           <div className="flex justify-between"><span className="text-muted-foreground">{t('girvi.valuation')}</span><span>{inr(batch.valuation)}</span></div>
           <div className="flex justify-between"><span className="text-muted-foreground">{t('girvi.principal')}</span><span>{inr(batch.principal)}</span></div>
+          {show('showMonthlyInterest') && <div className="flex justify-between"><span className="text-muted-foreground">Monthly interest</span><span>{inr(monthlyInterest.toFixed(2))}</span></div>}
           {show('showTotalInterest') && <div className="flex justify-between"><span className="text-muted-foreground">{t('girvi.interest_due_to', { date: asOf ? date(asOf) : t('girvi.today') })}</span><span>{inr(batch.interestDue)}</span></div>}
           {show('showTotalInterest') && breakdown && <div className="text-right text-xs text-muted-foreground">{breakdown}</div>}
           <div className="flex justify-between border-t-2 border-brand pt-2 text-base font-bold"><span>{t('girvi.payable')}</span><span>{inr(batch.payable)}</span></div>
         </div>
         {show('showCalculations') && <div className="text-xs text-muted-foreground">{batch.ratePercent}% / {batch.ratePeriod === 'MONTHLY' ? t('girvi.term_month') : t('girvi.term_year')} · {batch.interestType === 'SI' ? t('girvi.term_simple') : t('girvi.term_compound', { period: String(batch.ciPeriod?.toLowerCase()) })} · {batch.method === 'FULL_MONTH' ? t('girvi.term_full_month') : t('girvi.term_day_wise')} · {t('girvi.interest_from', { date: date(batch.interestFrom) })}</div>}
+        {show('showPaymentMode') && grantMode && <div className="text-xs">Paid out: {grantMode}</div>}
+        {show('showRemarks') && batch.remark && <div className="text-xs">{t('girvi.txn_remark', { remark: batch.remark })}</div>}
+        {/* Print-only: on screen the History card below already lists these */}
+        {show('showItemHistory') && batch.txns.length > 0 && (
+          <div className="hidden border-t pt-2 text-xs print:block">
+            <div className="font-medium">{t('girvi.history')}</div>
+            <ul>{batch.txns.map((tx) => <TxnLine key={tx.id} tx={tx} />)}</ul>
+          </div>
+        )}
         {rc?.terms && <p className="whitespace-pre-wrap border-t pt-2 text-xs">{rc.terms}</p>}
         {show('showSignatures') && (
           <div className="hidden justify-between pt-10 text-xs print:flex">
@@ -397,6 +489,8 @@ export function GirviDetail() {
       {dialog === 'release' && <ReleaseDialog batch={batch} onClose={() => setDialog(null)} />}
       {historyItem != null && <ItemHistoryDialog batch={batch} itemId={historyItem} onClose={() => setHistoryItem(null)} />}
       {replacing && <ItemReplaceDialog batchId={batch.id} item={replacing} onClose={() => setReplacing(null)} />}
+      {sharing && <WhatsAppDialog batch={batch} shopName={shopName} defaultFormat={thermal ? 'THERMAL_80' : 'A4'} onClose={() => setSharing(false)} />}
+      {docOpen && batch.docUrl && <DocPreviewDialog batch={batch} ver={docVer} onClose={() => setDocOpen(false)} />}
       <MpinDialog open={deleting} title={t('girvi.delete_title', { no: batch.girviNo })} onConfirm={(mpin) => del.mutateAsync({ id: batch.id, mpin })} onClose={() => setDeleting(false)} />
     </div>
   )

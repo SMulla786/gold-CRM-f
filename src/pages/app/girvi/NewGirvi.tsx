@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { toast } from 'sonner'
 
+import { MpinDialog } from '@/components/MpinDialog'
 import { PartyPicker } from '@/components/PartyPicker'
 import { TABLE_EDGES } from '@/components/SectionCard'
 import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
@@ -10,11 +12,16 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { useBankAccounts, useParty, useSettings } from '@/lib/appQueries'
+import { Checkbox } from '@/components/ui/checkbox'
+import { api } from '@/lib/api'
+import { useBankAccounts, useParty, useSaveSetting, useSettings } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
-import { useCreateGirvi } from '@/lib/girviQueries'
+import { useCreateGirvi, useGirviKarats } from '@/lib/girviQueries'
 import { useT } from '@/lib/i18n'
-import { businessDayISO, type PartyRefDto } from '@/shared'
+import { qs } from '@/lib/queries'
+import { businessDayISO, type GirviListItemDto, type Paged, type PartyRefDto } from '@/shared'
+
+const NEW_CAT = '__new__'
 
 let uid = 0
 const k = () => `g${uid++}`
@@ -22,9 +29,10 @@ const today = businessDayISO
 const inr = (s: string | number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 const n = (s: string) => Number(s) || 0
 
-// itemRate = optional per-item interest % (blank = loan rate)
-interface Row { key: string; category: string; name: string; gross: string; net: string; purity: string; rate: string; itemRate: string }
-const blankRow = (category: string): Row => ({ key: k(), category, name: '', gross: '', net: '', purity: '', rate: '', itemRate: '' })
+// itemRate = optional per-item interest % (blank = loan rate); karat = optional karat id that filled purity (UI only);
+// customCat = typing a free-text category (the contract's category is a free string)
+interface Row { key: string; category: string; name: string; gross: string; net: string; purity: string; rate: string; itemRate: string; karat: string; customCat: boolean }
+const blankRow = (category: string): Row => ({ key: k(), category, name: '', gross: '', net: '', purity: '', rate: '', itemRate: '', karat: '', customCat: false })
 const fineOf = (r: Row) => (n(r.net) * n(r.purity)) / 100
 const valOf = (r: Row) => fineOf(r) * n(r.rate)
 /** Mirrors backend girvi/service.ts createGirvi: returnDate = addMonths(businessDate(issueDate), tenureMonths) via setUTCMonth on the
@@ -40,9 +48,20 @@ const returnDateOf = (issueISO: string, months: number): Date | null => {
 export function NewGirvi() {
   const t = useT()
   const navigate = useNavigate()
-  const { activeBranch } = useAuth()
+  const { activeBranch, can } = useAuth()
   const branchReady = activeBranch !== '' && activeBranch !== 'all'
   const { data: settings } = useSettings()
+  // karat → purity helper needs /app/karats (settings.misc view)
+  const canKarat = can('settings.misc', 'view')
+  const { data: karats } = useGirviKarats(canKarat)
+  const saveSetting = useSaveSetting()
+  const [savingCat, setSavingCat] = useState<number | null>(null) // row index whose typed category is being saved to girvi.defaults
+  const [lookupNo, setLookupNo] = useState('')
+  const [lookupBusy, setLookupBusy] = useState(false)
+  const [tenureUnit, setTenureUnit] = useState<'MONTHS' | 'DAYS'>('MONTHS')
+  const [tenureDaysIn, setTenureDaysIn] = useState('')
+  const [roundUp, setRoundUp] = useState(false)
+  const [firstMode, setFirstMode] = useState<'AMOUNT' | 'PERCENT'>('AMOUNT')
   const { data: banks } = useBankAccounts()
   const create = useCreateGirvi()
   const def = settings?.['girvi.defaults']
@@ -76,20 +95,60 @@ export function NewGirvi() {
   const stdPrincipal = def ? Math.round((def.stdPercent / 100) * valuation) : 0
   const effPrincipal = principalTouched ? n(principal) : stdPrincipal
   const payTotal = n(pay.cash) + n(pay.online)
-  // same tenure the submit sends (Number(...) || 1)
-  const returnDate = returnDateOf(issueDate, Number(terms.tenureMonths) || 1)
-  const tenureDays = returnDate ? Math.round((returnDate.getTime() - new Date(`${issueDate}T00:00:00Z`).getTime()) / 864e5) : null
+  // Tenure in days (optional): "round up" converts to whole months client-side (ceil(days / 30)); otherwise tenureDays is sent and the
+  // server sets returnDate = issueDate + days (tenureMonths = ceil(days / 30)).
+  const daysIn = Math.min(3600, Math.max(1, Math.floor(n(tenureDaysIn)) || 1))
+  const inDays = tenureUnit === 'DAYS'
+  const sendMonths = inDays ? Math.ceil(daysIn / 30) : Number(terms.tenureMonths) || 1 // same tenure the submit sends
+  const exactDays = inDays && !roundUp
+  const issueMs = new Date(`${issueDate}T00:00:00Z`).getTime()
+  const returnDate = exactDays ? (Number.isNaN(issueMs) ? null : new Date(issueMs + daysIn * 864e5)) : returnDateOf(issueDate, sendMonths)
+  const tenureDays = returnDate ? Math.round((returnDate.getTime() - issueMs) / 864e5) : null
+  // First-month interest: entered as ₹ or as % of the principal (converted to ₹ here, before submit)
+  const firstAmount = firstMode === 'PERCENT' ? Math.round(effPrincipal * n(terms.firstMonthInterest)) / 100 : n(terms.firstMonthInterest)
 
-  const valid = branchReady && !!party && rows.every((r) => r.name.trim() && n(r.gross) > 0 && n(r.net) > 0 && n(r.purity) > 0 && n(r.rate) > 0)
+  const valid = branchReady && !!party && rows.every((r) => r.category.trim() && r.name.trim() && n(r.gross) > 0 && n(r.net) > 0 && n(r.purity) > 0 && n(r.rate) > 0)
     && effPrincipal > 0 && effPrincipal <= valuation + 0.005 && Math.abs(payTotal - effPrincipal) < 0.005 && (n(pay.online) === 0 || pay.bankAccountId)
+    && (!inDays || (n(tenureDaysIn) >= 1 && n(tenureDaysIn) <= 3600))
+
+  // Girvi-ID lookup: find loan #N (numeric q also matches names/mobiles, so pick the exact girviNo) and take its customer
+  const lookup = async () => {
+    const no = Number(lookupNo)
+    if (!Number.isInteger(no) || no < 1) return
+    setLookupBusy(true)
+    try {
+      const res = await api.get<Paged<GirviListItemDto>>(`/app/girvi${qs({ q: String(no), pageSize: 100 })}`)
+      const hit = res.items.find((r) => r.girviNo === no)
+      if (hit) { setParty(hit.party); toast.success(`Customer from girvi #${no}: ${hit.party.name}`) } else toast.error(`Girvi #${no} not found`)
+    } finally {
+      setLookupBusy(false)
+    }
+  }
+  const pickKarat = (i: number, id: string) => {
+    const kt = karats?.find((x) => String(x.id) === id)
+    setRows((rs) => rs.map((r, j) => (j === i ? { ...r, karat: id, purity: kt ? String(Number(kt.touch)) : r.purity } : r)))
+  }
+  const karatsFor = (category: string) => {
+    const metal = category.trim().toUpperCase()
+    const same = karats?.filter((x) => x.metal === metal) ?? []
+    return same.length ? same : (karats ?? [])
+  }
+  const saveCategory = async (i: number, mpin: string) => {
+    const name = rows[i]?.category.trim()
+    if (!def || !name) return
+    if (!def.categories.some((c) => c.toLowerCase() === name.toLowerCase())) {
+      await saveSetting.mutateAsync({ key: 'girvi.defaults', value: { ...def, categories: [...def.categories, name] }, mpin })
+    }
+    setRows((rs) => rs.map((r, j) => (j === i ? { ...r, customCat: false } : r)))
+  }
 
   const submit = async () => {
     const body = {
       partyId: party!.id, issueDate,
-      items: rows.map((r) => ({ category: r.category, name: r.name.trim(), gross: n(r.gross), net: n(r.net), purity: n(r.purity), rate: n(r.rate), ...(r.itemRate.trim() ? { ratePercent: n(r.itemRate) } : {}) })),
+      items: rows.map((r) => ({ category: r.category.trim(), name: r.name.trim(), gross: n(r.gross), net: n(r.net), purity: n(r.purity), rate: n(r.rate), ...(r.itemRate.trim() ? { ratePercent: n(r.itemRate) } : {}) })),
       principal: effPrincipal, ratePercent: n(terms.ratePercent), ratePeriod: terms.ratePeriod, interestType: terms.interestType,
-      ciPeriod: terms.interestType === 'CI' ? terms.ciPeriod : undefined, method: terms.method, tenureMonths: Number(terms.tenureMonths) || 1,
-      firstMonthInterest: n(terms.firstMonthInterest), penaltyRatePercent: n(terms.penaltyRatePercent),
+      ciPeriod: terms.interestType === 'CI' ? terms.ciPeriod : undefined, method: terms.method, tenureMonths: sendMonths, ...(exactDays ? { tenureDays: daysIn } : {}),
+      firstMonthInterest: firstAmount, penaltyRatePercent: n(terms.penaltyRatePercent),
       cash: n(pay.cash), online: n(pay.online), bankAccountId: n(pay.online) > 0 ? Number(pay.bankAccountId) : undefined, remark: remark || undefined,
     }
     const saved = await create.mutateAsync(body)
@@ -103,6 +162,14 @@ export function NewGirvi() {
       <Card className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-4">
         <div className="space-y-1.5 lg:col-span-2"><Label htmlFor="ng-party">{t('bill.customer')}</Label><PartyPicker value={party} onChange={setParty} placeholder={t('udhari.search_party')} id="ng-party" ariaLabel="Customer" /></div>
         <div className="space-y-1.5"><Label htmlFor="ng-date">{t('girvi.issue_date')}</Label><Input id="ng-date" type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} /></div>
+        <div className="space-y-1.5">
+          <Label htmlFor="ng-lookup">Girvi no</Label>
+          <div className="flex gap-2">
+            <Input id="ng-lookup" inputMode="numeric" placeholder="e.g. 12" value={lookupNo} onChange={(e) => setLookupNo(e.target.value.replace(/\D/g, ''))} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void lookup().catch(() => {}) } }} />
+            <Button type="button" variant="outline" disabled={!lookupNo || lookupBusy} onClick={() => void lookup().catch(() => {})}>Find</Button>
+          </div>
+          <p className="text-xs text-muted-foreground">Pick the customer of an existing girvi</p>
+        </div>
       </Card>
 
       {/* Items stay before Loan terms in the DOM (specs use .nth(i) on Rate/Gross/Net). */}
@@ -110,20 +177,42 @@ export function NewGirvi() {
       <div className={`overflow-x-auto ${TABLE_EDGES}`}>
         <Table>
           <TableHeader>
-            <TableRow><TableHead>{t('girvi.col_category')}</TableHead><TableHead className="min-w-40">{t('girvi.col_item')}</TableHead><TableHead>{t('stock.col_gross')}</TableHead><TableHead>{t('stock.col_net')}</TableHead><TableHead>{t('girvi.col_purity_pct')}</TableHead><TableHead>{t('stock.col_fine')}</TableHead><TableHead>{t('girvi.col_rate_g')}</TableHead><TableHead>{t('girvi.valuation')}</TableHead><TableHead title="Optional: overrides the loan interest % for this item">{t('girvi.item_int_pct')}</TableHead><TableHead /></TableRow>
+            <TableRow><TableHead>{t('girvi.col_category')}</TableHead><TableHead className="min-w-40">{t('girvi.col_item')}</TableHead><TableHead>{t('stock.col_gross')}</TableHead><TableHead>{t('stock.col_net')}</TableHead>{canKarat && <TableHead>Karat</TableHead>}<TableHead>{t('girvi.col_purity_pct')}</TableHead><TableHead>{t('stock.col_fine')}</TableHead><TableHead>{t('girvi.col_rate_g')}</TableHead><TableHead>{t('girvi.valuation')}</TableHead><TableHead title="Optional: overrides the loan interest % for this item">{t('girvi.item_int_pct')}</TableHead><TableHead /></TableRow>
           </TableHeader>
           <TableBody>
             {rows.map((r, i) => (
               <TableRow key={r.key}>
                 <TableCell>
-                  <Select value={r.category} onValueChange={(v) => setRow(i, 'category', v)}>
-                    <SelectTrigger className="w-28" aria-label="Category"><SelectValue /></SelectTrigger>
-                    <SelectContent>{categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                  </Select>
+                  {r.customCat ? (
+                    <div className="flex items-center gap-1">
+                      <Input className="w-28" maxLength={40} autoFocus aria-label="New category name" placeholder="New category" value={r.category} onChange={(e) => setRow(i, 'category', e.target.value)} />
+                      {can('settings.misc', 'edit') && def && (
+                        <Button type="button" variant="ghost" size="sm" disabled={!r.category.trim()} title="Add to the girvi category list (MPIN)" onClick={() => setSavingCat(i)}>Save</Button>
+                      )}
+                      <Button type="button" variant="ghost" size="sm" aria-label="Cancel new category" onClick={() => setRows((rs) => rs.map((x, j) => (j === i ? { ...x, customCat: false, category: categories[0] ?? 'Gold' } : x)))}>✕</Button>
+                    </div>
+                  ) : (
+                    <Select value={r.category} onValueChange={(v) => setRows((rs) => rs.map((x, j) => (j === i ? (v === NEW_CAT ? { ...x, customCat: true, category: '' } : { ...x, category: v }) : x)))}>
+                      <SelectTrigger className="w-28" aria-label="Category"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        {!categories.includes(r.category) && r.category && <SelectItem value={r.category}>{r.category}</SelectItem>}
+                        <SelectItem value={NEW_CAT}>+ New category</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
                 </TableCell>
                 <TableCell><Input className="w-40" aria-label="Item name" value={r.name} onChange={(e) => setRow(i, 'name', e.target.value)} /></TableCell>
                 <TableCell><Input className="w-20" type="number" step="0.001" aria-label="Gross" value={r.gross} onChange={(e) => setRow(i, 'gross', e.target.value)} /></TableCell>
                 <TableCell><Input className="w-20" type="number" step="0.001" aria-label="Net" value={r.net} onChange={(e) => setRow(i, 'net', e.target.value)} /></TableCell>
+                {canKarat && (
+                  <TableCell>
+                    <Select value={r.karat} onValueChange={(v) => pickKarat(i, v)}>
+                      <SelectTrigger className="w-24" aria-label="Karat"><SelectValue placeholder="—" /></SelectTrigger>
+                      <SelectContent>{karatsFor(r.category).map((x) => <SelectItem key={x.id} value={String(x.id)}>{x.code} · {Number(x.touch)}%</SelectItem>)}</SelectContent>
+                    </Select>
+                  </TableCell>
+                )}
                 <TableCell><Input className="w-16" type="number" step="0.01" aria-label="Purity" value={r.purity} onChange={(e) => setRow(i, 'purity', e.target.value)} /></TableCell>
                 <TableCell className="whitespace-nowrap text-muted-foreground tabular-nums">{fineOf(r).toFixed(3)}</TableCell>
                 <TableCell><Input className="w-24" type="number" aria-label="Rate" value={r.rate} onChange={(e) => setRow(i, 'rate', e.target.value)} /></TableCell>
@@ -164,17 +253,40 @@ export function NewGirvi() {
                 <SelectContent><SelectItem value="FULL_MONTH">{t('girvi.full_month')}</SelectItem><SelectItem value="DAY_WISE">{t('girvi.day_wise')}</SelectItem></SelectContent></Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="ng-tenure">{t('girvi.tenure_months')}</Label>
-              <Input id="ng-tenure" type="number" value={terms.tenureMonths} onChange={(e) => setTerm('tenureMonths', e.target.value)} />
-              <p className="text-xs text-muted-foreground tabular-nums" aria-live="polite">{tenureDays != null ? t('girvi.tenure_days', { n: tenureDays }) : t('girvi.tenure_hint')}</p>
+              <div className="flex items-center justify-between gap-2">
+                {inDays ? <Label htmlFor="ng-tenure-days">Tenure (days)</Label> : <Label htmlFor="ng-tenure">{t('girvi.tenure_months')}</Label>}
+                <Select value={tenureUnit} onValueChange={(v) => setTenureUnit(v as 'MONTHS' | 'DAYS')}>
+                  <SelectTrigger size="sm" className="h-7 w-24" aria-label="Tenure unit"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="MONTHS">Months</SelectItem><SelectItem value="DAYS">Days</SelectItem></SelectContent>
+                </Select>
+              </div>
+              {inDays ? (
+                <>
+                  <Input id="ng-tenure-days" type="number" min={1} max={3600} value={tenureDaysIn} onChange={(e) => setTenureDaysIn(e.target.value)} />
+                  <label className="flex items-center gap-2 text-xs"><Checkbox checked={roundUp} onCheckedChange={(c) => setRoundUp(c === true)} />Round up to whole months</label>
+                  <p className="text-xs text-muted-foreground tabular-nums" aria-live="polite">{roundUp ? `Saved as ${sendMonths} month(s)` : `Return date = issue date + ${daysIn} days`}</p>
+                </>
+              ) : (
+                <>
+                  <Input id="ng-tenure" type="number" value={terms.tenureMonths} onChange={(e) => setTerm('tenureMonths', e.target.value)} />
+                  <p className="text-xs text-muted-foreground tabular-nums" aria-live="polite">{tenureDays != null ? t('girvi.tenure_days', { n: tenureDays }) : t('girvi.tenure_hint')}</p>
+                </>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="ng-return">{t('girvi.return_date')}</Label>
               <Input id="ng-return" readOnly tabIndex={-1} className="bg-muted/40" value={returnDate ? returnDate.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : '—'} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="ng-first">{t('girvi.first_month_interest')}</Label>
-              <Input id="ng-first" type="number" step="0.01" min={0} placeholder="0" value={terms.firstMonthInterest} onChange={(e) => setTerm('firstMonthInterest', e.target.value)} />
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="ng-first">{t('girvi.first_month_interest')}</Label>
+                <Select value={firstMode} onValueChange={(v) => setFirstMode(v as 'AMOUNT' | 'PERCENT')}>
+                  <SelectTrigger size="sm" className="h-7 w-20" aria-label="First month mode"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="AMOUNT">₹</SelectItem><SelectItem value="PERCENT">%</SelectItem></SelectContent>
+                </Select>
+              </div>
+              <Input id="ng-first" type="number" step="0.01" min={0} max={firstMode === 'PERCENT' ? 100 : undefined} placeholder="0" value={terms.firstMonthInterest} onChange={(e) => setTerm('firstMonthInterest', e.target.value)} />
+              {firstMode === 'PERCENT' && <p className="text-xs text-muted-foreground tabular-nums">{`= ${inr(firstAmount)} (% of the loan amount)`}</p>}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="ng-penalty">{t('girvi.penalty_pct')}</Label>
@@ -203,7 +315,7 @@ export function NewGirvi() {
             <span className="text-muted-foreground">{t('girvi.loan_principal')}</span>
             <Input className="ml-auto w-28" type="number" value={principalTouched ? principal : String(stdPrincipal)} onChange={(e) => { setPrincipalTouched(true); setPrincipal(e.target.value) }} aria-label="Principal" />
           </div>
-          <p className="text-xs text-muted-foreground">{t('girvi.default_pct', { pct: def?.stdPercent ?? 60 })}</p>
+          {def?.showStdPercent !== false && <p className="text-xs text-muted-foreground">{t('girvi.default_pct', { pct: def?.stdPercent ?? 60 })}</p>}
           <div className="grid grid-cols-2 gap-4 border-t pt-3">
             <div className="space-y-1.5"><Label htmlFor="ng-cash">{t('girvi.pay_cash')}</Label><Input id="ng-cash" type="number" value={pay.cash} onChange={(e) => setPay((p) => ({ ...p, cash: e.target.value }))} /></div>
             <div className="space-y-1.5"><Label htmlFor="ng-online">{t('girvi.pay_online')}</Label><Input id="ng-online" type="number" value={pay.online} onChange={(e) => setPay((p) => ({ ...p, online: e.target.value }))} /></div>
@@ -221,6 +333,7 @@ export function NewGirvi() {
           </Button>
         </Card>
       </div>
+      <MpinDialog open={savingCat != null} title="Add category to girvi settings" onConfirm={(mpin) => saveCategory(savingCat!, mpin)} onClose={() => setSavingCat(null)} />
     </div>
   )
 }

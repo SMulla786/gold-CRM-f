@@ -4,12 +4,16 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useSaveSetting } from '@/lib/appQueries'
+import { useBusinessProfile, useSaveSetting } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
+import { useBill, useBills } from '@/lib/billingQueries'
 import { useT } from '@/lib/i18n'
+import { useStates } from '@/lib/queries'
 import { cn } from '@/lib/utils'
+import { InvoicePrint } from '@/pages/app/billing/InvoicePrint'
 import { FORMAT_LABEL_KEY } from '@/pages/app/billing/invoice/format'
 import { INVOICE_FORMATS, type InvoiceFormat, type SettingsDto } from '@/shared'
 
@@ -29,6 +33,7 @@ export function InvoiceFormatCard({ settings, ask }: { settings: SettingsDto; as
   const save = useSaveSetting()
   const [v, setV] = useState<Value>(settings['billing.invoice'])
   const canEdit = can('settings.misc', 'edit')
+  const [full, setFull] = useState(false)
   return (
     <Card>
       <CardHeader className="flex-row items-start justify-between gap-4">
@@ -36,7 +41,10 @@ export function InvoiceFormatCard({ settings, ask }: { settings: SettingsDto; as
           <CardTitle>{t('invfmt.title')}</CardTitle>
           <CardDescription>{t('invfmt.subtitle')}</CardDescription>
         </div>
+        <div className="flex gap-2">
+        <Button size="sm" variant="outline" onClick={() => setFull(true)}>{t('jb98.full_view')}</Button>
         {canEdit && <Button size="sm" onClick={() => ask({ title: t('invfmt.save_title'), run: (mpin) => save.mutateAsync({ key: 'billing.invoice', value: v, mpin }) })}>{t('invfmt.save')}</Button>}
+        </div>
       </CardHeader>
       <CardContent className="grid gap-6 sm:grid-cols-[1fr_auto]">
         <div className="space-y-4">
@@ -62,7 +70,41 @@ export function InvoiceFormatCard({ settings, ask }: { settings: SettingsDto; as
         </div>
         <FormatPreview v={v} />
       </CardContent>
+      <Dialog open={full} onOpenChange={setFull}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>{t('jb98.full_view_title')}</DialogTitle>
+            <DialogDescription>{t('jb98.full_view_hint')}</DialogDescription>
+          </DialogHeader>
+          {full && <AllDesigns settings={{ ...settings, 'billing.invoice': v }} />}
+        </DialogContent>
+      </Dialog>
     </Card>
+  )
+}
+
+/** Every INVOICE_FORMAT rendered with the latest sell bill. InvoicePrint `bare` = no .print-area inside the dialog. */
+function AllDesigns({ settings }: { settings: SettingsDto }) {
+  const t = useT()
+  const { me } = useAuth()
+  const { data: list, isLoading: listLoading, isError } = useBills({ kind: 'SELL', page: 1, pageSize: 1 })
+  const latestId = list?.items[0]?.id
+  const { data: bill, isLoading: billLoading } = useBill(latestId)
+  const { data: business } = useBusinessProfile()
+  const { data: states } = useStates()
+  if (listLoading || (latestId && billLoading)) return <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
+  if (isError || !bill) return <p className="text-sm text-muted-foreground">{t('jb98.no_bill')}</p>
+  const shopName = business?.name ?? me?.business?.name ?? 'Shop'
+  const stateName = states?.find((s) => s.id === business?.stateId)?.name
+  return (
+    <div className="space-y-6">
+      {INVOICE_FORMATS.map((f) => (
+        <section key={f} className="space-y-2">
+          <h3 className="text-sm font-semibold">{t(FORMAT_LABEL_KEY[f])}</h3>
+          <InvoicePrint bill={bill} format={f} settings={settings} shopName={shopName} business={business} stateName={stateName} bare />
+        </section>
+      ))}
+    </div>
   )
 }
 

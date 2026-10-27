@@ -3,9 +3,13 @@ import { useQuery } from '@tanstack/react-query'
 
 import { api } from '@/lib/api'
 import { qs, useApiMutation } from '@/lib/queries'
-import type { GirviBatchDto, GirviListItemDto, GirviTransferDto, Paged } from '@/shared'
+import type { GirviBatchDto, GirviListItemDto, GirviTransferDto, KaratDto, Paged } from '@/shared'
 
 const GIRVI_KEYS = [['girvi'], ['girvi-batch'], ['ledger'], ['day-book'], ['dashboard']]
+
+/** Karat master for the New Girvi purity helper — same cache key as appQueries.useKarats, but only fetched when allowed (settings.misc view). */
+export const useGirviKarats = (enabled: boolean) =>
+  useQuery({ queryKey: ['karats'], queryFn: () => api.get<KaratDto[]>('/app/karats'), enabled })
 
 export const useGirviList = (params: Record<string, string | number | undefined>) =>
   useQuery({ queryKey: ['girvi', params], queryFn: () => api.get<Paged<GirviListItemDto>>(`/app/girvi${qs(params)}`) })
@@ -27,6 +31,13 @@ export const useGirviRelease = () =>
 
 export const useDeleteGirvi = () =>
   useApiMutation(({ id, mpin }: { id: number; mpin: string }) => api.del(`/app/girvi/${id}`, { mpin }), { invalidate: GIRVI_KEYS, success: 'Loan deleted' })
+/** Customer document (image or PDF) on the loan; served at GET /app/girvi/:id/doc */
+export const useUploadGirviDoc = () =>
+  useApiMutation(({ id, file }: { id: number; file: File }) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return api.post<{ url: string }>(`/app/girvi/${id}/doc`, fd)
+  }, { invalidate: [['girvi-batch']], success: 'Document uploaded' })
 export const useReplaceGirviItem = () =>
   useApiMutation(
     ({ id, itemId, body, mpin }: { id: number; itemId: number; body: Record<string, unknown>; mpin: string }) => api.patch<GirviBatchDto>(`/app/girvi/${id}/items/${itemId}`, body, { mpin }),

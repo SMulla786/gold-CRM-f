@@ -189,11 +189,18 @@ export function Trend({ cur, prev, prefix }: { cur: string | number; prev?: stri
 
 // ───── Udhar overdue list (DashboardDto.udharOverdue) ─────
 
-export function UdharOverdueCard({ rows }: { rows?: DashboardDto['udharOverdue'] }) {
+export function UdharOverdueCard({ rows, total }: { rows?: DashboardDto['udharOverdue']; total?: DashboardDto['udharOverdueTotal'] }) {
   if (!rows?.length) return null
   const metal = (g: string, sym: string) => (Number(g) ? `${g}g ${sym}` : '')
   return (
     <SectionCard title="Udhar overdue" actions={<Link to="/app/udhari/ledger" className="text-xs font-medium text-brand hover:underline">View ledger</Link>} bodyClassName="divide-y text-sm">
+      {total != null && (
+        <div className="px-6 py-4">
+          <div className="text-xs font-semibold text-muted-foreground">Total overdue (all parties)</div>
+          <div className="text-2xl font-extrabold tabular-nums">{inr(Number(total))}</div>
+          {rows.length >= 10 && <div className="text-xs text-muted-foreground">Showing the 10 most overdue</div>}
+        </div>
+      )}
       {rows.map((r) => (
         <div key={r.party.id} className="flex flex-wrap justify-between gap-x-3 gap-y-1 px-6 py-3">
           <div className="min-w-0">

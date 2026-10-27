@@ -18,7 +18,7 @@ import { useT } from '@/lib/i18n'
 import { downloadCsv } from '@/lib/csv'
 import { fetchAllPaged } from '@/lib/queries'
 import { shareOnWhatsApp } from '@/lib/share'
-import { businessDayISO, BILL_KINDS, BILL_TYPES, type BillKind, type BillListItemDto } from '@/shared'
+import { businessDayISO, BILL_KINDS, BILL_TYPES, PARTY_TYPES, type BillKind, type BillListItemDto } from '@/shared'
 
 const todayISO = businessDayISO
 
@@ -69,8 +69,10 @@ export function BillList() {
   const { can } = useAuth()
   const navigate = useNavigate()
   // ?kind=PURCHASE opens the purchase list (links / bookmarks)
-  const [params] = useSearchParams()
-  const [kind, setKind] = useState<BillKind>(params.get('kind') === 'PURCHASE' ? 'PURCHASE' : 'SELL')
+  const [params, setParams] = useSearchParams()
+  // kind follows ?kind= whenever it changes (the "Bills" / "Purchase bills" tabs, the kind Select), not only on mount
+  const kind: BillKind = params.get('kind') === 'PURCHASE' ? 'PURCHASE' : 'SELL'
+  const [partyType, setPartyType] = useState('')
   const [status, setStatus] = useState('ACTIVE')
   const [billType, setBillType] = useState('')
   const [q, setQ] = useState('')
@@ -81,11 +83,13 @@ export function BillList() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [exporting, setExporting] = useState(false)
+  const [pageKind, setPageKind] = useState(kind)
+  if (pageKind !== kind) { setPageKind(kind); setPage(1) } // new kind → back to page 1 (adjust-state-during-render)
   const permKey = kind === 'SELL' ? 'billing.sell_bill' : 'billing.purchase_bill'
   const canEdit = can(permKey, 'edit')
   const canDelete = can(permKey, 'delete')
   const filters = {
-    kind, status, q: q || undefined, billType: billType || undefined, from: from || undefined, to: to || undefined,
+    kind, status, q: q || undefined, billType: billType || undefined, partyType: partyType || undefined, from: from || undefined, to: to || undefined,
     minTotal: minTotal || undefined, maxTotal: maxTotal || undefined,
   }
   const { data, isLoading } = useBills({ ...filters, page, pageSize })
@@ -136,7 +140,12 @@ export function BillList() {
         <Button variant="outline" disabled={exporting} onClick={exportCsv}><Download aria-hidden />{exporting ? t('bill.exporting') : t('common.export_csv')}</Button>
       </div>
       <Card className="flex flex-wrap items-center gap-3 p-4">
-        <Select value={kind} onValueChange={(v) => { setKind(v as BillKind); setPage(1) }}>
+        <Select
+          value={kind}
+          onValueChange={(v) => {
+            setParams((sp) => { const n = new URLSearchParams(sp); if (v === 'PURCHASE') n.set('kind', v); else n.delete('kind'); return n }, { replace: true })
+          }}
+        >
           <SelectTrigger className="w-full sm:w-36" aria-label="Bill kind"><SelectValue /></SelectTrigger>
           <SelectContent>{BILL_KINDS.map((k) => <SelectItem key={k} value={k}>{k === 'SELL' ? t('bill.kind_sell') : t('bill.kind_purchase')}</SelectItem>)}</SelectContent>
         </Select>
@@ -153,6 +162,13 @@ export function BillList() {
           <SelectContent>
             <SelectItem value="all">{t('bill.all_types')}</SelectItem>
             {BILL_TYPES.map((bt) => <SelectItem key={bt} value={bt}>{bt}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={partyType || 'all'} onValueChange={(v) => reset(setPartyType)(v === 'all' ? '' : v)}>
+          <SelectTrigger className="w-full sm:w-40" aria-label="Contact type filter"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t('bill98.all_party_types')}</SelectItem>
+            {PARTY_TYPES.map((pt) => <SelectItem key={pt} value={pt}>{t(`party.type.${pt}`)}</SelectItem>)}
           </SelectContent>
         </Select>
         <Input className="w-full sm:w-40" type="date" aria-label="From date" value={from} onChange={(e) => reset(setFrom)(e.target.value)} />

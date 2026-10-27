@@ -19,6 +19,7 @@ import { useAuth } from '@/lib/auth'
 import { createUserBody, updateUserBody } from '@/shared'
 import {
   useBranches,
+  useCreateRole,
   useCreateUser,
   usePermissionCatalog,
   useResetUserMpin,
@@ -79,7 +80,13 @@ function UserDialog({ user, onClose }: { user?: UserDto; onClose: () => void }) 
   const create = useCreateUser()
   const update = useUpdateUser()
   const branches = root ? flatten(root) : []
-  const [created, setCreated] = useState<{ username: string; password: string } | null>(null)
+  const [created, setCreated] = useState<{ user: UserDto; username: string; password: string } | null>(null)
+  // Step 2 of registration: set the new user's permissions straight from the "User created" screen.
+  const [permsStep, setPermsStep] = useState(false)
+  // Quick "New role" from inside the form (role creation is owner / root-admin only, as on the Roles page).
+  const createRole = useCreateRole()
+  const canCreateRole = !!me && (me.isOwner || me.branch?.parentId === null)
+  const [newRole, setNewRole] = useState<string | null>(null)
   const [limitUnit, setLimitUnit] = useState<'DAYS' | 'MONTHS'>('DAYS')
 
   const { register, handleSubmit, watch, setValue, getValues, formState } = useForm<UserForm>({
@@ -106,7 +113,7 @@ function UserDialog({ user, onClose }: { user?: UserDto; onClose: () => void }) 
       return onClose()
     }
     const u = await create.mutateAsync({ ...common, username: v.username, password: v.password, mpin: v.mpin })
-    setCreated({ username: u.username, password: v.password ?? '' })
+    setCreated({ user: u, username: u.username, password: v.password ?? '' })
   })
 
   const autoGenerate = () => {
@@ -117,6 +124,7 @@ function UserDialog({ user, onClose }: { user?: UserDto; onClose: () => void }) 
 
   const adminAllowed = branches.find((b) => b.id === Number(watch('branchId')))?.isAdminNode
 
+  if (created && permsStep) return <PermissionsDialog user={created.user} onClose={onClose} />
   if (created) {
     const shop = me?.business?.name ?? ''
     return (
@@ -137,7 +145,8 @@ function UserDialog({ user, onClose }: { user?: UserDto; onClose: () => void }) 
             <dd className="break-all">{window.location.origin}/login</dd>
           </dl>
           <DialogFooter>
-            <Button variant="outline" onClick={onClose}>Done</Button>
+            <Button variant="outline" title="Keep the role default permissions" onClick={onClose}>Done</Button>
+            <Button variant="outline" onClick={() => setPermsStep(true)}>Set permissions</Button>
             <Button onClick={() => copyLoginDetails(shop, created.username, created.password)}>
               <Copy className="size-4" aria-hidden /> Copy login details
             </Button>
@@ -243,6 +252,31 @@ function UserDialog({ user, onClose }: { user?: UserDto; onClose: () => void }) 
                   ))}
                 </SelectContent>
               </Select>
+              {canCreateRole &&
+                (newRole === null ? (
+                  <Button type="button" variant="link" size="sm" className="h-auto px-0" onClick={() => setNewRole('')}>
+                    + New role
+                  </Button>
+                ) : (
+                  <div className="flex gap-2">
+                    <Input aria-label="New role name" placeholder="Role name" autoFocus value={newRole} onChange={(e) => setNewRole(e.target.value)} />
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={newRole.trim().length < 2 || createRole.isPending}
+                      onClick={async () => {
+                        const r = await createRole.mutateAsync(newRole.trim())
+                        setValue('roleId', r.id)
+                        setNewRole(null)
+                      }}
+                    >
+                      Create
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost" onClick={() => setNewRole(null)}>
+                      Cancel
+                    </Button>
+                  </div>
+                ))}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="u-days">View limit</Label>
@@ -412,9 +446,10 @@ function useStatusCounts(): Record<StatusTab, number | undefined> {
 export function Users() {
   const { me } = useAuth()
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
   const [tab, setTab] = useState<StatusTab>('ALL')
   const [q, setQ] = useState('')
-  const { data, isLoading } = useUsers({ page, status: statusParam(tab), q: q.trim() || undefined })
+  const { data, isLoading } = useUsers({ page, pageSize, status: statusParam(tab), q: q.trim() || undefined })
   const counts = useStatusCounts()
   const setStatus = useSetUserStatus()
   const [editing, setEditing] = useState<UserDto | null>(null)
@@ -516,7 +551,7 @@ export function Users() {
         columns={columns}
         data={data?.items ?? []}
         isLoading={isLoading}
-        pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined}
+        pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: (n) => { setPageSize(n); setPage(1) } } : undefined}
       />
       {creating && <UserDialog onClose={() => setCreating(false)} />}
       {editing && <UserDialog user={editing} onClose={() => setEditing(null)} />}

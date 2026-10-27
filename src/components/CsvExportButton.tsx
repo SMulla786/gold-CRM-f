@@ -37,6 +37,7 @@ export function CsvExportButton({ filename, rows, className }: { filename: strin
 
 /** "Excel" button: downloads `rows()` (header + body, same as the CSV) as `<filename minus .csv>.xlsx`. */
 export function ExcelExportButton({ filename, rows, className, size, disabled }: { filename: string; rows: () => Rows | Promise<Rows>; className?: string; size?: 'sm'; disabled?: boolean }) {
+  const t = useT()
   const [busy, setBusy] = useState(false)
   return (
     <Button
@@ -49,7 +50,7 @@ export function ExcelExportButton({ filename, rows, className, size, disabled }:
         try {
           await downloadXlsx(filename, await rows())
         } catch {
-          toast.error('Excel export failed')
+          toast.error(t('common.excel_failed'))
         } finally {
           setBusy(false)
         }

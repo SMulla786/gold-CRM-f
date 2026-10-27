@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useT } from '@/lib/i18n'
 import { usePartyStatement } from '@/lib/udhariQueries'
-import { downloadPdf, shareOnWhatsApp } from '@/lib/share'
+import { downloadPdf } from '@/lib/share'
+import { WhatsAppShareDialog, type ShareSize } from '@/components/WhatsAppShareDialog'
 import { sourceHref } from '@/lib/sourceLinks'
 import { cn } from '@/lib/utils'
 import type { BalanceDto } from '@/shared'
@@ -25,6 +26,15 @@ export function Statement() {
   const [to, setTo] = useState('')
   const [thermal, setThermal] = useState(false) // Mini 80 mm: date, ref, ₹, balance only
   const { data, isLoading } = usePartyStatement(Number(partyId), { from: from || undefined, to: to || undefined })
+  const [sharing, setSharing] = useState(false)
+  // WhatsApp message stays English (share template). A4 = opening, every row, closing; Mini = closing only.
+  const shareText = (size: ShareSize) => {
+    if (!data) return ''
+    const period = from || to ? ` (${from ? date(from) : '…'} to ${to ? date(to) : 'today'})` : ''
+    if (size === 'MINI') return `${data.party.name}\nAccount statement${period}\nClosing: ${triple(data.closing)}`
+    const lines = data.rows.map((r) => `${date(r.txnDate)} ${r.reference}: ${Number(r.amount) ? `₹${r.amount}` : ''}${Number(r.gold) ? ` ${r.gold}g Au` : ''}${Number(r.silver) ? ` ${r.silver}g Ag` : ''}${r.isReversal ? ' (reversed)' : ''} → ${triple(r.balance)}`)
+    return [`${data.party.name}`, `Account statement${period}`, `Opening: ${triple(data.opening)}`, ...lines, `Closing: ${triple(data.closing)}`].join('\n')
+  }
 
   return (
     <div className="space-y-6">
@@ -35,7 +45,7 @@ export function Statement() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* WhatsApp message stays English (share template) */}
-          <Button variant="outline" disabled={!data} onClick={() => data && shareOnWhatsApp(data.party.mobile, `${data.party.name}\nAccount statement · closing balance ${triple(data.closing)}`)}>{t('udhari.share')}</Button>
+          <Button variant="outline" disabled={!data} onClick={() => setSharing(true)}>{t('udhari.share')}</Button>
           <Select value={thermal ? 'THERMAL_80' : 'A4'} onValueChange={(v) => setThermal(v === 'THERMAL_80')}>
             <SelectTrigger className="w-40" aria-label="Print layout"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -102,6 +112,7 @@ export function Statement() {
           <div className="flex justify-between border-t-2 border-brand pt-3 text-base font-bold"><span>{t('udhari.closing')}</span><span>{triple(data.closing)}</span></div>
         </div>
       )}
+      <WhatsAppShareDialog open={sharing && !!data} onClose={() => setSharing(false)} name={data?.party.name} mobile={data?.party.mobile} buildText={shareText} />
     </div>
   )
 }

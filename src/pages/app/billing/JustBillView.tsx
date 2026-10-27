@@ -29,6 +29,9 @@ export function JustBillView() {
   const shopName = business?.name ?? me?.business?.name ?? 'Shop'
   const stateName = states?.find((s) => s.id === business?.stateId)?.name
   const who = bill.party?.name ?? bill.customerName
+  // TASK-98 Just Bill preferences: Rate / Making columns follow the toggles (GST rows stay whenever the bill has GST so totals add up)
+  const showRate = settings?.['justbill.prefs']?.showRate ?? true
+  const showMaking = settings?.['justbill.prefs']?.showMaking ?? true
   const summary = `${shopName}\nBill ${bill.billNo} · ${date(bill.billDate)}\nTotal ${inr(bill.final)} · Paid ${inr(bill.paid)} · Balance ${inr(bill.balance)}`
 
   return (
@@ -64,7 +67,7 @@ export function JustBillView() {
 
         <Table>
           <TableHeader>
-            <TableRow><TableHead>Item</TableHead><TableHead>Karat</TableHead><TableHead>Qty</TableHead><TableHead>Rate</TableHead><TableHead>Making</TableHead><TableHead className="text-right">Total</TableHead></TableRow>
+            <TableRow><TableHead>Item</TableHead><TableHead>Karat</TableHead><TableHead>Qty</TableHead>{showRate && <TableHead>Rate</TableHead>}{showMaking && <TableHead>Making</TableHead>}<TableHead className="text-right">Total</TableHead></TableRow>
           </TableHeader>
           <TableBody>
             {bill.items.map((it) => (
@@ -72,8 +75,8 @@ export function JustBillView() {
                 <TableCell className="break-words">{it.name}</TableCell>
                 <TableCell>{it.karat ?? '—'}</TableCell>
                 <TableCell>{it.quantity} {it.unit === 'GRAM' ? 'g' : 'pcs'}</TableCell>
-                <TableCell>{it.rate}</TableCell>
-                <TableCell>{it.making}</TableCell>
+                {showRate && <TableCell>{it.rate}</TableCell>}
+                {showMaking && <TableCell>{it.making}</TableCell>}
                 <TableCell className="text-right tabular-nums">{inr(it.total)}</TableCell>
               </TableRow>
             ))}

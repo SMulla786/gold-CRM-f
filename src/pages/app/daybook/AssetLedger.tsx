@@ -25,6 +25,8 @@ const metric = (asset: string, r: LedgerRowDto) => (asset === 'MONEY' ? r.amount
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
 const time = (s: string) => new Date(s).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
 const METAL_FORMS = ['USUAL', 'BULLION', 'KACHA'] as const
+// TASK-98: Type for stone / artificial / franchise rows — metal form when posted, else the stock item's group / name.
+const rowType = (r: LedgerRowDto) => r.metalForm ?? ([r.item?.group, r.item?.name].filter(Boolean).join(' / ') || null)
 
 export function AssetLedger() {
   const t = useT()
@@ -53,7 +55,7 @@ export function AssetLedger() {
     const all = await fetchAllPaged<LedgerRowDto>('/app/ledgers', filters)
     return [
       ['Date', 'Time', 'Source', 'Ref', 'Dir', 'Party', 'Item / Narration', 'Account', 'Type', 'Karat', 'Gross', 'Net', 'Fine', 'Pcs', 'Amount', 'Balance', 'By'],
-      ...all.map((r) => [date(r.txnDate), time(r.createdAt), r.source, r.sourceId, r.direction, r.party?.name, r.item?.label ?? r.narration, r.bankAccount?.name, r.metalForm, r.karatCode, r.gross, r.net, r.fine, r.pcs, r.amount, r.balance, r.entryBy]),
+      ...all.map((r) => [date(r.txnDate), time(r.createdAt), r.source, r.sourceId, r.direction, r.party?.name, r.item?.label ?? r.narration, r.bankAccount?.name, isMoney || isMetal ? r.metalForm : rowType(r), r.karatCode, r.gross, r.net, r.fine, r.pcs, r.amount, r.balance, r.entryBy]),
     ]
   }
   const reset = <T,>(set: (v: T) => void) => (v: T) => { set(v); setPage(1) }
@@ -80,6 +82,7 @@ export function AssetLedger() {
       { header: t('stock.col_karat'), cell: ({ row }: { row: { original: LedgerRowDto } }) => row.original.karatCode ?? '—' },
       { header: t('stock.col_net'), cell: ({ row }: { row: { original: LedgerRowDto } }) => row.original.net ?? '—' },
     ] : []),
+    ...(!isMoney && !isMetal ? [{ header: t('daybook.col_type'), cell: ({ row }: { row: { original: LedgerRowDto } }) => rowType(row.original) ?? '—' }] : []),
     { header: unit(asset), cell: ({ row }) => <span className={row.original.reversed ? 'text-muted-foreground line-through' : ''}>{metric(asset, row.original)}</span> },
     ...(!isMoney && !isMetal ? [{ header: t('daybook.col_total_cost'), cell: ({ row }: { row: { original: LedgerRowDto } }) => (Number(row.original.amount) ? `₹${row.original.amount}` : '—') }] : []),
     { accessorKey: 'balance', header: t('bill.balance'), cell: ({ row }) => <span className="font-medium">{row.original.balance}</span> },
@@ -179,7 +182,7 @@ export function AssetLedger() {
                 [t('udhari.party'), detail.party?.name],
                 [t('daybook.col_item_narration'), detail.item?.label ?? detail.narration],
                 [t('daybook.col_account'), isMoney ? detail.bankAccount?.name ?? t('daybook.shop_cash') : null],
-                [t('daybook.col_type'), detail.metalForm],
+                [t('daybook.col_type'), isMoney || isMetal ? detail.metalForm : rowType(detail)],
                 [t('stock.col_karat'), detail.karatCode],
                 [t('stock.col_gross'), detail.gross],
                 [t('stock.col_net'), detail.net],

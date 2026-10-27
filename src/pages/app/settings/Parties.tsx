@@ -32,7 +32,8 @@ export function Parties() {
     }, { replace: true })
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
-  const { data, isLoading } = useParties({ page, q: q || undefined, type: type || undefined })
+  const [pageSize, setPageSize] = useState(20)
+  const { data, isLoading } = useParties({ page, pageSize, q: q || undefined, type: type || undefined })
   const del = useDeleteParty()
   const [creating, setCreating] = useState(false)
   const [editId, setEditId] = useState<number | null>(null)
@@ -132,7 +133,7 @@ export function Parties() {
           data={data?.items ?? []}
           isLoading={isLoading}
           emptyText="No parties"
-          pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage } : undefined}
+          pagination={data ? { page: data.page, pageSize: data.pageSize, total: data.total, onPage: setPage, onPageSize: (n) => { setPageSize(n); setPage(1) } } : undefined}
         />
       </Card>
 

@@ -10,6 +10,8 @@ const TABS = [
   { to: '/app/billing/purchase', label: 'Purchase Bill', tk: 'billing.tab_purchase', key: 'billing.purchase_bill' },
   { to: '/app/billing/just', label: 'Just Bill', tk: 'billing.tab_just', key: 'billing.just_bill', end: true },
   { to: '/app/billing/list', label: 'Bills', tk: 'billing.tab_bills', key: 'billing.sell_bill' },
+  // TASK-98: dedicated purchase-bill list (BillList follows ?kind= as it changes)
+  { to: '/app/billing/list?kind=PURCHASE', label: 'Purchase bills', tk: 'bill98.tab_purchase_bills', key: 'billing.purchase_bill' },
   { to: '/app/billing/just/list', label: 'Just Bills', tk: 'billing.tab_just_bills', key: 'billing.just_bill' },
   { to: '/app/billing/drafts', label: 'Drafts', tk: 'billing.tab_drafts', key: 'billing.showroom_drafts' },
   { to: '/app/billing/approvals', label: 'Approvals', tk: 'billing.tab_approvals', key: 'billing.draft_approvals' },
