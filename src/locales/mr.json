@@ -2176,5 +2176,8 @@
   "udhari.list.final": "अंतिम",
   "udhari.view.share": "शेअर करा",
   "udhari.new.search_bank": "बँक शोधा",
-  "udhari.new.no_bank_match": "कोणतीही बँक जुळली नाही"
+  "udhari.new.no_bank_match": "कोणतीही बँक जुळली नाही",
+  "invfmt.fmt_a6": "A6 लक्झरी बुटीक",
+  "invfmt.fmt_a6_hint": "लहान पाव पानाचे बिल (A6) — फक्त कॅरेट, नेट, दर आणि एकूण.",
+  "invfmt.show_metal_pay_weight": "धातू भरण्याचे वजन दाखवा"
 }

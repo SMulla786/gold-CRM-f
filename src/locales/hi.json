@@ -2176,5 +2176,8 @@
   "udhari.list.final": "अंतिम",
   "udhari.view.share": "शेयर करें",
   "udhari.new.search_bank": "बैंक खोजें",
-  "udhari.new.no_bank_match": "कोई बैंक नहीं मिला"
+  "udhari.new.no_bank_match": "कोई बैंक नहीं मिला",
+  "invfmt.fmt_a6": "A6 लक्ज़री बुटीक",
+  "invfmt.fmt_a6_hint": "छोटा चौथाई पेज बिल (A6) — केवल कैरेट, नेट, रेट और कुल।",
+  "invfmt.show_metal_pay_weight": "धातु भुगतान का वज़न दिखाएँ"
 }

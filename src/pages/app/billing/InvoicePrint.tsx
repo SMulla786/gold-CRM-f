@@ -12,6 +12,7 @@ const inr = (n: number) => new Intl.NumberFormat('en-IN', { style: 'currency', c
 /** Per-format print CSS (only non-default formats — A4_GST adds nothing). */
 const PRINT_CSS: Partial<Record<InvoiceFormat, string>> = {
   A5: '@media print { @page { size: A5; } }',
+  A6: '@media print { @page { size: A6; } }',
   THERMAL_58: '@media print { .print-area.print-thermal { width: 58mm; } }',
 }
 
@@ -46,6 +47,7 @@ export function InvoicePrint({ bill, format, settings, shopName, business, state
     showWords: opt?.showAmountInWords ?? true,
     showHsn,
     due: showDue ? dueRow(bill, partyBal, isError) : null,
+    showMetalPaymentWeight: opt?.showMetalPaymentWeight ?? false,
   }
   // BillInvoice treats an empty list as "all", so drop HSN explicitly (keep Total if nothing else is left).
   const billCols = showHsn ? columns : withoutHsn(columns)
@@ -54,10 +56,11 @@ export function InvoicePrint({ bill, format, settings, shopName, business, state
   switch (format) {
     case 'A4_ESTIMATE': body = <SheetInvoice variant="estimate" {...p} />; break
     case 'A5': body = <SheetInvoice variant="a5" {...p} />; break
+    case 'A6': body = <SheetInvoice variant="a6" {...p} />; break
     case 'A4_IMAGES': body = <SheetInvoice variant="images" {...p} />; break
     case 'THERMAL_58': body = <Thermal58Invoice {...p} />; break
     default:
-      body = <BillInvoice bill={bill} shopName={shopName} business={business} stateName={stateName} terms={p.terms} thermal={format === 'THERMAL_80'} media={p.media} columns={billCols} watermarkOpacity={p.watermarkOpacity} showWords={p.showWords} due={p.due} />
+      body = <BillInvoice bill={bill} shopName={shopName} business={business} stateName={stateName} terms={p.terms} thermal={format === 'THERMAL_80'} media={p.media} columns={billCols} watermarkOpacity={p.watermarkOpacity} showWords={p.showWords} due={p.due} metalWeight={p.showMetalPaymentWeight} />
   }
 
   if (bare) return <div className="overflow-x-auto rounded-xl border bg-card p-4">{body}</div>

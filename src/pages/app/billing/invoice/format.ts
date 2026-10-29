@@ -17,4 +17,5 @@ export const FORMAT_LABEL_KEY: Record<InvoiceFormat, string> = {
   THERMAL_80: 'invfmt.fmt_thermal_80',
   THERMAL_58: 'invfmt.fmt_thermal_58',
   A4_IMAGES: 'invfmt.fmt_a4_images',
+  A6: 'invfmt.fmt_a6',
 }

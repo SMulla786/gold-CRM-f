@@ -2176,5 +2176,8 @@
   "udhari.list.final": "Final",
   "udhari.view.share": "Share",
   "udhari.new.search_bank": "Search bank",
-  "udhari.new.no_bank_match": "No bank matches"
+  "udhari.new.no_bank_match": "No bank matches",
+  "invfmt.fmt_a6": "A6 Luxury boutique",
+  "invfmt.fmt_a6_hint": "Small quarter-page bill (A6 portrait) with only karat, net, rate and total.",
+  "invfmt.show_metal_pay_weight": "Show metal payment weight"
 }

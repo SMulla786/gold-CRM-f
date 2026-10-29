@@ -1,5 +1,6 @@
 import { AuthedImage } from '@/components/AuthedImage'
 import { amountInWords } from '@/lib/amountInWords'
+import { Received } from '@/pages/app/billing/invoice/layouts'
 import { INVOICE_PRINT_COLUMNS, type BillDto, type BillLineDto, type BusinessProfileDto } from '@/shared'
 
 const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
@@ -31,10 +32,12 @@ interface Props {
   showWords?: boolean
   /** TASK-98 (billing.invoice): extra row under the totals, e.g. the party's due balance */
   due?: { label: string; value: string } | null
+  /** billing.invoice.showMetalPaymentWeight: METAL payment rows print weights */
+  metalWeight?: boolean
 }
 
 /** Printable invoice — A4 (full table) or 80 mm thermal (compact). Shop header + party + items + GST + amount in words + terms. */
-export function BillInvoice({ bill, shopName, business, stateName, terms, thermal, media, columns = [], watermarkOpacity = 10, showWords = true, due }: Props) {
+export function BillInvoice({ bill, shopName, business, stateName, terms, thermal, media, columns = [], watermarkOpacity = 10, showWords = true, due, metalWeight = false }: Props) {
   const cols = INVOICE_PRINT_COLUMNS.filter((c) => columns.length === 0 || columns.includes(c))
   const header = (
     <header className="text-center">
@@ -91,6 +94,7 @@ export function BillInvoice({ bill, shopName, business, stateName, terms, therma
           </tbody>
         </table>
         <div className="border-t border-dashed pt-1">{totals}</div>
+        <Received bill={bill} metalWeight={metalWeight} />
         {words}
         {terms && <p className="mt-1 text-[10px] text-muted-foreground">{terms}</p>}
         <p className="text-center text-[10px]">Thank you!</p>
@@ -124,6 +128,7 @@ export function BillInvoice({ bill, shopName, business, stateName, terms, therma
         </tbody>
       </table>
       {totals}
+      <Received bill={bill} metalWeight={metalWeight} className="ml-auto max-w-xs" />
       {words}
       {media?.signatureUrl && (
         <div className="mt-6 text-right">

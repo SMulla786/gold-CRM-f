@@ -18,13 +18,14 @@ import { FORMAT_LABEL_KEY } from '@/pages/app/billing/invoice/format'
 import { INVOICE_FORMATS, type InvoiceFormat, type SettingsDto } from '@/shared'
 
 type Value = SettingsDto['billing.invoice']
-type Toggle = 'showDueBalance' | 'showAmountInWords' | 'showHsn' | 'showSignature' | 'showTerms'
+type Toggle = 'showDueBalance' | 'showAmountInWords' | 'showHsn' | 'showSignature' | 'showTerms' | 'showMetalPaymentWeight'
 const TOGGLES: [Toggle, string][] = [
   ['showDueBalance', 'invfmt.show_due_balance'],
   ['showAmountInWords', 'invfmt.show_amount_in_words'],
   ['showHsn', 'invfmt.show_hsn'],
   ['showSignature', 'invfmt.show_signature'],
   ['showTerms', 'invfmt.show_terms'],
+  ['showMetalPaymentWeight', 'invfmt.show_metal_pay_weight'],
 ]
 
 export function InvoiceFormatCard({ settings, ask }: { settings: SettingsDto; ask: (a: { title: string; run: (mpin: string) => Promise<unknown> }) => void }) {
@@ -112,7 +113,7 @@ function AllDesigns({ settings }: { settings: SettingsDto }) {
 function FormatPreview({ v }: { v: Value }) {
   const t = useT()
   const narrow = v.format === 'THERMAL_80' || v.format === 'THERMAL_58'
-  const size = { A4_GST: 'w-40 aspect-[1/1.414]', A4_ESTIMATE: 'w-40 aspect-[1/1.414]', A4_IMAGES: 'w-40 aspect-[1/1.414]', A5: 'w-32 aspect-[1/1.414]', THERMAL_80: 'w-24 min-h-52', THERMAL_58: 'w-[4.5rem] min-h-52' }[v.format]
+  const size = { A4_GST: 'w-40 aspect-[1/1.414]', A4_ESTIMATE: 'w-40 aspect-[1/1.414]', A4_IMAGES: 'w-40 aspect-[1/1.414]', A5: 'w-32 aspect-[1/1.414]', A6: 'w-24 aspect-[1/1.414]', THERMAL_80: 'w-24 min-h-52', THERMAL_58: 'w-[4.5rem] min-h-52' }[v.format]
   const bar = (w: string, cls = '') => <div className={cn('h-1.5 rounded-full bg-muted-foreground/25', w, cls)} />
   return (
     <div className="flex flex-col items-center gap-2" aria-label={t('invfmt.preview')}>

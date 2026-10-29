@@ -190,18 +190,31 @@ export const setRatesBody = z.object({
   /** bypass RateLimit check (requires X-MPIN) */
   overrideLimits: z.boolean().default(false),
 });
+/** POST /app/rates/batch — several metals' rates saved in ONE transaction (all or nothing). Each entry = a POST /app/rates body
+ *  (same rate-limit check; any entry with overrideLimits needs X-MPIN). One entry per metal + branch. */
+export const setRatesBatchBody = z.object({
+  metals: z
+    .array(setRatesBody)
+    .min(1)
+    .max(8)
+    .refine((ms) => new Set(ms.map((m) => `${m.metal}:${m.branchId ?? 0}`)).size === ms.length, 'Each metal may appear only once per branch'),
+});
 export interface RateRowDto {
   karatCode: string;
   title: string;
   touch: string;
   sellRate: string;
   buyRate: string;
+  /** additive: this karat's sell rate in the save before the current one (same branch), re-expressed in the current rateUnit; null = no earlier rate. Trend arrow only. */
+  prevSellRate?: string | null;
 }
 export interface CurrentRatesDto {
   /** effective scope of the returned rates */
   branchId: number | null;
   gold: { rateUnit: RateUnitKey; updatedAt: string | null; rows: RateRowDto[] };
   silver: { rateUnit: RateUnitKey; updatedAt: string | null; rows: RateRowDto[] };
+  /** additive: the 'rates.display' setting, so the rate card can read it without settings.misc view */
+  display?: { showBuy: boolean };
 }
 export const rateHistoryQuery = pageQuery.extend({ metal: z.enum(METALS).optional() });
 export interface RateHistoryDto {
@@ -253,14 +266,24 @@ export const INVOICE_PRINT_COLUMNS = [
   'hsn', 'karat', 'pcs', 'gross', 'less', 'net', 'tunch', 'wastage', 'fine', 'stone', 'rate', 'labour', 'other', 'disc', 'total',
 ] as const;
 
+/** task99: optional (show/hide) columns of the bill entry grid (BillForm OPTIONAL_COLS keys; Item/Gross/Total are fixed). */
+export const BILL_GRID_COLUMNS = [
+  'hsn', 'karat', 'pcs', 'less', 'tunch', 'wastage', 'net', 'fine', 'stone', 'rate', 'labour', 'unit', 'other', 'disc',
+  // purchase-only columns (original Supp item / Supp tag / Remark / HUID / RFID)
+  'suppItem', 'suppTag', 'remark', 'huid', 'rfid',
+] as const;
+export type BillGridColumn = (typeof BILL_GRID_COLUMNS)[number];
+
 /** TASK-98: printed bill formats (billing.invoice.format). A4_GST = the standard tax invoice. */
-export const INVOICE_FORMATS = ['A4_GST', 'A4_ESTIMATE', 'A5', 'THERMAL_80', 'THERMAL_58', 'A4_IMAGES'] as const;
+export const INVOICE_FORMATS = ['A4_GST', 'A4_ESTIMATE', 'A5', 'THERMAL_80', 'THERMAL_58', 'A4_IMAGES', 'A6'] as const;
 export type InvoiceFormat = (typeof INVOICE_FORMATS)[number];
 
 /** Every allowed setting key with its value schema. Value defaults = shop defaults when no row exists. */
 export const SETTING_SCHEMAS = {
   'calc.basis': z.object({ sale: calcBasis.default('NET'), purchase: calcBasis.default('NET') }),
   'calc.amountBasedRate': z.object({ enabled: z.boolean().default(false) }),
+  /** Dashboard rate card display (presentation only): show the Buy column */
+  'rates.display': z.object({ showBuy: z.boolean().default(true) }),
   'rates.units': z.object({
     gold: z.enum(['GRAM_1', 'GRAM_10', 'TOLA']).default('GRAM_10'),
     silver: z.enum(['GRAM_1', 'KG_1']).default('KG_1'),
@@ -340,6 +363,8 @@ export const SETTING_SCHEMAS = {
     showHsn: z.boolean().default(true),
     showSignature: z.boolean().default(true),
     showTerms: z.boolean().default(true),
+    /** original: show_metal_payment_weight — METAL payment rows print gross/fine/rate, not only the ₹ amount */
+    showMetalPaymentWeight: z.boolean().default(false),
   }),
   /** TASK-98 (original: metal_pay_rate_from_amount): on a metal payment row, type the ₹ amount and the rate is worked back as amount ÷ fine */
   'calc.metalPayRate': z.object({ fromAmount: z.boolean().default(false) }),
@@ -351,6 +376,12 @@ export const SETTING_SCHEMAS = {
     showOther: z.boolean().default(true),
     showAdvance: z.boolean().default(true),
     showReturn: z.boolean().default(true),
+  }),
+  /** task99 bill-grid visible optional columns per bill kind (replaces the per-browser 'ju.billcols').
+   *  Missing kind = not saved yet (BillForm falls back to the browser copy, then all columns). */
+  'billing.columns': z.object({
+    sell: z.array(z.enum(BILL_GRID_COLUMNS)).optional(),
+    purchase: z.array(z.enum(BILL_GRID_COLUMNS)).optional(),
   }),
 } as const;
 export type SettingKey = keyof typeof SETTING_SCHEMAS;
