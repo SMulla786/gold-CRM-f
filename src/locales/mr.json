@@ -1078,6 +1078,10 @@
   "inv.newstock.footnote": "निव्वळ/फाइन थेट दाखवले जातात; जतन करताना सर्व्हर अंतिम गणना करतो.",
 
   "bill.add_scheme": "+ स्कीम",
+  "bill.stones": "स्टोन",
+  "bill.stones_hint": "फक्त तपशील: बिलाची रक्कम ओळीचा स्टोन चार्जच राहील.",
+  "bill.stone_name": "स्टोन",
+  "bill.stone_weight": "वजन",
   "bill.add_advance": "+ उधार आगाऊ",
   "bill.scheme_pick": "स्कीम निवडा",
   "bill.scheme_none": "या पक्षाची कोणतीही चालू स्कीम नाही",

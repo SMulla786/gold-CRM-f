@@ -1078,6 +1078,10 @@
   "inv.newstock.footnote": "Net/Fine shown live; the server recomputes authoritatively on save.",
 
   "bill.add_scheme": "+ Scheme",
+  "bill.stones": "Stones",
+  "bill.stones_hint": "Details only: the line's Stone charge stays the amount billed.",
+  "bill.stone_name": "Stone",
+  "bill.stone_weight": "Weight",
   "bill.add_advance": "+ Udhar advance",
   "bill.scheme_pick": "Select scheme",
   "bill.scheme_none": "No open schemes for this party",

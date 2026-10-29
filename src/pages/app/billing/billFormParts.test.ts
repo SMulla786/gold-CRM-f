@@ -4,7 +4,7 @@ import { BILL_GRID_COLUMNS, billLineInput, billPaymentInput, SETTING_SCHEMAS, ud
 
 import {
   allCols, clearPersonalCols, COL_PRESETS, colsForKind, colsFromKeys, epcOk, huidOk, jamaBody, jtypesForMetal, loadPersonalCols, metalPayBody, OPTIONAL_COLS, purchaseLineExtras,
-  resolveCols, savePersonalCols, shopColsValue,
+  resolveCols, savePersonalCols, shopColsValue, stoneRowFromDto, stonesBody,
 } from './billFormParts'
 
 describe('BILL-09 bill-grid column presets', () => {
@@ -76,7 +76,7 @@ describe('BILL-09 bill-grid column presets', () => {
 })
 
 describe('BILL-08 purchase-line supplier item / tag', () => {
-  const r = { supplierItem: '  Ring 22K ', supplierTag: 'S-12', remarks: ' ', huid: 'ab12cd', epcCode: '' }
+  const r = { supplierItem: '  Ring 22K ', supplierTag: 'S-12', remarks: ' ', huid: 'ab12cd', epcCode: '', stones: [] }
 
   it('sent on purchase only, trimmed, blanks omitted', () => {
     expect(purchaseLineExtras('SELL', r)).toEqual({})
@@ -128,5 +128,24 @@ describe('BILL-10 Jama / Pay (udhar receipt from billing)', () => {
     expect(jamaBody(9, { ...f, amount: '' })).toBeNull()
     expect(jamaBody(9, { ...f, amount: '-5' })).toBeNull()
     expect(jamaBody(9, { ...f, mode: 'ONLINE' })).toBeNull()
+  })
+})
+
+describe('INV-12 purchase stones', () => {
+  const ruby = { name: ' Ruby ', pcs: '2', weight: '0.5', unit: 'CT' as const, rate: '4000', amount: '2000' }
+
+  it('blank-name rows dropped, numbers converted, none left → omitted; the bill line contract accepts the result', () => {
+    const body = stonesBody([ruby, { ...ruby, name: '  ' }])
+    expect(body).toEqual([{ name: 'Ruby', pcs: 2, weight: 0.5, unit: 'CT', rate: 4000, amount: 2000 }])
+    expect(stonesBody([{ ...ruby, name: '' }])).toBeUndefined()
+    expect(billLineInput.pick({ stones: true }).parse({ stones: body })).toEqual({ stones: body })
+  })
+
+  it('sent with the purchase extras only; an edit round-trips the saved stones', () => {
+    const r = { supplierItem: '', supplierTag: '', remarks: '', huid: '', epcCode: '', stones: [ruby] }
+    expect(purchaseLineExtras('SELL', r)).toEqual({})
+    expect(purchaseLineExtras('PURCHASE', r).stones).toHaveLength(1)
+    const saved = { id: 1, name: 'Ruby', pcs: 2, weight: '0.5', unit: 'CT' as const, rate: '4000', amount: '2000' }
+    expect(stonesBody([stoneRowFromDto(saved)])).toEqual([{ name: 'Ruby', pcs: 2, weight: 0.5, unit: 'CT', rate: 4000, amount: 2000 }])
   })
 })

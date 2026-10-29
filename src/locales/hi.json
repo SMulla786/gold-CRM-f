@@ -1078,6 +1078,10 @@
   "inv.newstock.footnote": "शुद्ध/फाइन लाइव दिखाए जाते हैं; सेव करने पर सर्वर अंतिम गणना करता है।",
 
   "bill.add_scheme": "+ स्कीम",
+  "bill.stones": "स्टोन",
+  "bill.stones_hint": "केवल विवरण: बिल की राशि लाइन का स्टोन चार्ज ही रहेगा।",
+  "bill.stone_name": "स्टोन",
+  "bill.stone_weight": "वज़न",
   "bill.add_advance": "+ उधार अग्रिम",
   "bill.scheme_pick": "स्कीम चुनें",
   "bill.scheme_none": "इस पक्ष की कोई खुली स्कीम नहीं",

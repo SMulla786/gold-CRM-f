@@ -26,7 +26,8 @@ import { useT } from '@/lib/i18n'
 import { fetchDraftByNo, useDrafts } from '@/lib/draftsQueries'
 import { ApiException } from '@/lib/errors'
 import { lineRateUnitGrams, metalRateUnitGrams, useCreateBill, useNextBillNo, usePartyBalance, useUpdateBill } from '@/lib/billingQueries'
-import { allCols, clearPersonalCols, COL_PRESETS, colsForKind, colsFromKeys, epcOk, huidOk, jtypesForMetal, loadPersonalCols, metalPayBody, PURCHASE_ONLY_COLS, purchaseLineExtras, resolveCols, savePersonalCols, shopColsValue } from '@/pages/app/billing/billFormParts'
+import { allCols, clearPersonalCols, COL_PRESETS, colsForKind, colsFromKeys, epcOk, huidOk, jtypesForMetal, loadPersonalCols, metalPayBody, PURCHASE_ONLY_COLS, purchaseLineExtras, resolveCols, savePersonalCols, shopColsValue, stoneRowFromDto, type StoneRow } from '@/pages/app/billing/billFormParts'
+import { StonesDialog } from '@/pages/app/billing/StonesDialog'
 import { SchemeEnrollmentSelect } from '@/pages/app/billing/SchemeEnrollmentSelect'
 import { ItemNameDialog } from '@/pages/app/inventory/ItemMasters'
 import { useItemGroups, useItemNames, useJewelleryTypes, useStock } from '@/lib/inventoryQueries'
@@ -100,12 +101,14 @@ interface Row {
   remarks: string
   huid: string
   epcCode: string
+  /** PURCHASE (INV-12): stone elements for the created stock item */
+  stones: StoneRow[]
 }
 const blankRow = (over: Partial<Row>): Row => ({
   key: nextKey(), description: '', stockClass: 'GOLD', tagNo: '', karatCode: '', pcs: '1', gross: '', less: '0', tunch: '',
   wastage: '0', stoneCharge: '0', rate: '0', labour: '0', labourUnit: 'PER_GRAM', other: '0', discount: '0', discountUnit: 'FIXED', locked: false,
   hsn: '', saleRate: '', saleLabour: '', saleLabourUnit: '', saleOpen: false,
-  supplierItem: '', supplierTag: '', remarks: '', huid: '', epcCode: '', ...over,
+  supplierItem: '', supplierTag: '', remarks: '', huid: '', epcCode: '', stones: [], ...over,
 })
 const rowFromStock = (it: StockItemDto): Row =>
   blankRow({
@@ -145,6 +148,7 @@ const rowFromLine = (it: BillLineDto): Row =>
     locked: !!it.stockItemId && !!it.tagNo, // TAG stock line → weights from the item
     hsn: it.hsnCode ?? '',
     supplierItem: it.supplierItem ?? '', supplierTag: it.supplierTag ?? '', remarks: it.remarks ?? '', huid: it.huid ?? '', epcCode: it.epcCode ?? '',
+    stones: (it.stones ?? []).map(stoneRowFromDto),
   })
 const payFromDto = (p: BillPaymentDto): PayRow => ({
   key: nextKey(), mode: p.mode, amount: p.mode === 'METAL' ? '' : p.amount, bankAccountId: p.bankAccount ? String(p.bankAccount.id) : '',
@@ -217,6 +221,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
   const saveSetting = useSaveSetting()
   const [colsMpinOpen, setColsMpinOpen] = useState(false)
   const [jamaOpen, setJamaOpen] = useState(false)
+  const [stonesFor, setStonesFor] = useState<number | null>(null) // INV-12: row index whose Stones dialog is open
   const [sendWa, setSendWa] = useState<boolean | null>(null) // null = follow print.defaults.postSaveShareDialog
   const waOn = sendWa ?? !!settings?.['print.defaults'].postSaveShareDialog
 
@@ -742,6 +747,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
                               {t('bill98.sale_value')}<ChevronDown className={`size-3 transition-transform ${r.saleOpen ? 'rotate-180' : ''}`} aria-hidden />
                             </Button>
                             <Button type="button" variant="ghost" size="sm" aria-label="Repeat line" title={t('bill98.repeat_line', { n: repeatCount })} onClick={() => repeatRow(i)}><Copy aria-hidden /></Button>
+                            <Button type="button" variant="ghost" size="sm" aria-label="Stones" onClick={() => setStonesFor(i)}>{t('bill.stones')}{r.stones.length ? ` (${r.stones.length})` : ''}</Button>
                           </div>
                           {r.saleOpen && (
                             <div className="flex gap-1">
@@ -1003,11 +1009,19 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
         onClose={() => setColsMpinOpen(false)}
       />
       {party && <JamaPayDialog party={party} open={jamaOpen} onClose={() => setJamaOpen(false)} />}
+      {stonesFor != null && rows[stonesFor] && (
+        <StonesDialog stones={rows[stonesFor].stones} onClose={() => setStonesFor(null)}
+          onSave={(st) => { setRows((rs) => rs.map((x, j) => (j === stonesFor ? { ...x, stones: st } : x))); setStonesFor(null) }} />
+      )}
       {newItemOpen && (
         <ItemNameDialog
           groups={(groups?.items ?? []).filter((g) => g.stockClass === buyClass)}
           stockClass={buyClass}
-          onCreated={(n) => { if (n.group.stockClass === buyClass) setBuyItemId(String(n.id)) }}
+          onCreated={(n) => {
+            if (n.group.stockClass !== buyClass) return
+            if (buyMethod !== 'ALL' && n.method !== buyMethod && n.method !== 'BOTH') setBuyMethod('ALL') // else the picked name is hidden by the Loose/Tag filter
+            setBuyItemId(String(n.id))
+          }}
           onClose={() => setNewItemOpen(false)}
         />
       )}

@@ -1,5 +1,5 @@
 // Pure pieces of BillForm (column presets, purchase-line extras, METAL pay) kept here so they can be unit-tested.
-import type { BillKind } from '@/shared'
+import type { BillKind, StockStoneDto } from '@/shared'
 
 // TASK-86 bill-grid column customizer. Item/Gross/Total/actions stay fixed (needed for a valid bill);
 // the rest are show/hide. Default all-on (purchase also shows the purchase-only columns, as the original does).
@@ -50,11 +50,21 @@ export const shopColsValue = (current: { sell?: string[]; purchase?: string[] } 
   ...current, [kind === 'SELL' ? 'sell' : 'purchase']: colsForKind(kind).filter((c) => cols[c.key]).map((c) => c.key),
 })
 
-/** BILL-08: purchase-line stock details (sent only on PURCHASE; trimmed, blank → omitted). */
-export const purchaseLineExtras = (kind: BillKind, r: { supplierItem: string; supplierTag: string; remarks: string; huid: string; epcCode: string }) =>
+/** INV-12 purchase stone element as typed in the Stones dialog (descriptive: the line's stoneCharge stays the money). */
+export interface StoneRow { name: string; pcs: string; weight: string; unit: 'CT' | 'GM'; rate: string; amount: string }
+export const blankStone = (): StoneRow => ({ name: '', pcs: '0', weight: '0', unit: 'CT', rate: '0', amount: '0' })
+export const stoneRowFromDto = (s: StockStoneDto): StoneRow => ({ name: s.name, pcs: String(s.pcs), weight: s.weight, unit: s.unit, rate: s.rate, amount: s.amount })
+/** rows without a name are dropped; none left → omitted */
+export const stonesBody = (stones: readonly StoneRow[]) => {
+  const out = stones.filter((s) => s.name.trim()).map((s) => ({ name: s.name.trim(), pcs: Number(s.pcs) || 0, weight: Number(s.weight) || 0, unit: s.unit, rate: Number(s.rate) || 0, amount: Number(s.amount) || 0 }))
+  return out.length ? out : undefined
+}
+
+/** BILL-08 / INV-12: purchase-line stock details (sent only on PURCHASE; trimmed, blank → omitted). */
+export const purchaseLineExtras = (kind: BillKind, r: { supplierItem: string; supplierTag: string; remarks: string; huid: string; epcCode: string; stones: readonly StoneRow[] }) =>
   kind !== 'PURCHASE' ? {} : {
     supplierItem: r.supplierItem.trim() || undefined, supplierTag: r.supplierTag.trim() || undefined, remarks: r.remarks.trim() || undefined,
-    huid: r.huid.trim() || undefined, epcCode: r.epcCode.trim() || undefined,
+    huid: r.huid.trim() || undefined, epcCode: r.epcCode.trim() || undefined, stones: stonesBody(r.stones),
   }
 
 // same rules as the stock contract (stockRowInput.huid / epcCode), so a bad value blocks Save instead of failing the whole bill
