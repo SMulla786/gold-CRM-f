@@ -14,7 +14,7 @@ import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
 import { useCreateStockEntry, useItemGroups, useItemNames, useNextTags } from '@/lib/inventoryQueries'
 import { ItemNameDialog } from '@/pages/app/inventory/ItemMasters'
-import { CHARGE_UNITS, STOCK_CLASSES, computeLine, type StockCodeType } from '@/shared'
+import { CHARGE_UNITS, STOCK_CLASSES, computeLine, type LabourUnit, type StockCodeType } from '@/shared'
 
 import { CODE_TYPE_LABEL, CODE_TYPES, isEpc } from './codeTypes'
 
@@ -33,15 +33,19 @@ interface Row {
   labour: string
   labourUnit: string
   rate: string
+  /** INV-07: money discount off the line total */
+  discount: string
   purchaseCost: string
   remarks: string
   /** TASK-98: label code type (TAG rows) + RFID EPC */
   codeType: StockCodeType
   epcCode: string
+  /** INV-06: this row's own method when the entry method is BOTH */
+  method: 'LOOSE' | 'TAG'
 }
 /** Today in the browser's zone as YYYY-MM-DD (date input format). */
 const todayLocal = () => new Date().toLocaleDateString('en-CA')
-const blank = (codeType: StockCodeType = 'BARCODE'): Row => ({ itemNameId: '', tagNo: '', huid: '', karatCode: '', pcs: '1', gross: '', less: '0', tunch: '', wastage: '0', stoneCharge: '0', other: '0', labour: '0', labourUnit: 'PER_GRAM', rate: '', purchaseCost: '', remarks: '', codeType, epcCode: '' })
+const blank = (codeType: StockCodeType = 'BARCODE'): Row => ({ itemNameId: '', tagNo: '', huid: '', karatCode: '', pcs: '1', gross: '', less: '0', tunch: '', wastage: '0', stoneCharge: '0', other: '0', labour: '0', labourUnit: 'PER_GRAM', rate: '', discount: '0', purchaseCost: '', remarks: '', codeType, epcCode: '', method: 'LOOSE' })
 /** A copied row keeps everything except its EPC (unique per business). */
 const copyRow = (r: Row): Row => ({ ...r, epcCode: '' })
 const epcBad = (r: Row) => r.codeType === 'RFID' && r.epcCode.trim() !== '' && !isEpc(r.epcCode)
@@ -77,20 +81,28 @@ export function NewStock() {
         const next = { ...r, [k]: v }
         // picking a karat defaults tunch to its touch when empty
         if (k === 'karatCode' && !r.tunch) next.tunch = karats?.find((kt) => kt.code === v)?.touch ?? ''
+        // BOTH: an item name that allows only Loose or only Tag sets the row's method (the server rejects a mismatch)
+        if (k === 'itemNameId') {
+          const m = names?.items.find((n) => String(n.id) === v)?.method
+          if (m === 'LOOSE' || m === 'TAG') next.method = m
+        }
         return next
       }),
     )
 
-  const valid = rows.every((r) => r.itemNameId && Number(r.gross) > 0 && (method !== 'TAG' || !epcBad(r)))
+  // TAG entries tag every row; BOTH entries tag only the rows set to Tag.
+  const tagCols = method !== 'LOOSE'
+  const isTag = (r: Row) => method === 'TAG' || (method === 'BOTH' && r.method === 'TAG')
+  const valid = rows.every((r) => r.itemNameId && Number(r.gross) > 0 && (!isTag(r) || !epcBad(r)))
 
-  // Live tag-no preview (TAG): peek each item name's next number; later blank-tag rows of the same item get +1, +2… (preview only).
-  const autoNameIds = method === 'TAG' ? [...new Set(rows.filter((r) => r.itemNameId && !r.tagNo).map((r) => Number(r.itemNameId)))] : []
-  const nextTags = useNextTags(autoNameIds, method === 'TAG')
+  // Live tag-no preview (tag rows): peek each item name's next number; later blank-tag rows of the same item get +1, +2… (preview only).
+  const autoNameIds = tagCols ? [...new Set(rows.filter((r) => isTag(r) && r.itemNameId && !r.tagNo).map((r) => Number(r.itemNameId)))] : []
+  const nextTags = useNextTags(autoNameIds, tagCols)
   const previewTag = (i: number): string | null => {
     const r = rows[i]!
-    const dto = r.itemNameId && !r.tagNo ? nextTags.get(Number(r.itemNameId)) : undefined
+    const dto = isTag(r) && r.itemNameId && !r.tagNo ? nextTags.get(Number(r.itemNameId)) : undefined
     if (!dto?.tagNo || dto.prefix == null || dto.next == null) return null
-    const offset = rows.slice(0, i).filter((x) => x.itemNameId === r.itemNameId && !x.tagNo).length
+    const offset = rows.slice(0, i).filter((x) => isTag(x) && x.itemNameId === r.itemNameId && !x.tagNo).length
     return `${dto.prefix}${String(dto.next + offset).padStart(dto.tagNo.length - dto.prefix.length, '0')}`
   }
 
@@ -101,7 +113,8 @@ export function NewStock() {
     txnDate: txnDate && txnDate !== todayLocal() ? txnDate : undefined,
     rows: rows.map((r) => ({
       itemNameId: Number(r.itemNameId),
-      tagNo: method === 'TAG' && r.tagNo ? r.tagNo : undefined,
+      method: method === 'BOTH' ? r.method : undefined,
+      tagNo: isTag(r) && r.tagNo ? r.tagNo : undefined,
       huid: r.huid || undefined,
       karatCode: r.karatCode || undefined,
       pcs: Number(r.pcs) || 1,
@@ -114,10 +127,11 @@ export function NewStock() {
       labour: Number(r.labour) || 0,
       labourUnit: r.labourUnit,
       rate: r.rate ? Number(r.rate) : undefined,
+      discount: Number(r.discount) || 0,
       purchaseCost: r.purchaseCost ? Number(r.purchaseCost) : undefined,
       remarks: r.remarks || undefined,
-      codeType: method === 'TAG' ? r.codeType : undefined,
-      epcCode: method === 'TAG' && r.codeType === 'RFID' && r.epcCode.trim() ? r.epcCode.trim().toUpperCase() : undefined,
+      codeType: isTag(r) ? r.codeType : undefined,
+      epcCode: isTag(r) && r.codeType === 'RFID' && r.epcCode.trim() ? r.epcCode.trim().toUpperCase() : undefined,
     })),
   })
 
@@ -125,12 +139,21 @@ export function NewStock() {
     await create.mutateAsync(payload())
     if (clearAfterSave) setRows([blank(defaultCode)])
   }
-  // Save & Print (TAG only): save, then jump to Tags with the new items preselected for label printing.
+  // Save & Print (TAG/BOTH): save, then jump to Tags with the new tagged items preselected for label printing.
   const saveAndPrint = async () => {
     const res = await create.mutateAsync(payload())
     setRows([blank(defaultCode)])
-    navigate('/app/inventory/tags', { state: { ids: res.items.map((i) => i.id) } })
+    navigate('/app/inventory/tags', { state: { ids: res.items.filter((i) => i.method === 'TAG').map((i) => i.id) } })
   }
+  // Line total as the server computes it (purchase rate per 1 g on net); null until a rate is entered.
+  const lineTotal = (r: Row) =>
+    r.rate === ''
+      ? null
+      : computeLine({
+          pcs: Number(r.pcs) || 0, gross: Number(r.gross) || 0, less: Number(r.less) || 0, tunch: Number(r.tunch) || 0, wastage: Number(r.wastage) || 0,
+          stoneCharge: Number(r.stoneCharge) || 0, labour: Number(r.labour) || 0, labourUnit: r.labourUnit as LabourUnit, other: Number(r.other) || 0,
+          rate: Number(r.rate) || 0, rateUnitGrams: 1, basis: 'NET', discount: Number(r.discount) || 0,
+        }).total
 
   // Live batch totals derived from the rows being entered (no extra requests).
   const totals = rows.reduce(
@@ -195,10 +218,11 @@ export function NewStock() {
               <SelectContent>
                 <SelectItem value="LOOSE">{t('inv.newstock.loose')}</SelectItem>
                 <SelectItem value="TAG">{t('inv.newstock.tag')}</SelectItem>
+                <SelectItem value="BOTH">{t('bill98.entry_both')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          {method === 'TAG' && (
+          {tagCols && (
             <div className="space-y-1.5">
               <Label>{t('inv.code.code_type')}</Label>
               <Select value={defaultCode} onValueChange={(v) => { const c = v as StockCodeType; setDefaultCode(c); setRows((rs) => rs.map((r) => ({ ...r, codeType: c }))) }}>
@@ -230,9 +254,10 @@ export function NewStock() {
             <TableHeader>
               <TableRow>
                 <TableHead className="min-w-40">{t('bill.col_item')}</TableHead>
-                {method === 'TAG' && <TableHead>{t('inv.newstock.tag')}</TableHead>}
-                {method === 'TAG' && <TableHead>{t('inv.code.code_type')}</TableHead>}
-                {method === 'TAG' && <TableHead>{t('inv.code.epc')}</TableHead>}
+                {method === 'BOTH' && <TableHead>{t('inv.newstock.entry_method')}</TableHead>}
+                {tagCols && <TableHead>{t('inv.newstock.tag')}</TableHead>}
+                {tagCols && <TableHead>{t('inv.code.code_type')}</TableHead>}
+                {tagCols && <TableHead>{t('inv.code.epc')}</TableHead>}
                 <TableHead>HUID</TableHead>
                 <TableHead>{t('stock.col_karat')}</TableHead>
                 <TableHead>{t('stock.col_pcs')}</TableHead>
@@ -247,6 +272,8 @@ export function NewStock() {
                 <TableHead>{t('bill.col_labour')}</TableHead>
                 <TableHead>{t('bill.col_unit')}</TableHead>
                 <TableHead>{t('udhari.rate')}</TableHead>
+                <TableHead>{t('bill.col_disc')}</TableHead>
+                <TableHead>{t('bill.col_total')}</TableHead>
                 <TableHead>{t('inv.newstock.col_cost')}</TableHead>
                 <TableHead>{t('udhari.remark')}</TableHead>
                 <TableHead />
@@ -278,14 +305,27 @@ export function NewStock() {
                         )}
                       </div>
                     </TableCell>
-                    {method === 'TAG' && (
+                    {method === 'BOTH' && (
                       <TableCell>
-                        <Input className="w-24" placeholder={previewTag(i) ?? t('inv.newstock.tag_auto')} title={previewTag(i) ? t('inv.newstock.next_tag', { tag: previewTag(i) as string }) : undefined} value={r.tagNo} onChange={(e) => set(i, 'tagNo', e.target.value.toUpperCase())} />
+                        <Select value={r.method} onValueChange={(v) => set(i, 'method', v)}>
+                          <SelectTrigger className="w-24" aria-label="Row method">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="LOOSE">{t('inv.newstock.loose')}</SelectItem>
+                            <SelectItem value="TAG">{t('inv.newstock.tag')}</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </TableCell>
                     )}
-                    {method === 'TAG' && (
+                    {tagCols && (
                       <TableCell>
-                        <Select value={r.codeType} onValueChange={(v) => set(i, 'codeType', v)}>
+                        <Input className="w-24" disabled={!isTag(r)} placeholder={!isTag(r) ? '—' : previewTag(i) ?? t('inv.newstock.tag_auto')} title={previewTag(i) ? t('inv.newstock.next_tag', { tag: previewTag(i) as string }) : undefined} value={r.tagNo} onChange={(e) => set(i, 'tagNo', e.target.value.toUpperCase())} />
+                      </TableCell>
+                    )}
+                    {tagCols && (
+                      <TableCell>
+                        <Select value={r.codeType} disabled={!isTag(r)} onValueChange={(v) => set(i, 'codeType', v)}>
                           <SelectTrigger className="w-28" aria-label="Code type">
                             <SelectValue />
                           </SelectTrigger>
@@ -297,17 +337,17 @@ export function NewStock() {
                         </Select>
                       </TableCell>
                     )}
-                    {method === 'TAG' && (
+                    {tagCols && (
                       <TableCell>
                         <Input
                           className="w-40 font-mono"
                           aria-label="EPC code"
                           maxLength={64}
-                          disabled={r.codeType !== 'RFID'}
-                          placeholder={r.codeType === 'RFID' ? t('inv.code.epc_ph') : '—'}
-                          title={epcBad(r) ? t('inv.code.epc_invalid') : undefined}
-                          aria-invalid={epcBad(r) || undefined}
-                          value={r.codeType === 'RFID' ? r.epcCode : ''}
+                          disabled={!isTag(r) || r.codeType !== 'RFID'}
+                          placeholder={isTag(r) && r.codeType === 'RFID' ? t('inv.code.epc_ph') : '—'}
+                          title={isTag(r) && epcBad(r) ? t('inv.code.epc_invalid') : undefined}
+                          aria-invalid={(isTag(r) && epcBad(r)) || undefined}
+                          value={isTag(r) && r.codeType === 'RFID' ? r.epcCode : ''}
                           onChange={(e) => set(i, 'epcCode', e.target.value.toUpperCase())}
                         />
                       </TableCell>
@@ -352,6 +392,8 @@ export function NewStock() {
                       </Select>
                     </TableCell>
                     <TableCell><Input className="w-24" type="number" value={r.rate} onChange={(e) => set(i, 'rate', e.target.value)} /></TableCell>
+                    <TableCell><Input className="w-20" type="number" min={0} aria-label="Discount" value={r.discount} onChange={(e) => set(i, 'discount', e.target.value)} /></TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground tabular-nums">{lineTotal(r) ?? '—'}</TableCell>
                     <TableCell><Input className="w-24" type="number" value={r.purchaseCost} onChange={(e) => set(i, 'purchaseCost', e.target.value)} /></TableCell>
                     <TableCell><Input className="w-28" aria-label="Remark" value={r.remarks} onChange={(e) => set(i, 'remarks', e.target.value)} /></TableCell>
                     <TableCell className="whitespace-nowrap">
@@ -384,7 +426,7 @@ export function NewStock() {
             <Label htmlFor="ns-rate-overwrite" className="font-normal">{t('inv.newstock.overwrite_rates')}</Label>
           </div>
           <div className="ml-auto flex items-center gap-2">
-            {method === 'TAG' && (
+            {tagCols && (
               <Button variant="outline" disabled={!valid || create.isPending} onClick={saveAndPrint}>
                 {create.isPending ? t('bill.saving') : t('inv.newstock.save_print')}
               </Button>
