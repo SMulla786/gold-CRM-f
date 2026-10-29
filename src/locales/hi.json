@@ -705,6 +705,7 @@
   "bill.cols_all": "सभी",
   "bill.cols_simple": "सरल",
   "bill.cols_tunch": "टंच",
+  "bill.cols_reset": "रीसेट",
   "draft.delete_title": "ड्राफ्ट #{no} हटाएँ",
 
   "bill.order_search_ph": "ऑर्डर नं. / पक्ष…",

@@ -26,9 +26,25 @@ export const colsFromKeys = (keys: readonly string[]) => Object.fromEntries(OPTI
 export const allCols = () => colsFromKeys(OPTIONAL_COLS.map((c) => c.key))
 /** Columns the menu offers for this bill kind (sell bills never show the purchase-only ones). */
 export const colsForKind = (kind: BillKind) => OPTIONAL_COLS.filter((c) => kind === 'PURCHASE' || !PURCHASE_ONLY_COLS.has(c.key))
-/** Visible columns: this session's toggles → shop default (setting billing.columns, per kind) → browser copy. */
-export const resolveCols = (override: Record<string, boolean> | null, shop: readonly string[] | undefined, browser: Record<string, boolean>) =>
-  override ?? (shop ? colsFromKeys(shop) : browser)
+/** Visible columns: personal selection (this browser) → shop default (setting billing.columns, per kind) → all. */
+export const resolveCols = (personal: Record<string, boolean> | null, shop: readonly string[] | undefined) =>
+  personal ?? (shop ? colsFromKeys(shop) : allCols())
+
+// Personal selection, per kind in this browser; the old shared 'ju.billcols' is still read as a fallback.
+// Storage is passed as a getter: touching localStorage itself can throw (blocked site data).
+type Store = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
+const colsLs = (kind: BillKind) => `ju.billcols.${kind}`
+/** null = no personal selection, so the shop default applies */
+export const loadPersonalCols = (ls: () => Store, kind: BillKind): Record<string, boolean> | null => {
+  try { const s = ls().getItem(colsLs(kind)) ?? ls().getItem('ju.billcols'); return s ? { ...allCols(), ...JSON.parse(s) } : null } catch { return null }
+}
+export const savePersonalCols = (ls: () => Store, kind: BillKind, cols: Record<string, boolean>) => {
+  try { ls().setItem(colsLs(kind), JSON.stringify(cols)) } catch { /* ignore: the choice still applies for this session */ }
+}
+/** Reset: forget this kind's personal selection. The old shared copy goes too, or it would come back as the fallback. */
+export const clearPersonalCols = (ls: () => Store, kind: BillKind) => {
+  try { ls().removeItem(colsLs(kind)); ls().removeItem('ju.billcols') } catch { /* ignore */ }
+}
 /** New `billing.columns` setting value: this kind's visible columns replace its list; the other kind's list is kept. */
 export const shopColsValue = (current: { sell?: string[]; purchase?: string[] } | undefined, kind: BillKind, cols: Record<string, boolean>) => ({
   ...current, [kind === 'SELL' ? 'sell' : 'purchase']: colsForKind(kind).filter((c) => cols[c.key]).map((c) => c.key),

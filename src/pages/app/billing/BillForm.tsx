@@ -26,7 +26,7 @@ import { useT } from '@/lib/i18n'
 import { fetchDraftByNo, useDrafts } from '@/lib/draftsQueries'
 import { ApiException } from '@/lib/errors'
 import { lineRateUnitGrams, metalRateUnitGrams, useCreateBill, useNextBillNo, usePartyBalance, useUpdateBill } from '@/lib/billingQueries'
-import { allCols, COL_PRESETS, colsForKind, colsFromKeys, epcOk, huidOk, jtypesForMetal, metalPayBody, PURCHASE_ONLY_COLS, purchaseLineExtras, resolveCols, shopColsValue } from '@/pages/app/billing/billFormParts'
+import { allCols, clearPersonalCols, COL_PRESETS, colsForKind, colsFromKeys, epcOk, huidOk, jtypesForMetal, loadPersonalCols, metalPayBody, PURCHASE_ONLY_COLS, purchaseLineExtras, resolveCols, savePersonalCols, shopColsValue } from '@/pages/app/billing/billFormParts'
 import { SchemeEnrollmentSelect } from '@/pages/app/billing/SchemeEnrollmentSelect'
 import { ItemNameDialog } from '@/pages/app/inventory/ItemMasters'
 import { useItemGroups, useItemNames, useJewelleryTypes, useStock } from '@/lib/inventoryQueries'
@@ -60,12 +60,7 @@ const nextKey = () => `k${uid++}`
 const today = businessDayISO
 const inr = (s: string | number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 
-// Browser copy of the visible columns is per kind; the old shared 'ju.billcols' is still read as a fallback.
-const colsLs = (kind: BillKind) => `ju.billcols.${kind}`
-const loadCols = (kind: BillKind): Record<string, boolean> => {
-  try { const s = localStorage.getItem(colsLs(kind)) ?? localStorage.getItem('ju.billcols'); if (s) return { ...allCols(), ...JSON.parse(s) } } catch { /* ignore */ }
-  return allCols()
-}
+const browserStore = () => localStorage
 
 interface Row {
   key: string
@@ -208,14 +203,17 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
   // shortcut: lists first 50 READY orders (orders list API has no free-text q); add server-side search when a shop outgrows one page
   const [orderQ, setOrderQ] = useState('')
   const { data: readyOrders } = useOrders({ status: 'READY', q: orderQ || undefined, page: 1, pageSize: 50 }, kind === 'SELL' && !editBill && orderSearch)
-  const [colsOverride, setColsOverride] = useState<Record<string, boolean> | null>(null)
-  const browserCols = useMemo(() => loadCols(kind), [kind])
-  const cols = resolveCols(colsOverride, settings?.['billing.columns']?.[kind === 'SELL' ? 'sell' : 'purchase'], browserCols)
+  // this session's personal choice (null = reset), tagged with its kind: sell and purchase share this component instance
+  const [colsOverride, setColsOverride] = useState<{ kind: BillKind; cols: Record<string, boolean> | null } | null>(null)
+  const browserCols = useMemo(() => loadPersonalCols(browserStore, kind), [kind])
+  const personalCols = colsOverride?.kind === kind ? colsOverride.cols : browserCols
+  const cols = resolveCols(personalCols, settings?.['billing.columns']?.[kind === 'SELL' ? 'sell' : 'purchase'])
   const optCols = colsForKind(kind)
   const show = (k: string) => !!cols[k] && (kind === 'PURCHASE' || !PURCHASE_ONLY_COLS.has(k))
-  const saveCols = (n: Record<string, boolean>) => { try { localStorage.setItem(colsLs(kind), JSON.stringify(n)) } catch { /* ignore */ } return n }
-  const toggleCol = (k: string) => setColsOverride(saveCols({ ...cols, [k]: !cols[k] }))
-  const applyPreset = (keys: readonly string[] | 'all') => setColsOverride(saveCols(keys === 'all' ? allCols() : colsFromKeys(keys)))
+  const setPersonalCols = (n: Record<string, boolean>) => { savePersonalCols(browserStore, kind, n); setColsOverride({ kind, cols: n }) }
+  const toggleCol = (k: string) => setPersonalCols({ ...cols, [k]: !cols[k] })
+  const applyPreset = (keys: readonly string[] | 'all') => setPersonalCols(keys === 'all' ? allCols() : colsFromKeys(keys))
+  const resetCols = () => { clearPersonalCols(browserStore, kind); setColsOverride({ kind, cols: null }) }
   const saveSetting = useSaveSetting()
   const [colsMpinOpen, setColsMpinOpen] = useState(false)
   const [jamaOpen, setJamaOpen] = useState(false)
@@ -605,6 +603,8 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
               <Button type="button" size="sm" variant="ghost" className="h-7 px-2" onClick={() => applyPreset('all')}>{t('bill.cols_all')}</Button>
               <Button type="button" size="sm" variant="ghost" className="h-7 px-2" onClick={() => applyPreset(COL_PRESETS.simple)}>{t('bill.cols_simple')}</Button>
               <Button type="button" size="sm" variant="ghost" className="h-7 px-2" onClick={() => applyPreset(COL_PRESETS.tunch)}>{t('bill.cols_tunch')}</Button>
+              {/* drops the personal choice: back to the shop default (or all columns when the shop has none) */}
+              <Button type="button" size="sm" variant="ghost" className="h-7 px-2" disabled={!personalCols} onClick={resetCols}>{t('bill.cols_reset')}</Button>
             </div>
             {optCols.map((c) => (
               <label key={c.key} className="flex items-center gap-2 text-sm">

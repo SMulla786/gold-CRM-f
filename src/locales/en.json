@@ -705,6 +705,7 @@
   "bill.cols_all": "All",
   "bill.cols_simple": "Simple",
   "bill.cols_tunch": "Tunch",
+  "bill.cols_reset": "Reset",
   "draft.delete_title": "Delete draft #{no}",
 
   "bill.order_search_ph": "Order no. / party…",

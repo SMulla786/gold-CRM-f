@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { BILL_GRID_COLUMNS, billLineInput, billPaymentInput, SETTING_SCHEMAS, udharBody } from '@/shared'
 
 import {
-  allCols, COL_PRESETS, colsForKind, colsFromKeys, epcOk, huidOk, jamaBody, jtypesForMetal, metalPayBody, OPTIONAL_COLS, purchaseLineExtras, resolveCols, shopColsValue,
+  allCols, clearPersonalCols, COL_PRESETS, colsForKind, colsFromKeys, epcOk, huidOk, jamaBody, jtypesForMetal, loadPersonalCols, metalPayBody, OPTIONAL_COLS, purchaseLineExtras,
+  resolveCols, savePersonalCols, shopColsValue,
 } from './billFormParts'
 
 describe('BILL-09 bill-grid column presets', () => {
@@ -24,12 +25,45 @@ describe('BILL-09 bill-grid column presets', () => {
     expect(Object.values(allCols()).every(Boolean)).toBe(true)
   })
 
-  it('visible columns: session toggles → shop default → browser copy', () => {
-    const browser = colsFromKeys(['hsn'])
-    expect(resolveCols(null, undefined, browser)).toBe(browser)
-    expect(resolveCols(null, ['karat'], browser)).toEqual(colsFromKeys(['karat']))
+  it('visible columns: personal selection → shop default → all', () => {
     const mine = colsFromKeys(['pcs'])
-    expect(resolveCols(mine, ['karat'], browser)).toBe(mine)
+    expect(resolveCols(mine, ['karat'])).toBe(mine)
+    expect(resolveCols(null, ['karat'])).toEqual(colsFromKeys(['karat']))
+    expect(resolveCols(null, undefined)).toEqual(allCols())
+  })
+
+  // a fresh Map per "browser"; a reload = loading again from the same Map
+  const browser = (seed: Record<string, string> = {}) => {
+    const m = new Map(Object.entries(seed))
+    const store = { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k) }
+    return { m, ls: () => store }
+  }
+
+  it('a personal selection persists across reloads, per kind, and beats the shop default', () => {
+    const b = browser()
+    expect(loadPersonalCols(b.ls, 'SELL')).toBeNull()
+    savePersonalCols(b.ls, 'SELL', colsFromKeys(COL_PRESETS.simple))
+    const reloaded = loadPersonalCols(b.ls, 'SELL')
+    expect(reloaded).toEqual(colsFromKeys(COL_PRESETS.simple))
+    expect(resolveCols(reloaded, ['karat'])).toEqual(colsFromKeys(COL_PRESETS.simple))
+    expect(loadPersonalCols(b.ls, 'PURCHASE')).toBeNull() // purchase still follows the shop default
+  })
+
+  it('reset drops the personal selection (and the old shared copy) so the shop default applies again', () => {
+    const b = browser({ 'ju.billcols': JSON.stringify({ hsn: false }) })
+    expect(loadPersonalCols(b.ls, 'PURCHASE')).toEqual({ ...allCols(), hsn: false }) // old shared key still read
+    savePersonalCols(b.ls, 'PURCHASE', colsFromKeys(['karat']))
+    clearPersonalCols(b.ls, 'PURCHASE')
+    expect(loadPersonalCols(b.ls, 'PURCHASE')).toBeNull()
+    expect(resolveCols(loadPersonalCols(b.ls, 'PURCHASE'), ['rate'])).toEqual(colsFromKeys(['rate']))
+    expect([...b.m.keys()]).toEqual([])
+  })
+
+  it('blocked storage: nothing saved, no throw, shop default applies', () => {
+    const blocked = () => { throw new Error('SecurityError') }
+    expect(() => savePersonalCols(blocked, 'SELL', allCols())).not.toThrow()
+    expect(() => clearPersonalCols(blocked, 'SELL')).not.toThrow()
+    expect(loadPersonalCols(blocked, 'SELL')).toBeNull()
   })
 
   it('shop default replaces only this kind, drops purchase-only columns on sell, and passes the setting schema', () => {
