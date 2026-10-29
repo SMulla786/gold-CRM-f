@@ -58,7 +58,7 @@ test('sell bill: Columns presets Simple / Tunch / All', async ({ page }) => {
   await expect(rate).toBeVisible();
 });
 
-test('purchase bill: GST details card is collapsed (fields unmounted) and only for GST bills; pay row has Remark', async ({ page }) => {
+test('purchase bill: GST details card is collapsed (fields unmounted) and only for GST bills; due date; purchase-only columns; pay row has Remark', async ({ page }) => {
   await owner(page);
   await page.goto('/app/billing/purchase');
   await page.getByRole('combobox', { name: 'Active branch' }).selectOption({ index: 1 });
@@ -69,12 +69,18 @@ test('purchase bill: GST details card is collapsed (fields unmounted) and only f
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
   await expect(page.locator('#bf-itc')).toBeVisible();
   await expect(page.locator('#bf-sup-inv')).toBeVisible();
-  await expect(page.locator('#bf-supply')).toBeVisible();
   await expect(page.getByRole('checkbox', { name: 'Reverse charge' })).toBeVisible();
+  await expect(page.locator('#bf-supply')).toHaveCount(0); // supply category is the sell-side field
+  await expect(page.locator('#bf-due')).toBeVisible();
+  for (const col of ['Supp item', 'Supp tag', 'HUID', 'RFID']) await expect(page.getByRole('columnheader', { name: col, exact: true })).toBeVisible();
 
   await page.getByRole('combobox', { name: 'Bill type' }).click();
   await page.getByRole('option', { name: 'ROUGH', exact: true }).click();
   await expect(toggle).toHaveCount(0);
+
+  await page.goto('/app/billing'); // sell grid never shows the purchase-only columns
+  await expect(page.getByRole('columnheader', { name: 'HUID', exact: true })).toHaveCount(0);
+  await page.goto('/app/billing/purchase');
 
   await page.getByRole('button', { name: '+ Cash' }).click();
   await expect(page.getByRole('textbox', { name: 'Payment remark' })).toBeVisible();

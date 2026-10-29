@@ -2179,5 +2179,22 @@
   "udhari.new.no_bank_match": "कोणतीही बँक जुळली नाही",
   "invfmt.fmt_a6": "A6 लक्झरी बुटीक",
   "invfmt.fmt_a6_hint": "लहान पाव पानाचे बिल (A6) — फक्त कॅरेट, नेट, दर आणि एकूण.",
-  "invfmt.show_metal_pay_weight": "धातू भरण्याचे वजन दाखवा"
+  "invfmt.show_metal_pay_weight": "धातू भरण्याचे वजन दाखवा",
+  "jama.button": "उधारी जमा करा",
+  "jama.title": "उधारी जमा करा",
+  "jama.desc": "{name} कडून जुनी उधारी मिळाली. ही उधार नोंदीत सेव्ह होईल, या बिलात नाही.",
+  "jama.date": "तारीख",
+  "jama.mode": "पद्धत",
+  "jama.cash": "रोख",
+  "jama.online": "ऑनलाइन / बँक",
+  "jama.save": "जमा सेव्ह करा",
+  "bill.cols_save_default": "दुकानाचा डीफॉल्ट करा",
+  "bill.send_whatsapp": "WhatsApp वर पाठवा",
+  "bill.jtype_none": "प्रकार —",
+  "bill.col_supp_item": "पुरवठादार आयटम",
+  "bill.col_supp_tag": "पुरवठादार टॅग",
+  "bill.col_remark": "शेरा",
+  "bill.col_huid": "HUID",
+  "bill.col_rfid": "RFID",
+  "bill.create_item": "+ नवीन आयटम"
 }

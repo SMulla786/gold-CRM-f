@@ -2179,5 +2179,22 @@
   "udhari.new.no_bank_match": "No bank matches",
   "invfmt.fmt_a6": "A6 Luxury boutique",
   "invfmt.fmt_a6_hint": "Small quarter-page bill (A6 portrait) with only karat, net, rate and total.",
-  "invfmt.show_metal_pay_weight": "Show metal payment weight"
+  "invfmt.show_metal_pay_weight": "Show metal payment weight",
+  "jama.button": "Jama / Pay udhar",
+  "jama.title": "Jama / Pay udhar",
+  "jama.desc": "Old udhar payment received from {name}. It is saved as an udhar entry, not on this bill.",
+  "jama.date": "Date",
+  "jama.mode": "Mode",
+  "jama.cash": "Cash",
+  "jama.online": "Online / bank",
+  "jama.save": "Save jama",
+  "bill.cols_save_default": "Save as shop default",
+  "bill.send_whatsapp": "Send on WhatsApp",
+  "bill.jtype_none": "Type —",
+  "bill.col_supp_item": "Supp item",
+  "bill.col_supp_tag": "Supp tag",
+  "bill.col_remark": "Remark",
+  "bill.col_huid": "HUID",
+  "bill.col_rfid": "RFID",
+  "bill.create_item": "+ Create item"
 }

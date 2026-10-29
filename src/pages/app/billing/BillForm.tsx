@@ -1,8 +1,9 @@
 import { ChevronDown, Columns3, Copy } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
+import { JamaPayDialog } from '@/components/JamaPayDialog'
 import { MpinDialog } from '@/components/MpinDialog'
 import { NewPartyDialog } from '@/components/NewPartyDialog'
 import { PartyPicker } from '@/components/PartyPicker'
@@ -19,15 +20,16 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { api } from '@/lib/api'
-import { useBankAccounts, useKarats, useSettings } from '@/lib/appQueries'
+import { useBankAccounts, useKarats, useSaveSetting, useSettings } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
 import { fetchDraftByNo, useDrafts } from '@/lib/draftsQueries'
 import { ApiException } from '@/lib/errors'
-import { shareOnWhatsApp } from '@/lib/share'
 import { lineRateUnitGrams, metalRateUnitGrams, useCreateBill, useNextBillNo, usePartyBalance, useUpdateBill } from '@/lib/billingQueries'
+import { allCols, COL_PRESETS, colsForKind, colsFromKeys, epcOk, huidOk, jtypesForMetal, metalPayBody, PURCHASE_ONLY_COLS, purchaseLineExtras, resolveCols, shopColsValue } from '@/pages/app/billing/billFormParts'
 import { SchemeEnrollmentSelect } from '@/pages/app/billing/SchemeEnrollmentSelect'
-import { useItemGroups, useItemNames, useStock } from '@/lib/inventoryQueries'
+import { ItemNameDialog } from '@/pages/app/inventory/ItemMasters'
+import { useItemGroups, useItemNames, useJewelleryTypes, useStock } from '@/lib/inventoryQueries'
 import { qs } from '@/lib/queries'
 import { useOrder, useOrders } from '@/lib/ordersQueries'
 import {
@@ -58,26 +60,11 @@ const nextKey = () => `k${uid++}`
 const today = businessDayISO
 const inr = (s: string | number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(s))
 
-// TASK-86 bill-grid column customizer. Item/Gross/Total/actions stay fixed (needed for a valid bill);
-// the rest are show/hide, remembered per browser. Default all-on → grid is unchanged out of the box.
-// `label` stays English (checkbox aria-label); `tk` is the i18n key for the visible text.
-const OPTIONAL_COLS = [
-  { key: 'hsn', label: 'HSN', tk: 'bill98.col_hsn' },
-  { key: 'karat', label: 'Karat', tk: 'stock.col_karat' }, { key: 'pcs', label: 'Pcs', tk: 'stock.col_pcs' }, { key: 'less', label: 'Less', tk: 'bill.col_less' },
-  { key: 'tunch', label: 'Tunch', tk: 'bill.col_tunch' }, { key: 'wastage', label: 'Wst%', tk: 'bill.col_wastage' }, { key: 'net', label: 'Net', tk: 'stock.col_net' },
-  { key: 'fine', label: 'Fine', tk: 'stock.col_fine' }, { key: 'stone', label: 'Stone', tk: 'class.STONE' }, { key: 'rate', label: 'Rate', tk: 'udhari.rate' },
-  { key: 'labour', label: 'Labour', tk: 'bill.col_labour' }, { key: 'unit', label: 'Unit', tk: 'bill.col_unit' }, { key: 'other', label: 'Other', tk: 'bill.col_other' },
-  { key: 'disc', label: 'Disc', tk: 'bill.col_disc' },
-] as const
-// Columns-menu presets (original: All / Simple / Tunch); 'All' doubles as reset.
-const COL_PRESETS = {
-  simple: ['karat', 'pcs', 'net', 'rate', 'labour', 'unit', 'disc'],
-  tunch: ['karat', 'pcs', 'less', 'tunch', 'wastage', 'net', 'fine', 'rate', 'labour', 'unit'],
-} as const
-const COLS_LS = 'ju.billcols'
-const loadCols = (): Record<string, boolean> => {
-  try { const s = localStorage.getItem(COLS_LS); if (s) return { ...Object.fromEntries(OPTIONAL_COLS.map((c) => [c.key, true])), ...JSON.parse(s) } } catch { /* ignore */ }
-  return Object.fromEntries(OPTIONAL_COLS.map((c) => [c.key, true]))
+// Browser copy of the visible columns is per kind; the old shared 'ju.billcols' is still read as a fallback.
+const colsLs = (kind: BillKind) => `ju.billcols.${kind}`
+const loadCols = (kind: BillKind): Record<string, boolean> => {
+  try { const s = localStorage.getItem(colsLs(kind)) ?? localStorage.getItem('ju.billcols'); if (s) return { ...allCols(), ...JSON.parse(s) } } catch { /* ignore */ }
+  return allCols()
 }
 
 interface Row {
@@ -112,11 +99,18 @@ interface Row {
   saleLabour: string
   saleLabourUnit: string
   saleOpen: boolean
+  /** PURCHASE: supplier's item name / tag no. (bill line) + HUID / RFID EPC / remark (created stock item) */
+  supplierItem: string
+  supplierTag: string
+  remarks: string
+  huid: string
+  epcCode: string
 }
 const blankRow = (over: Partial<Row>): Row => ({
   key: nextKey(), description: '', stockClass: 'GOLD', tagNo: '', karatCode: '', pcs: '1', gross: '', less: '0', tunch: '',
   wastage: '0', stoneCharge: '0', rate: '0', labour: '0', labourUnit: 'PER_GRAM', other: '0', discount: '0', discountUnit: 'FIXED', locked: false,
-  hsn: '', saleRate: '', saleLabour: '', saleLabourUnit: '', saleOpen: false, ...over,
+  hsn: '', saleRate: '', saleLabour: '', saleLabourUnit: '', saleOpen: false,
+  supplierItem: '', supplierTag: '', remarks: '', huid: '', epcCode: '', ...over,
 })
 const rowFromStock = (it: StockItemDto): Row =>
   blankRow({
@@ -142,8 +136,10 @@ interface PayRow {
   enrollmentId: string
   /** METAL rows with calc.metalPayRate.fromAmount: ₹ amount the rate is worked back from ('' = rate typed directly) */
   amountIn: string
+  /** METAL rows: jewellery type of the received metal ('' = none) */
+  jewelleryTypeId: string
 }
-const blankPay = (mode: string): PayRow => ({ key: nextKey(), mode, amount: '', bankAccountId: '', metal: 'GOLD', metalForm: 'BULLION', gross: '', less: '0', tunch: '', rate: '', remark: '', enrollmentId: '', amountIn: '' })
+const blankPay = (mode: string): PayRow => ({ key: nextKey(), mode, amount: '', bankAccountId: '', metal: 'GOLD', metalForm: 'BULLION', gross: '', less: '0', tunch: '', rate: '', remark: '', enrollmentId: '', amountIn: '', jewelleryTypeId: '' })
 
 // ── edit-mode prefill: map a saved bill's lines/payments back into editable rows ──
 const rowFromLine = (it: BillLineDto): Row =>
@@ -153,6 +149,7 @@ const rowFromLine = (it: BillLineDto): Row =>
     stoneCharge: it.stoneCharge, rate: it.rate, labour: it.labour, labourUnit: it.labourUnit, other: it.other, discount: it.discount, discountUnit: it.discountUnit,
     locked: !!it.stockItemId && !!it.tagNo, // TAG stock line → weights from the item
     hsn: it.hsnCode ?? '',
+    supplierItem: it.supplierItem ?? '', supplierTag: it.supplierTag ?? '', remarks: it.remarks ?? '', huid: it.huid ?? '', epcCode: it.epcCode ?? '',
   })
 const payFromDto = (p: BillPaymentDto): PayRow => ({
   key: nextKey(), mode: p.mode, amount: p.mode === 'METAL' ? '' : p.amount, bankAccountId: p.bankAccount ? String(p.bankAccount.id) : '',
@@ -160,6 +157,7 @@ const payFromDto = (p: BillPaymentDto): PayRow => ({
   gross: p.gross ?? '', less: p.gross && p.net ? String(Number(p.gross) - Number(p.net)) : '0', tunch: p.tunch ?? '', rate: p.rate ?? '', remark: p.remark ?? '',
   enrollmentId: p.schemeEnrollmentId != null ? String(p.schemeEnrollmentId) : '',
   amountIn: '',
+  jewelleryTypeId: p.jewelleryType ? String(p.jewelleryType.id) : '',
 })
 
 // [value, i18n key] for the GST details block
@@ -210,10 +208,19 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
   // shortcut: lists first 50 READY orders (orders list API has no free-text q); add server-side search when a shop outgrows one page
   const [orderQ, setOrderQ] = useState('')
   const { data: readyOrders } = useOrders({ status: 'READY', q: orderQ || undefined, page: 1, pageSize: 50 }, kind === 'SELL' && !editBill && orderSearch)
-  const [cols, setCols] = useState<Record<string, boolean>>(loadCols)
-  const saveCols = (n: Record<string, boolean>) => { try { localStorage.setItem(COLS_LS, JSON.stringify(n)) } catch { /* ignore */ } return n }
-  const toggleCol = (k: string) => setCols((v) => saveCols({ ...v, [k]: !v[k] }))
-  const applyPreset = (keys: readonly string[] | 'all') => setCols(saveCols(Object.fromEntries(OPTIONAL_COLS.map((c) => [c.key, keys === 'all' || keys.includes(c.key)]))))
+  const [colsOverride, setColsOverride] = useState<Record<string, boolean> | null>(null)
+  const browserCols = useMemo(() => loadCols(kind), [kind])
+  const cols = resolveCols(colsOverride, settings?.['billing.columns']?.[kind === 'SELL' ? 'sell' : 'purchase'], browserCols)
+  const optCols = colsForKind(kind)
+  const show = (k: string) => !!cols[k] && (kind === 'PURCHASE' || !PURCHASE_ONLY_COLS.has(k))
+  const saveCols = (n: Record<string, boolean>) => { try { localStorage.setItem(colsLs(kind), JSON.stringify(n)) } catch { /* ignore */ } return n }
+  const toggleCol = (k: string) => setColsOverride(saveCols({ ...cols, [k]: !cols[k] }))
+  const applyPreset = (keys: readonly string[] | 'all') => setColsOverride(saveCols(keys === 'all' ? allCols() : colsFromKeys(keys)))
+  const saveSetting = useSaveSetting()
+  const [colsMpinOpen, setColsMpinOpen] = useState(false)
+  const [jamaOpen, setJamaOpen] = useState(false)
+  const [sendWa, setSendWa] = useState<boolean | null>(null) // null = follow print.defaults.postSaveShareDialog
+  const waOn = sendWa ?? !!settings?.['print.defaults'].postSaveShareDialog
 
   // Billing a READY order: prefill its party + reserved finished pieces as lines, carry orderId on the bill.
   const applyOrder = (order: OrderDto) => {
@@ -270,6 +277,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
   const buyList = buyNames?.items.filter((n) => buyMethod === 'ALL' || n.method === buyMethod || n.method === 'BOTH')
   const [repeatN, setRepeatN] = useState('1')
   const [clearAfterAdd, setClearAfterAdd] = useState(false)
+  const [newItemOpen, setNewItemOpen] = useState(false)
   const repeatCount = Math.min(50, Math.max(1, Math.floor(Number(repeatN)) || 1))
 
   // HSN column: item-name / stock code on the row, else its item group's code
@@ -374,7 +382,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
   const repeatRow = (i: number) =>
     setRows((rs) => { const src = rs[i]; return src ? [...rs, ...Array.from({ length: repeatCount }, () => ({ ...src, key: nextKey(), tagNo: '', totalIn: undefined }))] : rs })
 
-  const valid = branchReady && !!party && rows.length > 0 && rows.every((r) => Number(r.gross) > 0 && (r.stockItemId || r.itemNameId || (r.description && r.stockClass)))
+  const valid = branchReady && !!party && rows.length > 0 && rows.every((r) => Number(r.gross) > 0 && (r.stockItemId || r.itemNameId || (r.description && r.stockClass)) && (kind !== 'PURCHASE' || (huidOk(r.huid) && epcOk(r.epcCode))))
 
   const submit = async (panValue?: string, mpinValue?: string) => {
     if (!party) return
@@ -394,11 +402,12 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
           saleLabour: r.saleLabour !== '' ? Number(r.saleLabour) || 0 : undefined,
           saleLabourUnit: r.saleLabourUnit || undefined,
         } : {}),
+        ...purchaseLineExtras(kind, r),
       })),
       discount: Number(discount) || 0, discountUnit, gstPercent: Number(gstPercent) || 0,
       payments: pays.map((p) =>
         p.mode === 'METAL'
-          ? { mode: 'METAL', metal: p.metal, metalForm: p.metalForm, gross: Number(p.gross) || 0, less: Number(p.less) || 0, tunch: Number(p.tunch) || 0, rate: Number(p.rate) || 0, remark: p.remark || undefined }
+          ? metalPayBody(p)
           : p.mode === 'ONLINE'
             ? { mode: 'ONLINE', amount: Number(p.amount) || 0, bankAccountId: Number(p.bankAccountId), remark: p.remark || undefined }
             : p.mode === 'SCHEME'
@@ -417,13 +426,9 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
       const saved = editBill
         ? await update.mutateAsync({ id: editBill.id, body, mpin: mpinValue ?? editMpin })
         : await create.mutateAsync(body)
-      // Settings → print.defaults.postSaveShareDialog: offer WhatsApp share right from the success toast (non-blocking)
-      const offerShare = !editBill && settings?.['print.defaults'].postSaveShareDialog && saved.party.mobile
-      toast.success(editBill ? t('bill.updated') : t('bill.saved'), offerShare ? {
-        duration: 10_000,
-        action: { label: t('bill.share'), onClick: () => shareOnWhatsApp(saved.party.mobile, `${kind === 'SELL' ? 'Bill' : 'Purchase'} ${saved.billNo} · Total ${inr(saved.final)} · Balance ${inr(saved.balance)}`) },
-      } : undefined)
-      navigate(`/app/billing/view/${saved.id}`)
+      toast.success(editBill ? t('bill.updated') : t('bill.saved'))
+      // "Send on WhatsApp" (default: print.defaults.postSaveShareDialog) → BillView opens its share dialog
+      navigate(`/app/billing/view/${saved.id}`, !editBill && waOn && saved.party.mobile ? { state: { share: true } } : undefined)
     } catch (e) {
       if (e instanceof ApiException && e.code === 'VALIDATION') {
         const d = e.details as { code?: string; line?: number } | undefined
@@ -438,32 +443,34 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
   const onSaveClick = () => (editBill ? setMpinOpen(true) : void submit())
 
   const metalRow = (r: Row) => r.stockClass === 'GOLD' || r.stockClass === 'SILVER'
+  // original header "RATE (G: /10GM, S: /1KG)"; purchase lines are per gram
+  const unitLabel = (g: number) => (g >= 1000 ? `${g / 1000}KG` : `${g}GM`)
+  const rateUnitHint = kind === 'SELL'
+    ? `G: /${unitLabel(lineRateUnitGrams(kind, 'GOLD', settings))}, S: /${unitLabel(lineRateUnitGrams(kind, 'SILVER', settings))}`
+    : '/GM'
 
   return (
-    <div className="space-y-6">
-      <p className="text-sm text-muted-foreground">
-        {editBill
-          ? t('bill.sub_edit')
-          : kind === 'SELL'
-            ? t('bill.sub_sell')
-            : t('bill.sub_purchase')}
-      </p>
+    <div className="space-y-4">
+      {editBill && <p className="text-sm text-muted-foreground">{t('bill.sub_edit')}</p>}
       {!branchReady && <SelectBranchForTxn note={t('bill.branch_note')} />}
 
-      {/* Header */}
-      <Card className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Header + add-line controls in one card (compact: less scrolling). No overflow clipping: the stock dropdown overflows it. */}
+      <Card className="space-y-4 p-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
         <div className="space-y-1.5 lg:col-span-2">
           <Label htmlFor="bf-party">{kind === 'SELL' ? t('bill.customer') : t('bill.supplier')}</Label>
           <PartyPicker value={party} onChange={setParty} placeholder={t('bill.search_party')} id="bf-party" ariaLabel={kind === 'SELL' ? 'Customer' : 'Supplier'} />
-          {party && can('udhari.entry', 'edit') && (
-            // take an old udhar payment (jama) for this party without leaving billing
-            <Link to={`/app/udhari?partyId=${party.id}`} target="_blank" rel="noreferrer" className="float-right text-xs font-semibold text-brand-strong hover:underline">{t('bill.jama_udhar')}</Link>
-          )}
           {party && (
-            <p className="w-fit rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">
-              {party.mobile}
-              {balance && `${t('bill.party_balance', { amount: balance.amount })}${Number(balance.gold) ? ` · ${balance.gold}g Au` : ''}${Number(balance.silver) ? ` · ${balance.silver}g Ag` : ''}`}
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="w-fit rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">
+                {party.mobile}
+                {balance && `${t('bill.party_balance', { amount: balance.amount })}${Number(balance.gold) ? ` · ${balance.gold}g Au` : ''}${Number(balance.silver) ? ` · ${balance.silver}g Ag` : ''}`}
+              </p>
+              {can('udhari.entry', 'edit') && (
+                // take an old udhar payment (jama) for this party without leaving billing
+                <Button type="button" variant="link" size="sm" className="ml-auto h-auto p-0 text-xs font-semibold" onClick={() => setJamaOpen(true)}>{t('jama.button')}</Button>
+              )}
+            </div>
           )}
         </div>
         <div className="space-y-1.5">
@@ -485,12 +492,13 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
           <Label htmlFor="bf-due">{t('bill.due_date')}</Label>
           <Input id="bf-due" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
         </div>
-      </Card>
+      </div>
 
-      {/* Add-line controls. No overflow clipping or hover lift on this card: the stock dropdown overflows it. */}
-      <Card className="p-6">
+      <div className="border-t pt-3">
       {kind === 'SELL' ? (
-        <div className="relative max-w-md">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-end gap-2">
+          <div className="relative w-full space-y-1.5 sm:w-80">
           <Label htmlFor="bf-stock-search">{t('bill.add_item')}</Label>
           <Input id="bf-stock-search" value={stockQ} onChange={(e) => setStockQ(e.target.value)} placeholder={t('bill.stock_search_ph')} />
           {stockQ && stockHits?.items.length ? (
@@ -505,7 +513,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
               ))}
             </ul>
           ) : null}
-          <div className="mt-2 flex items-center gap-2">
+          </div>
             <Button type="button" variant="outline" size="sm" onClick={() => setRows((rs) => [...rs, blankRow({})])}>{t('bill.direct_line')}</Button>
             {!editBill && (
               <>
@@ -515,14 +523,8 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
                 <Button type="button" variant="ghost" size="sm" aria-expanded={draftSearch} onClick={() => setDraftSearch((o) => !o)}>{t('bill98.find_draft')}</Button>
               </>
             )}
-          </div>
-          {!editBill && draftSearch && (
-            <DraftByCustomer onPick={(no) => { setDraftNo(String(no)); void retrieveDraft(no) }} />
-          )}
-          {!editBill && <p id="bf-draft-help" className="mt-1 text-xs text-muted-foreground">{t('bill.draft_scan_help')}</p>}
-          {draftId && <p className="text-xs text-muted-foreground">{t('bill.from_draft')}</p>}
           {!editBill && (
-            <div className="mt-2 flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 pb-2">
               <Checkbox id="bf-ordersearch" checked={orderSearch} onCheckedChange={(v) => setOrderSearch(!!v)} />
               <Label htmlFor="bf-ordersearch" className="font-normal">{t('bill.bill_ready_order')}</Label>
               {orderSearch && (
@@ -540,6 +542,12 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
               )}
             </div>
           )}
+          </div>
+          {!editBill && draftSearch && (
+            <DraftByCustomer onPick={(no) => { setDraftNo(String(no)); void retrieveDraft(no) }} />
+          )}
+          {!editBill && <p id="bf-draft-help" className="text-xs text-muted-foreground">{t('bill.draft_scan_help')}</p>}
+          {draftId && <p className="text-xs text-muted-foreground">{t('bill.from_draft')}</p>}
         </div>
       ) : (
         <div className="flex flex-wrap items-end gap-3">
@@ -573,17 +581,22 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
             <Input id="bf-repeat" className="w-20" type="number" min="1" max="50" aria-label="Repeat count" value={repeatN} onChange={(e) => setRepeatN(e.target.value)} />
           </div>
           <Button type="button" variant="outline" onClick={addPurchaseRow}>{t('bill.add_row')}</Button>
+          {can('inventory.item_masters', 'edit') && (
+            // original "CREATE ITEM": new item name without leaving the bill; picked straight away
+            <Button type="button" variant="ghost" onClick={() => setNewItemOpen(true)}>{t('bill.create_item')}</Button>
+          )}
           <div className="flex items-center gap-2 pb-2">
             <Checkbox id="bf-clear-after" checked={clearAfterAdd} onCheckedChange={(v) => setClearAfterAdd(!!v)} />
             <Label htmlFor="bf-clear-after" className="font-normal">{t('bill98.clear_after_add')}</Label>
           </div>
         </div>
       )}
+      </div>
       </Card>
 
       {/* Item grid: must stay the first <table> on the page and before payments (specs use tbody tr / Rate .first()). */}
       <Card className="overflow-hidden">
-      <div className="flex justify-end gap-2 border-b bg-muted/40 px-6 py-3">
+      <div className="flex justify-end gap-2 border-b bg-muted/40 px-4 py-2">
         <SampleLookupButton />
         <Popover>
           <PopoverTrigger asChild><Button type="button" variant="outline" size="sm"><Columns3 aria-hidden />{t('bill.columns')}</Button></PopoverTrigger>
@@ -593,11 +606,14 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
               <Button type="button" size="sm" variant="ghost" className="h-7 px-2" onClick={() => applyPreset(COL_PRESETS.simple)}>{t('bill.cols_simple')}</Button>
               <Button type="button" size="sm" variant="ghost" className="h-7 px-2" onClick={() => applyPreset(COL_PRESETS.tunch)}>{t('bill.cols_tunch')}</Button>
             </div>
-            {OPTIONAL_COLS.map((c) => (
+            {optCols.map((c) => (
               <label key={c.key} className="flex items-center gap-2 text-sm">
                 <Checkbox checked={cols[c.key]} onCheckedChange={() => toggleCol(c.key)} aria-label={c.label} /> {t(c.tk)}
               </label>
             ))}
+            {can('settings.misc', 'edit') && (
+              <Button type="button" size="sm" variant="outline" className="mt-1 w-full" onClick={() => setColsMpinOpen(true)}>{t('bill.cols_save_default')}</Button>
+            )}
           </PopoverContent>
         </Popover>
       </div>
@@ -607,6 +623,10 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
             <TableRow>
               <TableHead className="min-w-44">{t('bill.col_item')}</TableHead>
               {cols.hsn && <TableHead>{t('bill98.col_hsn')}</TableHead>}
+              {show('suppItem') && <TableHead>{t('bill.col_supp_item')}</TableHead>}
+              {show('suppTag') && <TableHead>{t('bill.col_supp_tag')}</TableHead>}
+              {show('remark') && <TableHead>{t('bill.col_remark')}</TableHead>}
+              {show('huid') && <TableHead>{t('bill.col_huid')}</TableHead>}
               {cols.karat && <TableHead>{t('stock.col_karat')}</TableHead>}
               {cols.pcs && <TableHead>{t('stock.col_pcs')}</TableHead>}
               <TableHead>{t('stock.col_gross')}</TableHead>
@@ -616,18 +636,25 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
               {cols.net && <TableHead>{t('stock.col_net')}</TableHead>}
               {cols.fine && <TableHead>{t('stock.col_fine')}</TableHead>}
               {cols.stone && <TableHead>{t('class.STONE')}</TableHead>}
-              {cols.rate && <TableHead>{t('udhari.rate')}</TableHead>}
+              {cols.rate && (
+                <TableHead title={rateUnitHint}>
+                  {t('udhari.rate')}
+                  {/* unit hint is aria-hidden so the header's accessible name stays "Rate" (specs + screen readers get it via title) */}
+                  {kind === 'SELL' && <span aria-hidden className="ml-1 text-xs font-normal text-muted-foreground">({rateUnitHint})</span>}
+                </TableHead>
+              )}
               {cols.labour && <TableHead>{t('bill.col_labour')}</TableHead>}
               {cols.unit && <TableHead>{t('bill.col_unit')}</TableHead>}
               {cols.other && <TableHead>{t('bill.col_other')}</TableHead>}
               {cols.disc && <TableHead>{t('bill.col_disc')}</TableHead>}
+              {show('rfid') && <TableHead>{t('bill.col_rfid')}</TableHead>}
               <TableHead>{t('bill.col_total')}</TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.length === 0 && (
-              <TableRow><TableCell colSpan={4 + OPTIONAL_COLS.filter((c) => cols[c.key]).length} className="h-20 text-center text-muted-foreground">{t('bill.no_items')}</TableCell></TableRow>
+              <TableRow><TableCell colSpan={4 + optCols.filter((c) => cols[c.key]).length} className="h-12 text-center text-muted-foreground">{t('bill.no_items')}</TableCell></TableRow>
             )}
             {rows.map((r, i) => {
               const lr = lineOf(r)
@@ -660,6 +687,10 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
                     )}
                   </TableCell>
                   {cols.hsn && <TableCell className="whitespace-nowrap text-muted-foreground">{hsnOf(r) || '—'}</TableCell>}
+                  {show('suppItem') && <TableCell><Input className="w-32" maxLength={120} aria-label="Supplier item" value={r.supplierItem} onChange={(e) => setRow(i, 'supplierItem', e.target.value)} /></TableCell>}
+                  {show('suppTag') && <TableCell><Input className="w-24" maxLength={30} aria-label="Supplier tag" value={r.supplierTag} onChange={(e) => setRow(i, 'supplierTag', e.target.value)} /></TableCell>}
+                  {show('remark') && <TableCell><Input className="w-32" maxLength={300} aria-label="Line remark" value={r.remarks} onChange={(e) => setRow(i, 'remarks', e.target.value)} /></TableCell>}
+                  {show('huid') && <TableCell><Input className="w-24 uppercase" maxLength={6} placeholder="6 chars" aria-label="HUID" aria-invalid={!huidOk(r.huid)} value={r.huid} onChange={(e) => setRow(i, 'huid', e.target.value.toUpperCase())} /></TableCell>}
                   {cols.karat && <TableCell>
                     {metalRow(r) ? (
                       <Select value={r.karatCode} onValueChange={(v) => setRow(i, 'karatCode', v)} disabled={fixedRO}>
@@ -694,6 +725,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
                       </Select>
                     </div>
                   </TableCell>}
+                  {show('rfid') && <TableCell><Input className="w-32 uppercase" maxLength={64} placeholder="EPC (hex)" aria-label="RFID EPC" aria-invalid={!epcOk(r.epcCode)} value={r.epcCode} onChange={(e) => setRow(i, 'epcCode', e.target.value.toUpperCase())} /></TableCell>}
                   <TableCell className="whitespace-nowrap font-medium">
                     {amountBased ? (
                       // calc.amountBasedRate: type the total, the rate is worked back
@@ -740,6 +772,10 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
                 <TableRow className="font-semibold tabular-nums">
                   <TableCell>{t('bill.totals_row', { n: rows.length })}</TableCell>
                   {cols.hsn && blank}
+                  {show('suppItem') && blank}
+                  {show('suppTag') && blank}
+                  {show('remark') && blank}
+                  {show('huid') && blank}
                   {cols.karat && blank}
                   {cols.pcs && <TableCell>{sum((i) => Number(rows[i]!.pcs) || 0, 0)}</TableCell>}
                   <TableCell>{sum((i) => Number(rows[i]!.gross) || 0, 3)}</TableCell>
@@ -754,6 +790,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
                   {cols.unit && blank}
                   {cols.other && blank}
                   {cols.disc && blank}
+                  {show('rfid') && blank}
                   <TableCell className="whitespace-nowrap">{sum((i) => Number(lines[i]!.total) || 0, 2)}</TableCell>
                   {blank}
                 </TableRow>
@@ -765,10 +802,10 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
       </Card>
 
       {/* Payments + summary (payments first in the DOM) */}
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,340px)]">
         <Card className="overflow-hidden">
-          <div className="flex flex-wrap items-center gap-3 border-b bg-muted/40 px-6 py-4">
-            <h2 className="text-lg font-bold">{t('bill.payments')}</h2>
+          <div className="flex flex-wrap items-center gap-3 border-b bg-muted/40 px-4 py-2">
+            <h2 className="text-base font-bold">{t('bill.payments')}</h2>
             <div className="ml-auto flex flex-wrap gap-1">
               <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('CASH')])}>{t('bill.add_cash')}</Button>
               <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('ONLINE')])}>{t('bill.add_online')}</Button>
@@ -781,13 +818,13 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
               )}
             </div>
           </div>
-          <div className="space-y-3 p-6">
+          <div className="space-y-2 p-4">
           {pays.map((p, i) => (
-            <div key={p.key} className="flex flex-wrap items-center gap-2 rounded-2xl border bg-muted/40 p-3">
+            <div key={p.key} className="flex flex-wrap items-center gap-2 rounded-xl border bg-muted/40 p-2">
               <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${p.mode === 'METAL' ? 'bg-brand/15 text-brand-strong' : 'bg-muted text-muted-foreground'}`}>{p.mode}</span>
               {p.mode === 'METAL' ? (
                 <>
-                  <Select value={p.metal} onValueChange={(v) => patchPay(i, { metal: v })}>
+                  <Select value={p.metal} onValueChange={(v) => patchPay(i, { metal: v, jewelleryTypeId: '' })}>
                     <SelectTrigger className="w-24" aria-label="Metal"><SelectValue /></SelectTrigger>
                     <SelectContent>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
                   </Select>
@@ -795,8 +832,10 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
                     <SelectTrigger className="w-28" aria-label="Metal form"><SelectValue /></SelectTrigger>
                     <SelectContent><SelectItem value="BULLION">{t('bill.form_bullion')}</SelectItem><SelectItem value="KACHA">{t('bill.form_kacha')}</SelectItem></SelectContent>
                   </Select>
+                  <PayJewelleryType metal={p.metal} value={p.jewelleryTypeId} onChange={(v) => patchPay(i, { jewelleryTypeId: v })} />
                   <Input className="w-20" type="number" placeholder={t('stock.col_gross')} aria-label="Gross" value={p.gross} onChange={(e) => patchPay(i, { gross: e.target.value })} />
                   <Input className="w-16" type="number" placeholder={t('bill.col_less')} aria-label="Less" value={p.less} onChange={(e) => patchPay(i, { less: e.target.value })} />
+                  <span className="text-sm tabular-nums text-muted-foreground">{t('stock.col_net')} {((Number(p.gross) || 0) - (Number(p.less) || 0)).toFixed(3)}</span>
                   <Input className="w-16" type="number" placeholder={t('bill.col_tunch')} aria-label="Tunch" value={p.tunch} onChange={(e) => patchPay(i, { tunch: e.target.value })} />
                   <SampleLookupButton metal={p.metal} />
                   <Input className="w-24" type="number" placeholder={t('udhari.rate')} aria-label="Rate" value={p.rate} onChange={(e) => setPays((ps) => ps.map((x, j) => j === i ? { ...x, rate: e.target.value, amountIn: '' } : x))} />
@@ -851,7 +890,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
           </div>
         </Card>
 
-        <Card className="space-y-2 self-start p-6 text-sm tabular-nums lg:sticky lg:top-6">
+        <Card className="space-y-1.5 self-start p-4 text-sm tabular-nums lg:sticky lg:top-4">
           <Row2 label={t('bill.subtotal')} value={inr(bill.sub)} />
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground">{t('bill.discount')}</span>
@@ -869,10 +908,16 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
           )}
           {billType === 'GST' && <Row2 label="CGST + SGST / IGST" value={`${inr(bill.cgst)} + ${inr(bill.sgst)} / ${inr(bill.igst)}`} muted />}
           <Row2 label={t('bill.round_off')} value={bill.round} muted />
-          <div className="flex justify-between border-t-2 border-brand pt-3 text-lg font-extrabold"><span>{t('bill.final')}</span><span>{inr(bill.final)}</span></div>
+          {/* live-preview note as a tooltip (compact: the original has no note) */}
+          <div className="flex justify-between border-t-2 border-brand pt-3 text-lg font-extrabold" title={t('bill.live_preview')}><span>{t('bill.final')}</span><span>{inr(bill.final)}</span></div>
           <Row2 label={t('bill.paid')} value={inr(paid)} />
           <div className={`-mx-3 flex justify-between rounded-xl px-3 py-2 font-semibold ${balanceDue < 0 ? 'bg-green-500/10' : 'bg-muted/50'}`}><span>{t('bill.balance')}</span><span className={balanceDue < 0 ? 'text-green-600 dark:text-green-500' : ''}>{inr(balanceDue)}{balanceDue < 0 ? t('bill.advance') : ''}</span></div>
-          <p className="text-xs text-muted-foreground">{t('bill.live_preview')}</p>
+          {!editBill && party?.mobile && (
+            <label className="flex items-center gap-2 rounded-xl border border-green-600/30 bg-green-500/5 px-3 py-2 text-sm font-medium">
+              <Checkbox checked={waOn} onCheckedChange={(v) => setSendWa(v === true)} aria-label="Send on WhatsApp" />
+              {t('bill.send_whatsapp')}
+            </label>
+          )}
           <Button size="lg" className="mt-2 hidden w-full lg:inline-flex" disabled={!valid || pending} onClick={onSaveClick}>
             {pending ? t('bill.saving') : editBill ? t('bill.update_mpin') : kind === 'SELL' ? t('bill.save_sell') : t('bill.save_purchase')}
           </Button>
@@ -948,6 +993,24 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
       </Dialog>
 
       <MpinDialog open={mpinOpen} title={t('bill.auth_edit')} onConfirm={async (mpin) => { setEditMpin(mpin); setMpinOpen(false); await submit(undefined, mpin) }} onClose={() => setMpinOpen(false)} />
+      <MpinDialog
+        open={colsMpinOpen}
+        title={t('bill.cols_save_default')}
+        onConfirm={async (mpin) => {
+          await saveSetting.mutateAsync({ key: 'billing.columns', value: shopColsValue(settings?.['billing.columns'], kind, cols), mpin })
+          setColsMpinOpen(false)
+        }}
+        onClose={() => setColsMpinOpen(false)}
+      />
+      {party && <JamaPayDialog party={party} open={jamaOpen} onClose={() => setJamaOpen(false)} />}
+      {newItemOpen && (
+        <ItemNameDialog
+          groups={(groups?.items ?? []).filter((g) => g.stockClass === buyClass)}
+          stockClass={buyClass}
+          onCreated={(n) => { if (n.group.stockClass === buyClass) setBuyItemId(String(n.id)) }}
+          onClose={() => setNewItemOpen(false)}
+        />
+      )}
 
       {walkInDraft && (
         <NewPartyDialog
@@ -973,6 +1036,23 @@ function DirectItemName({ stockClass, value, onPick }: { stockClass: string; val
       <SelectContent>
         <SelectItem value="custom">{t('bill.custom_item')}</SelectItem>
         {data?.items.map((n) => <SelectItem key={n.id} value={String(n.id)}>{n.name}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  )
+}
+
+/** METAL pay row: jewellery type of the received metal (global + own list, filtered to the metal). Hidden if the list can't load (MASTERS view). */
+function PayJewelleryType({ metal, value, onChange }: { metal: string; value: string; onChange: (v: string) => void }) {
+  const t = useT()
+  const { data, isError } = useJewelleryTypes() // unfiltered: the server's stockClass filter would drop class-less global types
+  const opts = jtypesForMetal(data ?? [], metal)
+  if (isError || !opts.length) return null
+  return (
+    <Select value={value || 'none'} onValueChange={(v) => onChange(v === 'none' ? '' : v)}>
+      <SelectTrigger className="w-36" aria-label="Jewellery type"><SelectValue /></SelectTrigger>
+      <SelectContent>
+        <SelectItem value="none">{t('bill.jtype_none')}</SelectItem>
+        {opts.map((jt) => <SelectItem key={jt.id} value={String(jt.id)}>{jt.name}</SelectItem>)}
       </SelectContent>
     </Select>
   )
