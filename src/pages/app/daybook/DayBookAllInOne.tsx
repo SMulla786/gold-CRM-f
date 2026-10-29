@@ -11,10 +11,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useDayBookAllInOne } from '@/lib/accountsQueries'
+import { useSettings } from '@/lib/appQueries'
 import { sourceHref, sourceLabel } from '@/lib/sourceLinks'
 import { useT } from '@/lib/i18n'
 import { fetchAllPaged } from '@/lib/queries'
 import { LEDGER_ASSETS, LEDGER_SOURCES, businessDayISO, type DayBookAllInOneRowDto } from '@/shared'
+
+import { dayBookPrefs, shownAssets } from './dayBookPrefs'
 
 const today = businessDayISO
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
@@ -36,9 +39,13 @@ export function DayBookAllInOne() {
   const initial = (k: 'from' | 'to') => { const v = params.get(k); return v && ISO_DAY.test(v) ? v : today() }
   const [from, setFrom] = useState(() => initial('from'))
   const [to, setTo] = useState(() => initial('to'))
-  const [source, setSource] = useState('')
+  // SET-08: source filter and page size start from the saved Day Book prefs until the user changes them here
+  const prefs = dayBookPrefs(useSettings().data)
+  const [sourcePick, setSource] = useState<string | null>(null)
+  const source = sourcePick ?? prefs.defaultSource ?? ''
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
+  const [sizePick, setPageSize] = useState<number | null>(null)
+  const pageSize = sizePick ?? prefs.pageSize
   const [detail, setDetail] = useState<DayBookAllInOneRowDto | null>(null)
   const filters = { from, to, source: source || undefined }
   const { data, isLoading } = useDayBookAllInOne({ ...filters, page, pageSize })
@@ -75,7 +82,7 @@ export function DayBookAllInOne() {
     },
     { id: 'source', header: t('daybook.col_source'), cell: ({ row }) => <span className="whitespace-nowrap text-sm">{sourceCell(row.original)}</span> },
     { id: 'party', header: t('udhari.party'), cell: ({ row }) => <span className="text-sm">{row.original.party?.name ?? '—'}</span> },
-    ...LEDGER_ASSETS.map((a): ColumnDef<DayBookAllInOneRowDto, unknown> => ({
+    ...shownAssets(prefs).map((a): ColumnDef<DayBookAllInOneRowDto, unknown> => ({
       id: a,
       header: t('daybook.asset_in_out', { asset: a }),
       cell: ({ row }) => {
@@ -94,7 +101,7 @@ export function DayBookAllInOne() {
         )
       },
     })),
-    {
+    ...(prefs.showRunningBalance ? [{
       id: 'balance', header: t('db98.running_bal'),
       cell: ({ row }) => {
         const b = row.original.balance
@@ -106,7 +113,7 @@ export function DayBookAllInOne() {
           </div>
         )
       },
-    },
+    } satisfies ColumnDef<DayBookAllInOneRowDto, unknown>] : []),
     { id: 'actions', header: '', cell: ({ row }) => <Button variant="ghost" size="sm" onClick={() => setDetail(row.original)}>{t('daybook.details')}</Button> },
   ]
 
