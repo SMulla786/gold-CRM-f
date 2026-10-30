@@ -80,7 +80,7 @@ export function Login() {
           </p>
           {MOCK && (
             <p className="mt-4 text-center text-xs text-muted-foreground">
-              Dev seed — <code>superadmin</code> / <code>demo.owner</code> / <code>demo.pune</code> / <code>demo.cashier</code>, password <code>ChangeMe@123</code>
+              Dev seed — <code>superadmin</code> / <code>demo.owner</code> / <code>demo.pune</code> / <code>demo.cashier</code>, password <code>&lt;demo seed password&gt;</code>
             </p>
           )}
         </CardContent>

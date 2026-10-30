@@ -1,5 +1,5 @@
 import { expect, test, type APIRequestContext } from '@playwright/test';
-import { login, PW } from './helpers';
+import { login, pwFor } from './helpers';
 
 // TASK-98 subscription (owner /admin/subscription): 'Available plans' cards, Renew / Choose plan prefill #pay-amount,
 // UPI UTR must be 12 digits (inline error + Submit disabled), history Plan / Plan type columns, Receipt on a CONFIRMED
@@ -8,7 +8,7 @@ type AvailablePlan = { id: number; name: string; durationDays: number; price: st
 type SubView = { planId: number; planName: string; availablePlans: AvailablePlan[]; payments: Array<{ id: number; status: string }> };
 
 async function apiToken(request: APIRequestContext, user: string): Promise<string> {
-  return (await (await request.post('/api/auth/login', { data: { login: user, password: PW } })).json()).accessToken as string;
+  return (await (await request.post('/api/auth/login', { data: { login: user, password: pwFor(user) } })).json()).accessToken as string;
 }
 const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
 async function subView(request: APIRequestContext, token: string): Promise<SubView> {

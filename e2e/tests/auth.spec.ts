@@ -1,14 +1,7 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+import { login } from './helpers';
 
-// Verifies TASK-6 login + level routing against the REAL /api/auth. Demo seed pwd = ChangeMe@123.
-const PW = 'ChangeMe@123';
-
-async function login(page: Page, user: string, pw = PW) {
-  await page.goto('/login');
-  await page.fill('#login', user);
-  await page.fill('#password', pw);
-  await page.getByRole('button', { name: /log in now/i }).click();
-}
+// Verifies TASK-6 login + level routing against the REAL /api/auth (demo seed users; password from E2E_PASSWORD).
 
 test('SUPER_ADMIN lands on /platform', async ({ page }) => {
   await login(page, 'superadmin');
