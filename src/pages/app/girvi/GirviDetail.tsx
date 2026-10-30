@@ -2,6 +2,7 @@ import { FileDown, FileText, FileUp, History as HistoryIcon, MessageCircle, Prin
 import { useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
+import { EditHistoryButton } from '@/components/EditHistoryButton'
 import { AuthedImage } from '@/components/AuthedImage'
 import { MpinDialog } from '@/components/MpinDialog'
 import { QrImage } from '@/components/QrImage'
@@ -367,6 +368,7 @@ export function GirviDetail() {
           </Select>
           <Button size="sm" variant="outline" onClick={() => window.print()}><Printer aria-hidden />{t('udhari.print')}</Button>
           <Button size="sm" variant="outline" onClick={downloadPdf}><FileDown aria-hidden />PDF</Button>
+          <EditHistoryButton entity="GIRVI" entityId={batch.id} />
           {canDelete && grantOnly && <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDeleting(true)}>{t('common.delete')}</Button>}
           {canEdit && batch.status === 'ACTIVE' && <>
             <Button size="sm" variant="outline" onClick={() => setDialog('interest')}>{t('girvi.pay_interest')}</Button>

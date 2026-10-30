@@ -1,3 +1,4 @@
+import { ImagePlus, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -31,8 +32,11 @@ const n = (s: string) => Number(s) || 0
 
 // itemRate = optional per-item interest % (blank = loan rate); karat = optional karat id that filled purity (UI only);
 // customCat = typing a free-text category (the contract's category is a free string)
-interface Row { key: string; category: string; name: string; gross: string; net: string; purity: string; rate: string; itemRate: string; karat: string; customCat: boolean }
+// photo = optional item photo picked on the form; uploaded right after create to the matching created item (same order)
+interface Row { key: string; category: string; name: string; gross: string; net: string; purity: string; rate: string; itemRate: string; karat: string; customCat: boolean; photo?: File }
 const blankRow = (category: string): Row => ({ key: k(), category, name: '', gross: '', net: '', purity: '', rate: '', itemRate: '', karat: '', customCat: false })
+const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const PHOTO_MAX = 2 * 1024 * 1024 // same 2 MB cap as the item photo upload
 const fineOf = (r: Row) => (n(r.net) * n(r.purity)) / 100
 const valOf = (r: Row) => fineOf(r) * n(r.rate)
 /** Mirrors backend girvi/service.ts createGirvi: returnDate = addMonths(businessDate(issueDate), tenureMonths) via setUTCMonth on the
@@ -152,6 +156,16 @@ export function NewGirvi() {
       cash: n(pay.cash), online: n(pay.online), bankAccountId: n(pay.online) > 0 ? Number(pay.bankAccountId) : undefined, remark: remark || undefined,
     }
     const saved = await create.mutateAsync(body)
+    // the loan exists now: upload each picked photo to its created item (server keeps item order = row order); a failed
+    // upload is toasted (re-upload from the loan page) and never blocks navigation or invites a duplicate create
+    const uploads = rows.map((r, i) => ({ file: r.photo, itemId: saved.items[i]?.id })).filter((u): u is { file: File; itemId: number } => !!u.file && u.itemId != null)
+    const results = await Promise.allSettled(uploads.map((u) => {
+      const fd = new FormData()
+      fd.append('file', u.file)
+      return api.post(`/app/girvi/items/${u.itemId}/photo`, fd)
+    }))
+    const failed = results.filter((r) => r.status === 'rejected').length
+    if (failed) toast.error(`${failed} item photo(s) could not be uploaded. Add them from the loan page.`)
     navigate(`/app/girvi/${saved.id}`)
   }
 
@@ -177,7 +191,7 @@ export function NewGirvi() {
       <div className={`overflow-x-auto ${TABLE_EDGES}`}>
         <Table>
           <TableHeader>
-            <TableRow><TableHead>{t('girvi.col_category')}</TableHead><TableHead className="min-w-40">{t('girvi.col_item')}</TableHead><TableHead>{t('stock.col_gross')}</TableHead><TableHead>{t('stock.col_net')}</TableHead>{canKarat && <TableHead>Karat</TableHead>}<TableHead>{t('girvi.col_purity_pct')}</TableHead><TableHead>{t('stock.col_fine')}</TableHead><TableHead>{t('girvi.col_rate_g')}</TableHead><TableHead>{t('girvi.valuation')}</TableHead><TableHead title="Optional: overrides the loan interest % for this item">{t('girvi.item_int_pct')}</TableHead><TableHead /></TableRow>
+            <TableRow><TableHead>{t('girvi.col_category')}</TableHead><TableHead className="min-w-40">{t('girvi.col_item')}</TableHead><TableHead>{t('stock.col_gross')}</TableHead><TableHead>{t('stock.col_net')}</TableHead>{canKarat && <TableHead>Karat</TableHead>}<TableHead>{t('girvi.col_purity_pct')}</TableHead><TableHead>{t('stock.col_fine')}</TableHead><TableHead>{t('girvi.col_rate_g')}</TableHead><TableHead>{t('girvi.valuation')}</TableHead><TableHead title="Optional: overrides the loan interest % for this item">{t('girvi.item_int_pct')}</TableHead><TableHead>Photo</TableHead><TableHead /></TableRow>
           </TableHeader>
           <TableBody>
             {rows.map((r, i) => (
@@ -218,6 +232,7 @@ export function NewGirvi() {
                 <TableCell><Input className="w-24" type="number" aria-label="Rate" value={r.rate} onChange={(e) => setRow(i, 'rate', e.target.value)} /></TableCell>
                 <TableCell className="whitespace-nowrap tabular-nums">{inr(valOf(r))}</TableCell>
                 <TableCell><Input className="w-20" type="number" step="0.01" min={0} max={100} aria-label="Item interest %" placeholder={terms.ratePercent || '—'} value={r.itemRate} onChange={(e) => setRow(i, 'itemRate', e.target.value)} /></TableCell>
+                <TableCell><RowPhoto row={r} index={i} onPick={(f) => setRows((rs) => rs.map((x, j) => (j === i ? { ...x, photo: f } : x)))} /></TableCell>
                 <TableCell><Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive" aria-label="Remove item" disabled={rows.length === 1} onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))}>✕</Button></TableCell>
               </TableRow>
             ))}
@@ -335,5 +350,32 @@ export function NewGirvi() {
       </div>
       <MpinDialog open={savingCat != null} title="Add category to girvi settings" onConfirm={(mpin) => saveCategory(savingCat!, mpin)} onClose={() => setSavingCat(null)} />
     </div>
+  )
+}
+
+/** Pick (or clear) one row's item photo before save; validated like the server (JPEG/PNG/WebP, 2 MB). */
+function RowPhoto({ row, index, onPick }: { row: Row; index: number; onPick: (f: File | undefined) => void }) {
+  const id = `ng-photo-${row.key}`
+  const pick = (f: File | undefined) => {
+    if (!f) return
+    if (!PHOTO_TYPES.includes(f.type)) return toast.error('Photo must be a JPEG, PNG or WebP image')
+    if (f.size > PHOTO_MAX) return toast.error('Photo must be 2 MB or smaller')
+    onPick(f)
+  }
+  if (row.photo) {
+    return (
+      <span className="flex max-w-32 items-center gap-1 text-xs">
+        <span className="truncate" title={row.photo.name}>{row.photo.name}</span>
+        <Button type="button" variant="ghost" size="icon" className="size-6 shrink-0" aria-label={`Remove photo item ${index + 1}`} onClick={() => onPick(undefined)}><X className="size-3.5" aria-hidden /></Button>
+      </span>
+    )
+  }
+  return (
+    <>
+      <input id={id} type="file" accept={PHOTO_TYPES.join(',')} className="hidden" aria-label={`Photo file item ${index + 1}`} onChange={(e) => { pick(e.target.files?.[0]); e.target.value = '' }} />
+      <Button type="button" variant="ghost" size="icon" className="size-8" aria-label={`Add photo item ${index + 1}`} title="Add photo (uploaded after save)" onClick={() => document.getElementById(id)?.click()}>
+        <ImagePlus className="size-4" aria-hidden />
+      </Button>
+    </>
   )
 }
