@@ -24,6 +24,7 @@ import { useT } from '@/lib/i18n'
 import { useBhavBookings, useBulkDeleteBhav, useCancelBhav, useCreateBhav, useDeleteBhav, useUndeliverBhav, useUpdateBhav, useVerifyBhav } from '@/lib/tradeQueries'
 import { BHAV_STATUSES, businessDayISO, METALS, TRADE_SIDES, metalToMoney, type BhavBookingDto, type PartyRefDto } from '@/shared'
 
+import { advanceFlow, sideFigures } from './bhavSplit'
 import { blankPay, payBody, payRowsFrom, payTotal, payValid, type PayRow } from './splitPay'
 import { DateRangeFilter, HistoryDialog, PartyBalanceChip, SplitPaymentTable, SplitToggle } from './TradeExtras'
 import { bhavExportRows } from './tradeExport'
@@ -253,14 +254,20 @@ export function BhavBookings() {
     } satisfies ColumnDef<BhavBookingDto, unknown>] : []),
     { header: t('trade.col_no'), cell: ({ row }) => <span className="font-medium">#{row.original.bookingNo}</span> },
     { header: t('udhari.date'), cell: ({ row }) => date(row.original.txnDate) },
-    { header: t('trade.side'), cell: ({ row }) => <Badge variant="secondary">{row.original.side}</Badge> },
     { header: t('udhari.party'), cell: ({ row }) => row.original.party.name },
     { header: t('udhari.metal'), cell: ({ row }) => row.original.metal },
-    { header: t('bill.col_weight'), cell: ({ row }) => `${row.original.weight} g` },
+    // parity: BUY (WT | RATE | AMT) and SELL (WT | RATE | AMT) groups; a booking fills only its own side
+    ...TRADE_SIDES.flatMap((side): ColumnDef<BhavBookingDto, unknown>[] => [
+      { id: `${side}-wt`, header: `${side} · ${t('bill.col_weight')}`, cell: ({ row }) => { const f = sideFigures(row.original, side); return f ? `${f.weight} g` : '—' } },
+      { id: `${side}-rate`, header: `${side} · ${t('udhari.rate')}`, cell: ({ row }) => sideFigures(row.original, side)?.rate ?? '—' },
+      { id: `${side}-amt`, header: `${side} · ${t('bill.amount')}`, cell: ({ row }) => { const f = sideFigures(row.original, side); return f ? inr(f.amount) : '—' } },
+    ]),
     { header: t('trade.col_pending'), cell: ({ row }) => `${row.original.pendingWeight} g` },
-    { header: t('udhari.rate'), cell: ({ row }) => row.original.rate },
-    { header: t('bill.amount'), cell: ({ row }) => inr(row.original.amount) },
-    { header: t('trade.col_advance'), cell: ({ row }) => <span>{inr(row.original.advance)}{row.original.entryType === 'ONLY_ENTRY' && <span className="block text-xs text-muted-foreground">{t('trade.bhav.record_only_lc')}</span>}</span> },
+    { id: 'given-received', header: `${t('udhari.col_given')} / ${t('udhari.col_received')}`, cell: ({ row }) => {
+      const a = advanceFlow(row.original)
+      if (a.kind === 'NONE') return '—'
+      return <span>{inr(a.amount)}<span className="block text-xs text-muted-foreground">{a.kind === 'RECEIVED' ? t('udhari.col_received') : t('trade.bhav.record_only_lc')}</span></span>
+    } },
     { header: t('stock.col_status'), cell: ({ row }) => <div className="flex flex-wrap gap-1"><Badge variant={STATUS_VARIANT[row.original.status]}>{row.original.status}</Badge><VerifiedBadge b={row.original} /></div> },
     { id: 'actions', header: '', cell: ({ row }) => {
       const b = row.original

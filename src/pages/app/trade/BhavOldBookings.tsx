@@ -15,6 +15,7 @@ import { useBhavBookings } from '@/lib/tradeQueries'
 import { businessDayISO, METALS, TRADE_SIDES, type BhavBookingDto } from '@/shared'
 
 import { BhavRowMenu, VerifiedBadge } from './BhavBookings'
+import { sideFigures } from './bhavSplit'
 import { DateRangeFilter } from './TradeExtras'
 import { bhavExportRows } from './tradeExport'
 
@@ -41,10 +42,12 @@ export function BhavOldBookings() {
     { header: t('trade.col_no'), cell: ({ row }) => <span className="font-medium">#{row.original.bookingNo}</span> },
     { header: t('udhari.date'), cell: ({ row }) => <div className="whitespace-nowrap">{date(row.original.txnDate)}<div className="text-xs text-muted-foreground">{time(row.original.createdAt)}</div></div> },
     { header: t('udhari.party'), cell: ({ row }) => <div>{row.original.party.name}<div className="text-xs text-muted-foreground tabular-nums">{row.original.party.mobile}</div></div> },
-    { header: t('trade.side'), cell: ({ row }) => <Badge variant="secondary">{row.original.side}</Badge> },
     { header: t('udhari.metal'), cell: ({ row }) => row.original.metal },
-    { header: t('bill.col_weight'), cell: ({ row }) => <span className="tabular-nums">{row.original.weight} g</span> },
-    { header: t('udhari.rate'), cell: ({ row }) => <span className="tabular-nums">{row.original.rate}</span> },
+    // parity (old booking list): Sell Wt · Sell Rate · Buy Wt · Buy Rate; a booking fills only its own side
+    ...(['SELL', 'BUY'] as const).flatMap((side): ColumnDef<BhavBookingDto, unknown>[] => [
+      { id: `${side}-wt`, header: `${side} · ${t('bill.col_weight')}`, cell: ({ row }) => { const f = sideFigures(row.original, side); return <span className="tabular-nums">{f ? `${f.weight} g` : '—'}</span> } },
+      { id: `${side}-rate`, header: `${side} · ${t('udhari.rate')}`, cell: ({ row }) => <span className="tabular-nums">{sideFigures(row.original, side)?.rate ?? '—'}</span> },
+    ]),
     { header: t('bill.amount'), cell: ({ row }) => <span className="tabular-nums">{inr(row.original.amount)}</span> },
     { header: t('trade.col_advance'), cell: ({ row }) => <span className="tabular-nums">{inr(row.original.advance)}</span> },
     { header: t('udhari.col_narration'), cell: ({ row }) => <span className="text-muted-foreground">{row.original.narration ?? '—'}</span> },
