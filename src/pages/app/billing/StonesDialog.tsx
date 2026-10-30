@@ -8,7 +8,7 @@ import { useT } from '@/lib/i18n'
 
 import { blankStone, type StoneRow } from './billFormParts'
 
-/** INV-12: a purchase line's stone elements (saved on the created stock item). Descriptive only — the line's Stone charge stays the money. */
+/** INV-12: a purchase line's stone elements (saved on the created stock item); their amount total becomes the line's Stone charge. */
 export function StonesDialog({ stones, onSave, onClose }: { stones: StoneRow[]; onSave: (s: StoneRow[]) => void; onClose: () => void }) {
   const t = useT()
   const [rows, setRows] = useState<StoneRow[]>(stones.length ? stones : [blankStone()])

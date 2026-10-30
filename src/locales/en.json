@@ -1087,7 +1087,7 @@
 
   "bill.add_scheme": "+ Scheme",
   "bill.stones": "Stones",
-  "bill.stones_hint": "Details only: the line's Stone charge stays the amount billed.",
+  "bill.stones_hint": "The line's Stone charge is the total of these stone amounts.",
   "bill.stone_name": "Stone",
   "bill.stone_weight": "Weight",
   "bill.add_advance": "+ Udhar advance",

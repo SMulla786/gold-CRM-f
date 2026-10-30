@@ -26,7 +26,7 @@ import { useT } from '@/lib/i18n'
 import { fetchDraftByNo, useDrafts } from '@/lib/draftsQueries'
 import { ApiException } from '@/lib/errors'
 import { lineRateUnitGrams, metalRateUnitGrams, useCreateBill, useNextBillNo, usePartyBalance, useUpdateBill } from '@/lib/billingQueries'
-import { allCols, clearPersonalCols, COL_PRESETS, colsForKind, colsFromKeys, epcOk, huidOk, jtypesForMetal, loadPersonalCols, metalPayBody, PURCHASE_ONLY_COLS, purchaseLineExtras, resolveCols, savePersonalCols, shopColsValue, stoneRowFromDto, type StoneRow } from '@/pages/app/billing/billFormParts'
+import { allCols, clearPersonalCols, COL_PRESETS, colsForKind, colsFromKeys, epcOk, huidOk, jtypesForMetal, loadPersonalCols, metalPayBody, PURCHASE_ONLY_COLS, purchaseLineExtras, resolveCols, savePersonalCols, shopColsValue, stoneRowFromDto, syncStoneCharge, type StoneRow } from '@/pages/app/billing/billFormParts'
 import { StonesDialog } from '@/pages/app/billing/StonesDialog'
 import { SchemeEnrollmentSelect } from '@/pages/app/billing/SchemeEnrollmentSelect'
 import { ItemNameDialog } from '@/pages/app/inventory/ItemMasters'
@@ -711,7 +711,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
                   {cols.wastage && <TableCell><Input className="w-14" type="number" step="0.01" value={r.wastage} disabled={fixedRO} onChange={(e) => setRow(i, 'wastage', e.target.value)} /></TableCell>}
                   {cols.net && <TableCell className="whitespace-nowrap text-muted-foreground">{lr.net}</TableCell>}
                   {cols.fine && <TableCell className="whitespace-nowrap text-muted-foreground">{lr.fine}</TableCell>}
-                  {cols.stone && <TableCell><Input className="w-20" type="number" aria-label="Stone charge" value={r.stoneCharge} onChange={(e) => setRow(i, 'stoneCharge', e.target.value)} /></TableCell>}
+                  {cols.stone && <TableCell><Input className="w-20" type="number" aria-label="Stone charge" readOnly={r.stones.length > 0} title={r.stones.length ? t('bill.stones_hint') : undefined} value={r.stoneCharge} onChange={(e) => setRow(i, 'stoneCharge', e.target.value)} /></TableCell>}
                   {cols.rate && <TableCell><Input className="w-24" type="number" aria-label="Rate" value={r.rate} onChange={(e) => setRow(i, 'rate', e.target.value)} /></TableCell>}
                   {cols.labour && <TableCell><Input className="w-20" type="number" aria-label="Labour" value={r.labour} onChange={(e) => setRow(i, 'labour', e.target.value)} /></TableCell>}
                   {cols.unit && <TableCell>
@@ -1011,7 +1011,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
       {party && <JamaPayDialog party={party} open={jamaOpen} onClose={() => setJamaOpen(false)} />}
       {stonesFor != null && rows[stonesFor] && (
         <StonesDialog stones={rows[stonesFor].stones} onClose={() => setStonesFor(null)}
-          onSave={(st) => { setRows((rs) => rs.map((x, j) => (j === stonesFor ? { ...x, stones: st } : x))); setStonesFor(null) }} />
+          onSave={(st) => { setRows((rs) => rs.map((x, j) => (j === stonesFor ? syncStoneCharge({ ...x, stones: st }) : x))); setStonesFor(null) }} />
       )}
       {newItemOpen && (
         <ItemNameDialog

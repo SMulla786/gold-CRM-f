@@ -1087,7 +1087,7 @@
 
   "bill.add_scheme": "+ स्कीम",
   "bill.stones": "स्टोन",
-  "bill.stones_hint": "केवल विवरण: बिल की राशि लाइन का स्टोन चार्ज ही रहेगा।",
+  "bill.stones_hint": "लाइन का स्टोन चार्ज इन स्टोन राशियों का कुल योग है।",
   "bill.stone_name": "स्टोन",
   "bill.stone_weight": "वज़न",
   "bill.add_advance": "+ उधार अग्रिम",

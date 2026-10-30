@@ -4,7 +4,7 @@ import { BILL_GRID_COLUMNS, billLineInput, billPaymentInput, SETTING_SCHEMAS, ud
 
 import {
   allCols, clearPersonalCols, COL_PRESETS, colsForKind, colsFromKeys, epcOk, huidOk, jamaBody, jtypesForMetal, loadPersonalCols, metalPayBody, OPTIONAL_COLS, purchaseLineExtras,
-  resolveCols, savePersonalCols, shopColsValue, stoneRowFromDto, stonesBody,
+  resolveCols, savePersonalCols, shopColsValue, stoneRowFromDto, stonesBody, syncStoneCharge,
 } from './billFormParts'
 
 describe('BILL-09 bill-grid column presets', () => {
@@ -147,5 +147,18 @@ describe('INV-12 purchase stones', () => {
     expect(purchaseLineExtras('PURCHASE', r).stones).toHaveLength(1)
     const saved = { id: 1, name: 'Ruby', pcs: 2, weight: '0.5', unit: 'CT' as const, rate: '4000', amount: '2000' }
     expect(stonesBody([stoneRowFromDto(saved)])).toEqual([{ name: 'Ruby', pcs: 2, weight: 0.5, unit: 'CT', rate: 4000, amount: 2000 }])
+  })
+})
+
+describe('INV-12 stone charge follows the stones (owner 2026-10-30)', () => {
+  const st = (amount: string) => ({ name: 'S', pcs: '1', weight: '0', unit: 'CT' as const, rate: '0', amount })
+
+  it('several stones: charge = their total, half-up to the paisa (same as the server)', () => {
+    expect(syncStoneCharge({ stoneCharge: '9999', stones: [st('100.125'), st('200.13'), st('0')] }).stoneCharge).toBe('300.26')
+  })
+
+  it('zero / blank amounts give 0; no stones keeps the typed charge', () => {
+    expect(syncStoneCharge({ stoneCharge: '500', stones: [st('0'), st('')] }).stoneCharge).toBe('0.00')
+    expect(syncStoneCharge({ stoneCharge: '500', stones: [] }).stoneCharge).toBe('500')
   })
 })
