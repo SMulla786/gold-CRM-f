@@ -25,6 +25,8 @@ import { businessDayISO, METALS, TRADE_SIDES, computeLine, type PartyRefDto, typ
 import { blankPay, payBody, payRowsFrom, payTotal, payValid, type PayRow } from './splitPay'
 import { PartyBalanceChip, SplitPaymentTable, SplitToggle } from './TradeExtras'
 import { DEFAULT_EXCHANGE, previewExchange } from './exchangeCalc'
+import { InlineUdharCard } from './InlineUdhar'
+import { blankInlineUdhar, fromInlineUdhar, toInlineUdhar } from './inlineUdharForm'
 import { ExchangeDefaultsDialog } from './ExchangeDefaults'
 import { fineRate } from './tradeRates'
 
@@ -68,6 +70,7 @@ export function NewExchange() {
   const [wb, setWb] = useState(BLANK_WB)
   const [tounchSample, setTounchSample] = useState<SamplePickDto | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [iu, setIu] = useState(() => blankInlineUdhar('GOLD')) // TRD-02 inline udhar
   const meltWt = n(wb.gross) - n(wb.less)
   const netAfterSample = meltWt - n(wb.sample)
   /** Explicit only: copy the picked sample's tounch into the Touch of lines without one (or the last line if all have one). */
@@ -102,6 +105,7 @@ export function NewExchange() {
       givenGross: editing.given?.gross ?? '', givenLess: editing.given ? String(Number(editing.given.gross) - Number(editing.given.net)) : '', givenTouch: editing.given?.touch ?? '',
       rate: editing.rate, charges: editing.charges, discount: editing.discount, cash: editing.cash, online: editing.online, bankAccountId: editing.bankAccount ? String(editing.bankAccount.id) : '', remark: editing.remark ?? '' })
     if (editing.payments?.length) { setSplit(true); setPays(payRowsFrom(editing.payments)) }
+    setIu(fromInlineUdhar(editing.udhar, editing.metal))
   }
 
   const setRow = (i: number, key: keyof Row, v: string) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, [key]: v } : r)))
@@ -124,7 +128,7 @@ export function NewExchange() {
   const clearForm = () => {
     setSide('BUY'); setParty(null); setMetal('GOLD'); setTxnDate(today()); setRows([blankRow()])
     setF(INITIAL_F); setSplit(false); setPays([blankPay()])
-    setWeighOpen(false); setWb(BLANK_WB); setTounchSample(null)
+    setWeighOpen(false); setWb(BLANK_WB); setTounchSample(null); setIu(blankInlineUdhar('GOLD'))
   }
 
   const valid = branchReady && !!party && rows.every((r) => n(r.weight) > 0 && n(r.touch) > 0) && afterFine > 0 && pv.settleFine >= 0
@@ -142,6 +146,7 @@ export function NewExchange() {
     })),
     diffPctPlus: n(f.diffPctPlus), diffGmPlus: n(f.diffGmPlus), diffPctMinus: n(f.diffPctMinus), diffGmMinus: n(f.diffGmMinus),
     given: pv.givenOn ? { gross: n(f.givenGross), less: n(f.givenLess), touch: n(f.givenTouch) } : undefined,
+    udhar: toInlineUdhar(iu, metalRateUnitGrams(iu.metal, settings)),
     rate: n(f.rate), charges: n(f.charges), discount: n(f.discount),
     ...(splitOn ? payBody(pays) : { cash: n(f.cash), online: n(f.online), bankAccountId: n(f.online) > 0 ? Number(f.bankAccountId) : undefined }),
     remark: f.remark || undefined,
@@ -317,6 +322,8 @@ export function NewExchange() {
           </CardContent>
         </Card>
       </div>
+
+      <InlineUdharCard value={iu} onChange={setIu} unitGrams={metalRateUnitGrams(iu.metal, settings)} txnNo={editing?.udhar?.txnNo} />
 
       <div className="flex flex-wrap justify-end gap-2">
         {can('settings.misc', 'edit') && <Button variant="ghost" className="w-full sm:mr-auto sm:w-auto" onClick={() => setSettingsOpen(true)}><Settings2 className="size-4" aria-hidden />{t('trade.ex.settings')}</Button>}
