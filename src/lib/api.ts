@@ -1,5 +1,6 @@
 import { HEADERS, type ApiError } from '@/shared'
 import { ApiException } from '@/lib/errors'
+import { refreshChange, tokenIdentity, type SessionChange } from '@/lib/session'
 import { mockHandle, mockSupports } from '@/mocks/api'
 
 // Mock is OPT-IN: set VITE_USE_MOCK=true (e.g. .env.local) to run the UI without a backend.
@@ -8,12 +9,38 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
 export { ApiException }
 
-// Access token lives in memory only; refresh token is the httpOnly ju_rt cookie.
+// Access token lives in memory only; refresh token is the httpOnly ju_rt cookie (shared by every tab).
+// `identity` = whose token this tab holds (lib/session); a refresh for anyone else is never adopted.
 let accessToken: string | null = null
+let identity: string | null = null
+let changed = false // session changed under this tab: no refresh is adopted until a new login sets a token
 export const setAccessToken = (t: string | null) => {
   accessToken = t
+  identity = t ? tokenIdentity(t) : null
+  if (t) changed = false
 }
 export const getAccessToken = () => accessToken
+export const getIdentity = () => identity
+
+// Called when a refresh returns another account's session (another tab logged in / out, impersonation expired).
+let onSessionChanged: ((why: SessionChange) => void) | null = null
+export const setOnSessionChanged = (fn: ((why: SessionChange) => void) | null) => {
+  onSessionChanged = fn
+}
+
+// Every request carries this signal; an identity change aborts whatever is still in flight.
+let live = new AbortController()
+export function abortPending() {
+  live.abort()
+  live = new AbortController()
+}
+
+/** Stop this tab's session after a change (refresh mismatch or another tab's login / logout). */
+export function blockSession() {
+  setAccessToken(null)
+  changed = true
+  abortPending()
+}
 
 // Active branch context for admins (id in subtree, or 'all'); set by the auth layer.
 let activeBranch: string | null = null
@@ -48,7 +75,8 @@ async function raw<T>(method: string, path: string, body?: unknown, opts: Reques
     headers,
     credentials: 'include',
     body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
-    signal: opts.signal,
+    // AbortSignal.any is 2024+ (Chrome 116 / Safari 17.4); older browsers keep the caller's own signal
+    signal: !opts.signal ? live.signal : typeof AbortSignal.any === 'function' ? AbortSignal.any([opts.signal, live.signal]) : opts.signal,
   })
   if (res.status === 204) return undefined as T
   const data = res.status === 0 ? null : await res.json().catch(() => null)
@@ -62,10 +90,23 @@ async function raw<T>(method: string, path: string, body?: unknown, opts: Reques
 // Single-flight refresh of the access token using the cookie. Shared by request-retry AND
 // the initial session restore, so StrictMode's double-invoke can't fire two /auth/refresh calls
 // (which the backend's reuse detection would treat as a stolen token and revoke all sessions).
+// Across tabs a Web Lock serialises refreshes: two tabs presenting the same cookie at once would look like token reuse
+// (the backend then revokes every session); the second tab waits and sends the rotated cookie.
 let refreshing: Promise<boolean> | null = null
 export function refreshAccessToken(): Promise<boolean> {
-  refreshing ??= raw<{ accessToken: string }>('POST', '/auth/refresh')
+  if (changed) return Promise.resolve(false) // a stray request must not quietly pick up the new cookie's session
+  const post = () => raw<{ accessToken: string }>('POST', '/auth/refresh')
+  const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined
+  refreshing ??= (locks ? locks.request('ju-auth-refresh', post) : post())
     .then((r) => {
+      const mine = identity
+      const next = tokenIdentity(r.accessToken)
+      if (mine && next !== mine) {
+        // the cookie now belongs to another session: never adopt it, stop everything in flight
+        blockSession()
+        onSessionChanged?.(refreshChange(mine, next))
+        return false
+      }
       setAccessToken(r.accessToken)
       return true
     })
@@ -86,7 +127,7 @@ export async function request<T>(method: string, path: string, body?: unknown, o
     // One silent refresh+retry on an expired access token (not on the refresh call itself).
     if (err instanceof ApiException && err.status === 401 && err.code === 'UNAUTHENTICATED' && !path.startsWith('/auth/refresh')) {
       if (await refreshAccessToken()) return raw<T>(method, path, body, opts)
-      onAuthLost?.() // refresh failed → session is gone; kick to login instead of looping 401s
+      if (!changed) onAuthLost?.() // refresh failed → session is gone; kick to login instead of looping 401s
     }
     throw err
   }
@@ -99,7 +140,7 @@ export async function fetchBlob(path: string): Promise<Blob> {
     const headers: Record<string, string> = {}
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`
     if (activeBranch) headers[HEADERS.BRANCH] = activeBranch
-    return fetch(`/api${path}`, { headers, credentials: 'include' })
+    return fetch(`/api${path}`, { headers, credentials: 'include', signal: live.signal })
   }
   let res = await once()
   if (res.status === 401 && (await refreshAccessToken())) res = await once()

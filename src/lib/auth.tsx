@@ -1,8 +1,11 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 
+import { SessionChanged } from '@/components/SessionChanged'
 import { clearAdState } from '@/lib/ads'
-import { api, refreshAccessToken, setAccessToken, setActiveBranch, setOnAuthLost } from '@/lib/api'
+import { api, blockSession, getIdentity, refreshAccessToken, setAccessToken, setActiveBranch, setOnAuthLost, setOnSessionChanged } from '@/lib/api'
+import { announce, cookieOwner, onAnnounce, reactTo, type SessionChange } from '@/lib/session'
+import { dropUserState } from '@/lib/userState'
 import type { LoginResponse, MeDto, PermissionAction } from '@/shared'
 
 interface AuthValue {
@@ -30,6 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<MeDto | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeBranch, setActiveBranchState] = useState('all')
+  const [changed, setChanged] = useState<SessionChange | null>(null)
   const queryClient = useQueryClient()
 
   const apply = useCallback((user: MeDto | null) => {
@@ -59,10 +63,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setOnAuthLost(() => {
       apply(null)
+      queryClient.clear() // the next user signing in here must not see this one's cached data
       clearAdState('/login')
     })
     return () => setOnAuthLost(null)
-  }, [apply])
+  }, [apply, queryClient])
+
+  // ISS-19: the session changed under this tab (another tab's login / logout, impersonation expired). Never carry on
+  // as the new account: stop requests, clear this user's state and block the app until a reload re-verifies identity.
+  const endSession = useCallback(
+    (why: SessionChange) => {
+      blockSession() // pending requests, token, and no refresh until a reload / new login
+      queryClient.clear()
+      apply(null)
+      setChanged(why)
+    },
+    [apply, queryClient],
+  )
+  useEffect(() => {
+    setOnSessionChanged(endSession)
+    const off = onAnnounce((e) => {
+      const why = reactTo(e, getIdentity())
+      if (why) endSession(why)
+    })
+    return () => {
+      setOnSessionChanged(null)
+      off()
+    }
+  }, [endSession])
 
   const setBranch = useCallback((b: string) => {
     setActiveBranchState(b)
@@ -72,20 +100,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(
     async (loginId: string, password: string) => {
       const res = await api.post<LoginResponse>('/auth/login', { login: loginId, password })
+      queryClient.clear() // nothing cached for a previous user survives a login
       setAccessToken(res.accessToken)
       apply(res.user)
+      const mine = getIdentity()
+      if (mine) announce({ type: 'login', who: cookieOwner(mine) }) // ids only: other tabs of another account stop
       return res.user
     },
-    [apply],
+    [apply, queryClient],
   )
 
   const logout = useCallback(async () => {
+    const mine = getIdentity()
     try {
       await api.post('/auth/logout')
     } finally {
-      setAccessToken(null)
+      dropUserState(queryClient) // pending requests, token and cached data, so the next user can't see them
       apply(null)
-      queryClient.clear() // drop cached data so the next user on this terminal can't see it
+      if (mine) announce({ type: 'logout', who: cookieOwner(mine) })
       clearAdState('/login') // an AdSense script that ran for this user must not follow the next one
     }
   }, [apply, queryClient])
@@ -95,8 +127,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // before the session switch: a Super Admin never loads ads, so this only fires if a script leaked into this tab
       if (clearAdState('/platform')) return
       const res = await api.post<LoginResponse>(`/platform/businesses/${businessId}/impersonate`, { reason })
+      dropUserState(queryClient) // never let one business's cached data (or a pending request) bleed into another
       setAccessToken(res.accessToken)
-      queryClient.clear() // never let one business's cached data bleed into another
       apply(res.user)
     },
     [apply, queryClient],
@@ -109,7 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // ignore — restore is what matters
     }
-    queryClient.clear()
+    dropUserState(queryClient) // also forgets the impersonated identity, so restore() adopts the Super Admin's own session
     if (clearAdState('/platform')) return
     await restore()
   }, [restore, queryClient])
@@ -136,7 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [me, loading, activeBranch, setBranch, login, logout, impersonate, endImpersonation],
   )
 
-  return <AuthContext value={value}>{children}</AuthContext>
+  return <AuthContext value={value}>{changed ? <SessionChanged why={changed} /> : children}</AuthContext>
 }
 
 export function useAuth() {
