@@ -9,7 +9,9 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AddPaymentDialog } from '@/pages/app/billing/AddPaymentDialog'
+import { DateRangeFilter } from '@/pages/app/trade/TradeExtras'
 import { usePendingBills } from '@/lib/udhariQueries'
 import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
@@ -22,10 +24,14 @@ export function PendingBills() {
   const { can } = useAuth()
   const canPayKind = (kind: string) => can(kind === 'PURCHASE' ? 'billing.purchase_bill' : 'billing.sell_bill', 'edit')
   const [type, setType] = useState('')
+  const [kind, setKind] = useState('') // UDH-07 tabs: '' = all, SELL = Sale only, PURCHASE = Purchase only
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
-  const { data, isLoading } = usePendingBills({ type: type || undefined, q: q || undefined, page, pageSize })
+  const { data, isLoading } = usePendingBills({ type: type || undefined, kind: kind || undefined, from: from || undefined, to: to || undefined, q: q || undefined, page, pageSize })
+  const sum = data?.summary
   const [paying, setPaying] = useState<BillListItemDto | null>(null)
 
   const columns: ColumnDef<BillListItemDto, unknown>[] = [
@@ -50,6 +56,27 @@ export function PendingBills() {
   return (
     <div className="space-y-6">
       <p className="text-sm text-muted-foreground">{t('udhari.pending_intro')}</p>
+      <Tabs value={kind || 'all'} onValueChange={(v) => { setKind(v === 'all' ? '' : v); setPage(1) }}>
+        <TabsList>
+          <TabsTrigger value="all">{t('udhari.tab_all_bills')}</TabsTrigger>
+          <TabsTrigger value="SELL">{t('udhari.tab_sale_only')}</TabsTrigger>
+          <TabsTrigger value="PURCHASE">{t('udhari.tab_purchase_only')}</TabsTrigger>
+        </TabsList>
+      </Tabs>
+      {/* summary over every bill matching the filters (server-side), not just this page; rupees only (BILL-15 R4) */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {([
+          [t('udhari.tab_pending'), sum ? String(sum.count) : '—'],
+          [t('udhari.card_sale_due'), sum ? inr(sum.saleDue) : '—'],
+          [t('udhari.card_purchase_due'), sum ? inr(sum.purchaseDue) : '—'],
+          [t('udhari.card_total_due'), sum ? inr(sum.totalDue) : '—'],
+        ] as const).map(([label, value]) => (
+          <Card key={label} className="gap-1 p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+            <div className="text-2xl font-bold tabular-nums">{value}</div>
+          </Card>
+        ))}
+      </div>
       <Card className="flex flex-wrap items-center gap-3 p-4">
         <div className="relative w-full sm:max-w-xs sm:flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
@@ -62,6 +89,7 @@ export function PendingBills() {
             {PARTY_TYPES.map((pt) => <SelectItem key={pt} value={pt}>{pt}</SelectItem>)}
           </SelectContent>
         </Select>
+        <DateRangeFilter from={from} to={to} onChange={(a, b) => { setFrom(a); setTo(b); setPage(1) }} />
       </Card>
 
       <DataTable
