@@ -53,7 +53,7 @@ export function ExchangeDefaultsDialog({ onClose }: { onClose: () => void }) {
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>{t('common.cancel')}</Button>
-          <Button disabled={save.isPending || !(v.roundStep > 0)} onClick={() => setMpin(true)}>{t('rates.save')}</Button>
+          <Button disabled={save.isPending || !(v.roundStep > 0)} onClick={() => setMpin(true)}>{t('common.save')}</Button>
         </DialogFooter>
         <MpinDialog open={mpin} title={t('trade.ex.settings')} onConfirm={async (pin) => { await save.mutateAsync({ key: 'exchange.defaults', value: v, mpin: pin }); setMpin(false); onClose() }} onClose={() => setMpin(false)} />
       </DialogContent>
