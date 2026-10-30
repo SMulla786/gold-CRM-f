@@ -274,7 +274,7 @@ function impersonate(b: BusinessDetailDto): LoginResponse {
     id: b.owner?.id ?? 0, name: b.owner?.name ?? b.ownerName, username: b.owner?.username ?? 'owner', level: 'ADMIN', isOwner: true,
     business: { id: b.id, name: b.name, status: b.status }, branch, accessibleBranches: [branch],
     permissions: {}, modules: b.subscriptions[0]?.modules ?? [], hasMpin: false,
-    subscription: { planName: b.planName ?? '—', endsAt: b.endsAt ?? '', readOnly: b.status === 'SUSPENDED' },
+    subscription: { planName: b.planName ?? '—', endsAt: b.endsAt ?? '', readOnly: b.status === 'SUSPENDED', adEligible: false },
     impersonatedBy: { id: 100, name: 'Platform Admin' },
   }
   return { accessToken: `mock.impersonate.${b.id}`, user }

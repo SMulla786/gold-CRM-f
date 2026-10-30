@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 
+import { clearAdState } from '@/lib/ads'
 import { api, refreshAccessToken, setAccessToken, setActiveBranch, setOnAuthLost } from '@/lib/api'
 import type { LoginResponse, MeDto, PermissionAction } from '@/shared'
 
@@ -56,7 +57,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // A mid-session refresh failure (api.ts) means the session is gone — drop to logged-out so guards redirect.
   useEffect(() => {
-    setOnAuthLost(() => apply(null))
+    setOnAuthLost(() => {
+      apply(null)
+      clearAdState('/login')
+    })
     return () => setOnAuthLost(null)
   }, [apply])
 
@@ -82,11 +86,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAccessToken(null)
       apply(null)
       queryClient.clear() // drop cached data so the next user on this terminal can't see it
+      clearAdState('/login') // an AdSense script that ran for this user must not follow the next one
     }
   }, [apply, queryClient])
 
   const impersonate = useCallback(
     async (businessId: number, reason: string) => {
+      // before the session switch: a Super Admin never loads ads, so this only fires if a script leaked into this tab
+      if (clearAdState('/platform')) return
       const res = await api.post<LoginResponse>(`/platform/businesses/${businessId}/impersonate`, { reason })
       setAccessToken(res.accessToken)
       queryClient.clear() // never let one business's cached data bleed into another
@@ -103,6 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // ignore — restore is what matters
     }
     queryClient.clear()
+    if (clearAdState('/platform')) return
     await restore()
   }, [restore, queryClient])
 

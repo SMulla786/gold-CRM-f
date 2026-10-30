@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Gem } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -75,6 +75,9 @@ export function Login() {
               {isSubmitting ? 'Signing in…' : 'Log In Now'}
             </Button>
           </form>
+          <p className="mt-4 text-center text-xs text-muted-foreground">
+            <Link to="/privacy" className="underline">Privacy Policy</Link>
+          </p>
           {MOCK && (
             <p className="mt-4 text-center text-xs text-muted-foreground">
               Dev seed — <code>superadmin</code> / <code>demo.owner</code> / <code>demo.pune</code> / <code>demo.cashier</code>, password <code>ChangeMe@123</code>

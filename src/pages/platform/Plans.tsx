@@ -35,8 +35,8 @@ function PlanDialog({ plan, trigger }: { plan?: PlanDto; trigger: React.ReactNod
   } = useForm<PlanIn, unknown, PlanOut>({
     resolver: zodResolver(planBody),
     defaultValues: plan
-      ? { name: plan.name, description: plan.description ?? undefined, durationDays: plan.durationDays, price: Number(plan.price), maxBranches: plan.maxBranches, maxUsers: plan.maxUsers, modules: plan.modules, isActive: plan.isActive }
-      : { durationDays: 365, price: 0, maxBranches: 1, maxUsers: 3, modules: ['dashboard', 'settings'], isActive: true },
+      ? { name: plan.name, description: plan.description ?? undefined, durationDays: plan.durationDays, price: Number(plan.price), maxBranches: plan.maxBranches, maxUsers: plan.maxUsers, modules: plan.modules, isActive: plan.isActive, adSupported: plan.adSupported }
+      : { durationDays: 365, price: 0, maxBranches: 1, maxUsers: 3, modules: ['dashboard', 'settings'], isActive: true, adSupported: false },
   })
   const modules = watch('modules') ?? []
   const toggle = (key: string) => setValue('modules', modules.includes(key) ? modules.filter((m) => m !== key) : [...modules, key], { shouldValidate: true })
@@ -97,6 +97,10 @@ function PlanDialog({ plan, trigger }: { plan?: PlanDto; trigger: React.ReactNod
           <label className="flex items-center gap-2 text-sm">
             <Checkbox checked={watch('isActive')} onCheckedChange={(v) => setValue('isActive', Boolean(v))} />
             Active (offered to new businesses)
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox checked={watch('adSupported')} onCheckedChange={(v) => setValue('adSupported', Boolean(v))} />
+            Ad-supported (shows ads; applies to terms started from now on)
           </label>
           <DialogFooter>
             <Button type="submit" disabled={save.isPending}>

@@ -6,6 +6,7 @@ import { RequireAuth, RequireLevel, homeForLevel } from '@/components/guards'
 import { useAuth } from '@/lib/auth'
 import { PLATFORM_NAV, useAdminNav, useAppNav } from '@/lib/nav'
 import { Login } from '@/pages/Login'
+import { Privacy } from '@/pages/Privacy'
 
 // Route-level code splitting: each page is its own chunk, loaded on navigation.
 const ModulePlaceholder = lazy(() => import('@/pages/Placeholder').then((m) => ({ default: m.ModulePlaceholder })))
@@ -132,6 +133,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/privacy" element={<Privacy />} />
 
       <Route element={<RequireAuth />}>
         <Route path="/" element={<HomeRedirect />} />

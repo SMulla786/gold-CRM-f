@@ -7,6 +7,8 @@ import { Suspense, useState, type ComponentType } from 'react'
 import { useTheme } from '@/lib/theme'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
+import { AdSlot } from '@/components/AdSlot'
+import { adsAllowed } from '@/lib/ads'
 import { BranchSwitcher } from '@/components/BranchSwitcher'
 import { CommandPalette } from '@/components/CommandPalette'
 import { NewPartyDialog } from '@/components/NewPartyDialog'
@@ -166,6 +168,7 @@ export function Shell({ area, nav, showBranch }: ShellProps) {
               <Outlet />
             </div>
           </Suspense>
+          {adsAllowed(me, pathname, import.meta.env) && <AdSlot key={pathname} />}
         </main>
       </div>
     </div>
