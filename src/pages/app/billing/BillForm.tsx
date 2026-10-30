@@ -26,7 +26,7 @@ import { useT } from '@/lib/i18n'
 import { fetchDraftByNo, useDrafts } from '@/lib/draftsQueries'
 import { ApiException } from '@/lib/errors'
 import { lineRateUnitGrams, metalRateUnitGrams, useCreateBill, useNextBillNo, usePartyBalance, useUpdateBill } from '@/lib/billingQueries'
-import { allCols, clearPersonalCols, COL_PRESETS, colsForKind, colsFromKeys, epcOk, huidOk, jtypesForMetal, loadPersonalCols, metalPayBody, PURCHASE_ONLY_COLS, purchaseLineExtras, resolveCols, savePersonalCols, shopColsValue, stoneRowFromDto, syncStoneCharge, type StoneRow } from '@/pages/app/billing/billFormParts'
+import { allCols, clearPersonalCols, COL_PRESETS, colsForKind, colsFromKeys, epcOk, huidOk, jtypesForMetal, loadPersonalCols, metalPayBody, PURCHASE_ONLY_COLS, purchaseLineExtras, resolveCols, savePersonalCols, shopColsValue, stoneRowFromDto, syncStoneCharge, keepRateChanged, keepUnitFor, type StoneRow } from '@/pages/app/billing/billFormParts'
 import { StonesDialog } from '@/pages/app/billing/StonesDialog'
 import { SchemeEnrollmentSelect } from '@/pages/app/billing/SchemeEnrollmentSelect'
 import { ItemNameDialog } from '@/pages/app/inventory/ItemMasters'
@@ -368,7 +368,11 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
 
   const paid = pays.reduce((a, p) => a + payAmount(p), 0)
   const balanceDue = Number(bill.final) - paid
-  const keepMetalWeight = keepAs !== 'MONEY' && balanceDue > 0 ? moneyToMetal(balanceDue, Number(keepRate) || 0, metalRateUnitGrams(keepAs, settings)) : null
+  const keepUnit = keepAs === 'MONEY' ? 1 : keepUnitFor(editBill, keepAs, metalRateUnitGrams(keepAs, settings))
+  const keepMetalWeight = keepAs !== 'MONEY' && balanceDue > 0 ? moneyToMetal(balanceDue, Number(keepRate) || 0, keepUnit) : null
+  // BILL-15 R6: changing the stored keep rate / metal on edit needs an explicit tick (the server logs old → new)
+  const rateChange = keepRateChanged(editBill, keepAs, keepRate)
+  const [rateChangeOk, setRateChangeOk] = useState(false)
 
   const addStock = (it: StockItemDto) => {
     if (rows.some((r) => r.stockItemId === it.id)) { toast.error(t('bill.item_already')); return }
@@ -385,7 +389,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
   const repeatRow = (i: number) =>
     setRows((rs) => { const src = rs[i]; return src ? [...rs, ...Array.from({ length: repeatCount }, () => ({ ...src, key: nextKey(), tagNo: '', totalIn: undefined }))] : rs })
 
-  const valid = branchReady && !!party && rows.length > 0 && rows.every((r) => Number(r.gross) > 0 && (r.stockItemId || r.itemNameId || (r.description && r.stockClass)) && (kind !== 'PURCHASE' || (huidOk(r.huid) && epcOk(r.epcCode))))
+  const valid = branchReady && !!party && rows.length > 0 && rows.every((r) => Number(r.gross) > 0 && (r.stockItemId || r.itemNameId || (r.description && r.stockClass)) && (kind !== 'PURCHASE' || (huidOk(r.huid) && epcOk(r.epcCode)))) && (!rateChange || rateChangeOk)
 
   const submit = async (panValue?: string, mpinValue?: string) => {
     if (!party) return
@@ -417,7 +421,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
               ? { mode: 'SCHEME', enrollmentId: Number(p.enrollmentId), amount: Number(p.amount) || 0, remark: p.remark || undefined }
               : { mode: p.mode === 'UDHAR_ADVANCE' ? 'UDHAR_ADVANCE' : 'CASH', amount: Number(p.amount) || 0, remark: p.remark || undefined },
       ),
-      keepBalanceAs: keepAs, keepRate: keepAs === 'MONEY' ? undefined : Number(keepRate) || undefined,
+      keepBalanceAs: keepAs, keepRate: keepAs === 'MONEY' ? undefined : Number(keepRate) || undefined, keepRateChange: rateChange ? true : undefined,
       pan: panValue || undefined,
       draftId: !editBill && kind === 'SELL' ? draftId ?? undefined : undefined,
       orderId: !editBill && kind === 'SELL' ? orderId ?? undefined : undefined,
@@ -891,7 +895,14 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
                 <Input id="bf-keeprate" className="w-28" type="number" value={keepRate} onChange={(e) => setKeepRate(e.target.value)} />
               </div>
             )}
+            {keepAs !== 'MONEY' && <span className="pb-2 text-xs text-muted-foreground">{t('bill.keep_rate_unit', { g: String(keepUnit) })}</span>}
             {keepMetalWeight && <span className="pb-2 text-sm text-muted-foreground">≈ {keepMetalWeight} g</span>}
+            {rateChange && (
+              <label className="flex items-center gap-2 pb-2 text-sm">
+                <Checkbox checked={rateChangeOk} onCheckedChange={(c) => setRateChangeOk(c === true)} aria-label="Confirm keep rate change" />
+                {t('bill.keep_rate_change', { old: `${editBill?.keepBalanceAs} ${editBill?.keepRate}` })}
+              </label>
+            )}
           </div>
           </div>
         </Card>

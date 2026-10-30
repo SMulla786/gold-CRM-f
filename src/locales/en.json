@@ -165,6 +165,8 @@
   "bill.add_metal": "+ Metal",
   "bill.keep_balance_as": "Keep balance as",
   "bill.keep_rate": "Keep rate",
+  "bill.keep_rate_unit": "₹ per {g} g",
+  "bill.keep_rate_change": "Change the stored rate ({old}); the change is logged",
   "bill.subtotal": "Subtotal",
   "bill.discount": "Discount",
   "bill.gst_pct": "GST %",

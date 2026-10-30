@@ -165,6 +165,8 @@
   "bill.add_metal": "+ धातु",
   "bill.keep_balance_as": "शेष इस रूप में रखें",
   "bill.keep_rate": "दर रखें",
+  "bill.keep_rate_unit": "₹ प्रति {g} ग्राम",
+  "bill.keep_rate_change": "सहेजी गई दर ({old}) बदलें; बदलाव लॉग होगा",
   "bill.subtotal": "उप-योग",
   "bill.discount": "छूट",
   "bill.gst_pct": "GST %",

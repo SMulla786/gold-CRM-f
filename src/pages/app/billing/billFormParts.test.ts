@@ -4,7 +4,7 @@ import { BILL_GRID_COLUMNS, billLineInput, billPaymentInput, SETTING_SCHEMAS, ud
 
 import {
   allCols, clearPersonalCols, COL_PRESETS, colsForKind, colsFromKeys, epcOk, huidOk, jamaBody, jtypesForMetal, loadPersonalCols, metalPayBody, OPTIONAL_COLS, purchaseLineExtras,
-  resolveCols, savePersonalCols, shopColsValue, stoneRowFromDto, stonesBody, syncStoneCharge,
+  keepRateChanged, keepUnitFor, resolveCols, savePersonalCols, shopColsValue, stoneRowFromDto, stonesBody, syncStoneCharge,
 } from './billFormParts'
 
 describe('BILL-09 bill-grid column presets', () => {
@@ -160,5 +160,25 @@ describe('INV-12 stone charge follows the stones (owner 2026-10-30)', () => {
   it('zero / blank amounts give 0; no stones keeps the typed charge', () => {
     expect(syncStoneCharge({ stoneCharge: '500', stones: [st('0'), st('')] }).stoneCharge).toBe('0.00')
     expect(syncStoneCharge({ stoneCharge: '500', stones: [] }).stoneCharge).toBe('500')
+  })
+})
+
+describe('BILL-15 keep rate on edit (R2 unit frozen, R6 explicit change)', () => {
+  const saved = { keepBalanceAs: 'GOLD' as const, keepRate: '60000', keepRateUnitGrams: '10' }
+
+  it('same metal on edit uses the unit frozen on the bill; new bills, a new metal or a legacy bill use the shop unit', () => {
+    expect(keepUnitFor(saved, 'GOLD', 1)).toBe(10)
+    expect(keepUnitFor(undefined, 'GOLD', 1)).toBe(1)
+    expect(keepUnitFor(saved, 'SILVER', 1000)).toBe(1000)
+    expect(keepUnitFor({ ...saved, keepRateUnitGrams: null }, 'GOLD', 1)).toBe(1)
+  })
+
+  it('a different rate or metal on a metal-kept bill is a change; same rate, new bills and MONEY bills are not', () => {
+    expect(keepRateChanged(saved, 'GOLD', '60000')).toBe(false)
+    expect(keepRateChanged(saved, 'GOLD', '60000.00')).toBe(false)
+    expect(keepRateChanged(saved, 'GOLD', '61000')).toBe(true)
+    expect(keepRateChanged(saved, 'MONEY', '')).toBe(true)
+    expect(keepRateChanged(undefined, 'GOLD', '61000')).toBe(false)
+    expect(keepRateChanged({ keepBalanceAs: 'MONEY', keepRate: null }, 'GOLD', '61000')).toBe(false)
   })
 })

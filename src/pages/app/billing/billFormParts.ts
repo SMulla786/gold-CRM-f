@@ -1,5 +1,5 @@
 // Pure pieces of BillForm (column presets, purchase-line extras, METAL pay) kept here so they can be unit-tested.
-import { stoneTotal, type BillKind, type StockStoneDto } from '@/shared'
+import { stoneTotal, type BillDto, type BillKind, type StockStoneDto } from '@/shared'
 
 // TASK-86 bill-grid column customizer. Item/Gross/Total/actions stay fixed (needed for a valid bill);
 // the rest are show/hide. Default all-on (purchase also shows the purchase-only columns, as the original does).
@@ -49,6 +49,14 @@ export const clearPersonalCols = (ls: () => Store, kind: BillKind) => {
 export const shopColsValue = (current: { sell?: string[]; purchase?: string[] } | undefined, kind: BillKind, cols: Record<string, boolean>) => ({
   ...current, [kind === 'SELL' ? 'sell' : 'purchase']: colsForKind(kind).filter((c) => cols[c.key]).map((c) => c.key),
 })
+
+/** BILL-15 R2: an edited bill that keeps the same metal uses the rate unit frozen on it (grams per keep rate); otherwise the current shop unit. */
+export const keepUnitFor = (editBill: Pick<BillDto, 'keepBalanceAs' | 'keepRateUnitGrams'> | undefined, keepAs: string, shopUnit: number): number =>
+  editBill && editBill.keepBalanceAs === keepAs && editBill.keepRateUnitGrams != null ? Number(editBill.keepRateUnitGrams) : shopUnit
+
+/** BILL-15 R6: does this edit change the bill's stored keep rate or kept metal? (same test as the server; such an edit needs keepRateChange) */
+export const keepRateChanged = (editBill: Pick<BillDto, 'keepBalanceAs' | 'keepRate'> | undefined, keepAs: string, keepRate: string): boolean =>
+  !!editBill && editBill.keepBalanceAs !== 'MONEY' && (keepAs !== editBill.keepBalanceAs || Number(keepRate) !== Number(editBill.keepRate))
 
 /** INV-12 purchase stone element as typed in the Stones dialog. */
 export interface StoneRow { name: string; pcs: string; weight: string; unit: 'CT' | 'GM'; rate: string; amount: string }
