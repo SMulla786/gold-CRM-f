@@ -1,4 +1,4 @@
-import { ChevronDown, Eraser } from 'lucide-react'
+import { ChevronDown, Eraser, Settings2 } from 'lucide-react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -20,10 +20,12 @@ import { metalRateUnitGrams } from '@/lib/billingQueries'
 import { useT } from '@/lib/i18n'
 import { SAMPLES_PERM } from '@/lib/samplesQueries'
 import { useCreateExchange, useExchange, useUpdateExchange } from '@/lib/tradeQueries'
-import { businessDayISO, METALS, TRADE_SIDES, computeLine, metalToMoney, type PartyRefDto, type SamplePickDto } from '@/shared'
+import { businessDayISO, METALS, TRADE_SIDES, computeLine, type PartyRefDto, type SamplePickDto } from '@/shared'
 
 import { blankPay, payBody, payRowsFrom, payTotal, payValid, type PayRow } from './splitPay'
 import { PartyBalanceChip, SplitPaymentTable, SplitToggle } from './TradeExtras'
+import { DEFAULT_EXCHANGE, previewExchange } from './exchangeCalc'
+import { ExchangeDefaultsDialog } from './ExchangeDefaults'
 import { fineRate } from './tradeRates'
 
 let uid = 0
@@ -35,7 +37,7 @@ const n = (s: string) => Number(s) || 0
 interface Row { key: string; weight: string; touch: string; serialNo: string }
 const blankRow = (): Row => ({ key: k(), weight: '', touch: '', serialNo: '' })
 const fineOf = (r: Row) => Number(computeLine({ gross: n(r.weight), tunch: n(r.touch) }).fine)
-const INITIAL_F = { diffFine: '0', rate: '0', charges: '0', discount: '0', cash: '0', online: '0', bankAccountId: '', remark: '' }
+const INITIAL_F = { diffPctPlus: '', diffGmPlus: '', diffPctMinus: '', diffGmMinus: '', givenGross: '', givenLess: '', givenTouch: '', rate: '0', charges: '0', discount: '0', cash: '0', online: '0', bankAccountId: '', remark: '' }
 const BLANK_WB = { gross: '', less: '', sample: '' }
 
 export function NewExchange() {
@@ -65,6 +67,7 @@ export function NewExchange() {
   const [weighOpen, setWeighOpen] = useState(false)
   const [wb, setWb] = useState(BLANK_WB)
   const [tounchSample, setTounchSample] = useState<SamplePickDto | null>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const meltWt = n(wb.gross) - n(wb.less)
   const netAfterSample = meltWt - n(wb.sample)
   /** Explicit only: copy the picked sample's tounch into the Touch of lines without one (or the last line if all have one). */
@@ -87,16 +90,28 @@ export function NewExchange() {
     setMetal(editing.metal)
     setTxnDate(editing.txnDate)
     setRows(editing.lines.map((l) => ({ key: k(), weight: l.weight, touch: l.touch, serialNo: l.serialNo ?? '' })))
-    setF({ diffFine: editing.diffFine, rate: editing.rate, charges: editing.charges, discount: editing.discount, cash: editing.cash, online: editing.online, bankAccountId: editing.bankAccount ? String(editing.bankAccount.id) : '', remark: editing.remark ?? '' })
+    // G5: difference parts (a pre-G5 exchange has only the signed diffFine: grams on its side), given metal, weighing (line 1)
+    const d = editing.diff
+    const legacy = !d || (d.plusBy == null && d.minusBy == null)
+    const old = Number(editing.diffFine)
+    const wl = editing.lines[0]
+    if (wl?.grossWeight != null || wl?.sampleWeight != null) { setWeighOpen(true); setWb({ gross: wl.grossWeight ?? '', less: wl.lessWeight ?? '', sample: wl.sampleWeight ?? '' }) }
+    setF({
+      diffPctPlus: legacy ? '' : d.pctPlus, diffGmPlus: legacy ? (old > 0 ? String(old) : '') : d.gmPlus,
+      diffPctMinus: legacy ? '' : d.pctMinus, diffGmMinus: legacy ? (old < 0 ? String(-old) : '') : d.gmMinus,
+      givenGross: editing.given?.gross ?? '', givenLess: editing.given ? String(Number(editing.given.gross) - Number(editing.given.net)) : '', givenTouch: editing.given?.touch ?? '',
+      rate: editing.rate, charges: editing.charges, discount: editing.discount, cash: editing.cash, online: editing.online, bankAccountId: editing.bankAccount ? String(editing.bankAccount.id) : '', remark: editing.remark ?? '' })
     if (editing.payments?.length) { setSplit(true); setPays(payRowsFrom(editing.payments)) }
   }
 
   const setRow = (i: number, key: keyof Row, v: string) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, [key]: v } : r)))
-  const totalFine = rows.reduce((a, r) => a + fineOf(r), 0)
-  const afterFine = totalFine + n(f.diffFine)
-  const moneyMode = n(f.rate) > 0
+  const defaults = settings?.['exchange.defaults'] ?? DEFAULT_EXCHANGE
+  const pv = previewExchange({
+    side, lines: rows, diff: { pctPlus: f.diffPctPlus, gmPlus: f.diffGmPlus, pctMinus: f.diffPctMinus, gmMinus: f.diffGmMinus },
+    given: { gross: f.givenGross, less: f.givenLess, touch: f.givenTouch }, rate: f.rate, charges: f.charges, discount: f.discount, unitGrams: metalRateUnitGrams(metal, settings), defaults,
+  })
+  const { totalFine, afterFine, moneyMode, finalAmount } = pv
   const todayRate = fineRate(rates, metal, side, settings) // hint + one-click fill only; posting uses whatever is in the field
-  const finalAmount = moneyMode ? Number(metalToMoney(afterFine, n(f.rate), metalRateUnitGrams(metal, settings))) + n(f.charges) - n(f.discount) : 0
   const splitOn = split && moneyMode
   const paid = splitOn ? payTotal(pays) : n(f.cash) + n(f.online)
   const balance = finalAmount - paid
@@ -112,15 +127,22 @@ export function NewExchange() {
     setWeighOpen(false); setWb(BLANK_WB); setTounchSample(null)
   }
 
-  const valid = branchReady && !!party && rows.every((r) => n(r.weight) > 0 && n(r.touch) > 0) && afterFine > 0
+  const valid = branchReady && !!party && rows.every((r) => n(r.weight) > 0 && n(r.touch) > 0) && afterFine > 0 && pv.settleFine >= 0
+    && (!pv.givenOn || (n(f.givenTouch) > 0 && n(f.givenLess) < n(f.givenGross)))
     && (moneyMode || (paid === 0 && n(f.charges) === 0 && n(f.discount) === 0))
     && (splitOn ? payValid(pays) : n(f.online) === 0 || f.bankAccountId)
     && !(editing && editing.processed)
 
   const body = () => ({
     side, partyId: party!.id, metal, txnDate,
-    lines: rows.map((r) => ({ weight: n(r.weight), touch: n(r.touch), serialNo: r.serialNo || undefined })),
-    diffFine: n(f.diffFine), rate: n(f.rate), charges: n(f.charges), discount: n(f.discount),
+    // shortcut: one weighing block per exchange, saved on line 1 (the server stores weighing per line); upgrade if lines get their own block
+    lines: rows.map((r, i) => ({
+      weight: n(r.weight), touch: n(r.touch), serialNo: r.serialNo || undefined,
+      ...(i === 0 && weighOpen && (wb.gross !== '' || wb.sample !== '') ? { grossWeight: n(wb.gross), lessWeight: n(wb.less), meltWeight: Math.max(meltWt, 0), sampleWeight: n(wb.sample), sampleId: tounchSample?.id } : {}),
+    })),
+    diffPctPlus: n(f.diffPctPlus), diffGmPlus: n(f.diffGmPlus), diffPctMinus: n(f.diffPctMinus), diffGmMinus: n(f.diffGmMinus),
+    given: pv.givenOn ? { gross: n(f.givenGross), less: n(f.givenLess), touch: n(f.givenTouch) } : undefined,
+    rate: n(f.rate), charges: n(f.charges), discount: n(f.discount),
     ...(splitOn ? payBody(pays) : { cash: n(f.cash), online: n(f.online), bankAccountId: n(f.online) > 0 ? Number(f.bankAccountId) : undefined }),
     remark: f.remark || undefined,
   })
@@ -229,7 +251,24 @@ export function NewExchange() {
         <Card className="lg:col-span-2">
           <CardHeader><CardTitle>{t('trade.ex.settlement')}</CardTitle></CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="space-y-1.5"><Label htmlFor="ex-diff">{t('trade.fine_adjust')}</Label><Input id="ex-diff" type="number" step="0.001" value={f.diffFine} onChange={(e) => set('diffFine', e.target.value)} /></div>
+            <fieldset className="space-y-1.5 sm:col-span-2 lg:col-span-3">
+              <legend className="text-sm font-medium">{t('trade.ex.diff_title', { base: t(defaults.diffBy === 'WEIGHT' ? 'trade.ex.base_weight' : 'trade.ex.base_fine') })}</legend>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <Input type="number" step="0.01" min="0" aria-label="Difference plus percent" placeholder="+ %" value={f.diffPctPlus} onChange={(e) => set('diffPctPlus', e.target.value)} />
+                <Input type="number" step="0.001" min="0" aria-label="Difference plus grams" placeholder="+ g" value={f.diffGmPlus} onChange={(e) => set('diffGmPlus', e.target.value)} />
+                <Input type="number" step="0.01" min="0" aria-label="Difference minus percent" placeholder="− %" value={f.diffPctMinus} onChange={(e) => set('diffPctMinus', e.target.value)} />
+                <Input type="number" step="0.001" min="0" aria-label="Difference minus grams" placeholder="− g" value={f.diffGmMinus} onChange={(e) => set('diffGmMinus', e.target.value)} />
+              </div>
+            </fieldset>
+            <fieldset className="space-y-1.5 sm:col-span-2 lg:col-span-3">
+              <legend className="text-sm font-medium">{t('trade.ex.given_title')}</legend>
+              <div className="grid grid-cols-3 gap-2">
+                <Input type="number" step="0.001" min="0" aria-label="Given metal gross" placeholder={t('trade.ex.gross_wt')} value={f.givenGross} onChange={(e) => set('givenGross', e.target.value)} />
+                <Input type="number" step="0.001" min="0" aria-label="Given metal less" placeholder={t('trade.ex.less_wt')} value={f.givenLess} onChange={(e) => set('givenLess', e.target.value)} />
+                <Input type="number" step="0.01" min="0" max="100" aria-label="Given metal touch" placeholder={t('trade.touch_pct')} value={f.givenTouch} onChange={(e) => set('givenTouch', e.target.value)} />
+              </div>
+              {pv.givenOn && <p className="text-xs text-muted-foreground tabular-nums">{t('trade.ex.given_note', { fine: pv.givenFine.toFixed(3) })}</p>}
+            </fieldset>
             <div className="space-y-1.5"><Label htmlFor="ex-rate">{t('trade.rate_unit', { unit: metal === 'GOLD' ? '/10g' : '/kg' })}</Label><Input id="ex-rate" type="number" value={f.rate} onChange={(e) => set('rate', e.target.value)} />
               {/* Not auto-filled: a rate switches the exchange to money settlement, so the user opts in. */}
               {todayRate && <button type="button" className="text-left text-xs text-muted-foreground tabular-nums underline-offset-2 hover:text-foreground hover:underline" onClick={() => set('rate', todayRate)}>{t('trade.ex.today_rate', { side: side === 'BUY' ? t('trade.side_buy_lc') : t('trade.side_sell_lc'), rate: todayRate })}</button>}
@@ -259,27 +298,35 @@ export function NewExchange() {
           <CardHeader><CardTitle>{t('dash.col_summary')}</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm tabular-nums">
             <div className="flex justify-between"><span className="text-muted-foreground">{t('trade.ex.total_fine')}</span><span>{totalFine.toFixed(3)} g</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">{t('trade.ex.diff_short')}</span><span>{pv.diffFine.toFixed(3)} g</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">{t('trade.ex.after_adjust')}</span><span className="font-medium">{afterFine.toFixed(3)} g</span></div>
+            {pv.givenOn && <div className="flex justify-between"><span className="text-muted-foreground">{t('trade.ex.given_fine')}</span><span>{pv.givenFine.toFixed(3)} g</span></div>}
             {moneyMode ? (
               <>
+                {pv.roundOff !== 0 && <>
+                  <div className="flex justify-between"><span className="text-muted-foreground">{t('trade.ex.exact_amount')}</span><span>{inr(pv.exact)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">{t('trade.ex.round_off')}</span><span>{inr(pv.roundOff)}</span></div>
+                </>}
                 <div className="flex justify-between border-t pt-2 text-base font-semibold"><span>{t('trade.final_amount')}</span><span>{inr(finalAmount)}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">{t('bill.paid')}</span><span>{inr(paid)}</span></div>
                 <div className="flex justify-between font-medium"><span>{t('trade.balance_who', { who: side === 'BUY' ? t('trade.shop_owes') : t('trade.party_owes') })}</span><span>{inr(Math.abs(balance))}</span></div>
               </>
             ) : (
-              <p className="text-xs text-muted-foreground">{t('trade.ex.metal_settle', { who: side === 'BUY' ? t('trade.shop_owes') : t('trade.party_owes'), wt: afterFine.toFixed(3), metal })}</p>
+              <p className="text-xs text-muted-foreground">{t('trade.ex.metal_settle', { who: side === 'BUY' ? t('trade.shop_owes') : t('trade.party_owes'), wt: pv.settleFine.toFixed(3), metal })}</p>
             )}
           </CardContent>
         </Card>
       </div>
 
       <div className="flex flex-wrap justify-end gap-2">
+        {can('settings.misc', 'edit') && <Button variant="ghost" className="w-full sm:mr-auto sm:w-auto" onClick={() => setSettingsOpen(true)}><Settings2 className="size-4" aria-hidden />{t('trade.ex.settings')}</Button>}
         {!editing && <Button variant="outline" className="w-full sm:w-auto" disabled={pending} onClick={() => (dirty ? setAskClear(true) : clearForm())}><Eraser className="size-4" aria-hidden />{t('trade.ex.clear')}</Button>}
         <Button className="w-full sm:w-auto" disabled={!valid || pending} onClick={() => void submit().catch(() => {})}>
           {pending ? t('bill.saving') : editing ? t('party.save_changes') : t('trade.save_kind', { kind: side === 'BUY' ? t('trade.kind_purchase') : t('trade.kind_sale') })}
         </Button>
       </div>
       <ConfirmDialog open={askClear} title={t('trade.ex.clear_title')} description={t('trade.ex.clear_desc')} confirmLabel={t('trade.ex.clear')} destructive onConfirm={clearForm} onClose={() => setAskClear(false)} />
+      {settingsOpen && <ExchangeDefaultsDialog onClose={() => setSettingsOpen(false)} />}
       <MpinDialog open={askMpin} title={t('trade.ex.save_changes_title', { no: editing?.exchangeNo ?? '' })} onConfirm={saveEdit} onClose={() => setAskMpin(false)} />
     </div>
   )

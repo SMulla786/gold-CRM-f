@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { ApiException } from '@/lib/errors'
 import { qs, useApiMutation } from '@/lib/queries'
-import type { BhavBookingDto, BuySellDto, ExchangeDto, KachaBalanceDto, KachaProcessDto, Paged, TradeHistoryDto } from '@/shared'
+import type { BhavBookingDto, BuySellDto, ExchangeDto, KachaBalanceDto, KachaProcessDto, KachaSummaryDto, Paged, TradeHistoryDto } from '@/shared'
 
 const TRADE_KEYS = [['exchange'], ['kacha'], ['kacha-balance'], ['buy-sell'], ['bhav-booking'], ['ledger'], ['day-book'], ['party-balance'], ['dashboard']]
 
@@ -27,6 +27,8 @@ export const useKachaList = (params: Record<string, string | number | undefined>
   useQuery({ queryKey: ['kacha', params], queryFn: () => api.get<Paged<KachaProcessDto>>(`/app/kacha${qs(params)}`) })
 export const useKachaBalance = (metal: string) =>
   useQuery({ queryKey: ['kacha-balance', metal], queryFn: () => api.get<KachaBalanceDto>(`/app/kacha/balance${qs({ metal: metal || undefined })}`) })
+export const useKachaSummary = (metal: string) =>
+  useQuery({ queryKey: ['kacha', 'summary', metal], queryFn: () => api.get<KachaSummaryDto>(`/app/kacha/summary${qs({ metal: metal || undefined })}`) })
 export const useKachaProcess = () =>
   useApiMutation(({ body, mpin }: { body: Record<string, unknown>; mpin: string }) => api.post<KachaProcessDto>('/app/kacha/process', body, { mpin }), { invalidate: TRADE_KEYS, success: 'Processed' })
 export const useRevertKacha = () =>

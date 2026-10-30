@@ -1,5 +1,5 @@
 import type { ColumnDef } from '@tanstack/react-table'
-import { ArrowLeftRight, Coins, FileDown, Flame, History, IndianRupee, Pencil, Printer, Scale, type LucideIcon } from 'lucide-react'
+import { ArrowLeftRight, Coins, FileDown, Flame, History, IndianRupee, Layers, Pencil, Printer, Scale, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
 import { fetchAllPaged, qs } from '@/lib/queries'
-import { useDeleteExchange, useExchanges } from '@/lib/tradeQueries'
+import { useDeleteExchange, useExchanges, useKachaProcess } from '@/lib/tradeQueries'
 import { businessDayISO, METALS, PARTY_TYPES, TRADE_SIDES, type ExchangeDto } from '@/shared'
 
 import { BulkMeltDialog, ProcessKachaDialog } from './ProcessKachaDialog'
@@ -61,6 +61,10 @@ export function ExchangeList() {
   const selected = selectable.filter((e) => sel.has(e.id))
   const allSelected = selectable.length > 0 && selected.length === selectable.length
   const toggle = (id: number) => setSel((s) => { const x = new Set(s); if (x.has(id)) x.delete(id); else x.add(id); return x })
+  // G5 "send to process": the chosen exchanges become one PROCESS batch (kacha reserved, refined later from the kacha pool).
+  const batchProc = useKachaProcess()
+  const [batching, setBatching] = useState(false)
+  const oneMetal = new Set(selected.map((e) => e.metal)).size === 1
 
   // Only a BUY (old metal in) adds to the kacha pool, and processing posts at the active branch.
   const meltAction = (e: ExchangeDto) => {
@@ -162,6 +166,9 @@ export function ExchangeList() {
           {selected.length > 0 && (
             <Button variant="outline" className="ml-auto" onClick={() => setBulkMelting(selected)}><Flame className="size-4" aria-hidden />{t('trade.ex.melt_selected', { n: selected.length })}</Button>
           )}
+          {selected.length > 0 && (
+            <Button variant="outline" disabled={!oneMetal || batchProc.isPending} title={oneMetal ? undefined : t('trade.ex.process_mixed')} onClick={() => setBatching(true)}><Layers className="size-4" aria-hidden />{t('trade.ex.process_selected', { n: selected.length })}</Button>
+          )}
           <CsvExportButton className={selected.length > 0 ? undefined : 'ml-auto'} filename={`exchanges-${businessDayISO()}.csv`} rows={exportRows} />
           <Button asChild variant="outline"><Link to={`/app/exchange/print${qs({ ...filters, ptype: ptype || undefined })}`}><FileDown className="size-4" aria-hidden />{t('bill.download_pdf')}</Link></Button>
         </CardContent>
@@ -172,6 +179,10 @@ export function ExchangeList() {
       </Card>
       <MpinDialog open={!!deleting} title={t('trade.ex.delete_title', { no: deleting?.exchangeNo ?? '' })} onConfirm={(mpin) => del.mutateAsync({ id: deleting!.id, mpin })} onClose={() => setDeleting(null)} />
       <HistoryDialog kind="exchange" id={history?.id} title={t('trade.ex.history_title', { no: history?.exchangeNo ?? '' })} onClose={() => setHistory(null)} />
+      <MpinDialog open={batching} title={t('trade.ex.process_title', { n: selected.length })} onConfirm={async (mpin) => {
+        await batchProc.mutateAsync({ body: { type: 'PROCESS', metal: selected[0]!.metal, exchangeIds: selected.map((e) => e.id) }, mpin })
+        setBatching(false); clearSel()
+      }} onClose={() => setBatching(false)} />
       {bulkMelting && <BulkMeltDialog exchanges={bulkMelting} onClose={() => setBulkMelting(null)} onDone={() => { setBulkMelting(null); clearSel() }} />}
       {melting && <ProcessKachaDialog metal={melting.metal} source={{ id: melting.id, exchangeNo: melting.exchangeNo, fine: melting.afterFine }} onClose={() => setMelting(null)} />}
     </div>
