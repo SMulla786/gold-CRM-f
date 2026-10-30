@@ -61,6 +61,9 @@ export const useDeleteKarat = () =>
 export const useCurrentRates = () => useQuery({ queryKey: ['rates-current'], queryFn: () => api.get<CurrentRatesDto>('/app/rates/current') })
 export const useSetRates = () =>
   useApiMutation(({ body, mpin }: { body: Record<string, unknown>; mpin?: string }) => api.post('/app/rates', body, mpin ? { mpin } : undefined), { invalidate: [['rates-current'], ['rates-history']], success: 'Rates updated' })
+/** Atomic multi-metal save (POST /app/rates/batch): all metals saved or none. */
+export const useSetRatesBatch = () =>
+  useApiMutation(({ metals, mpin }: { metals: Record<string, unknown>[]; mpin?: string }) => api.post('/app/rates/batch', { metals }, mpin ? { mpin } : undefined), { invalidate: [['rates-current'], ['rates-history']], success: 'Rates updated' })
 export const useRateHistory = (params: { page?: number; metal?: string }) =>
   useQuery({ queryKey: ['rates-history', params], queryFn: () => api.get<Paged<RateHistoryDto>>(`/app/rates/history${qs(params)}`) })
 export const useRateLimits = () => useQuery({ queryKey: ['rate-limits'], queryFn: () => api.get<RateLimitDto[]>('/app/rate-limits') })

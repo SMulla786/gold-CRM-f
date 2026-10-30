@@ -159,7 +159,8 @@ export function Shell({ area, nav, showBranch }: ShellProps) {
             )
           })}
         </nav>
-        <main className="flex-1 p-4 sm:p-8">
+        {/* min-w-0: wide tables scroll inside their card instead of pushing the page sideways */}
+        <main className="min-w-0 flex-1 p-4 sm:p-8">
           <Suspense fallback={<p className="text-sm text-muted-foreground">{t('common.loading')}</p>}>
             <div key={pathname} className="animate-page-in">
               <Outlet />
