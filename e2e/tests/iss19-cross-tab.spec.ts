@@ -46,18 +46,26 @@ const JWT = /eyJ[\w-]+\.[\w-]+\./;
 /** In-app (SPA) navigation that fetches data — NOT page.goto, whose full load would restore a fresh session instead. */
 const openInApp = (p: Page, href: string) => p.locator(`nav a[href="${href}"]`).first().click();
 
+const HOME: Record<string, RegExp> = { 'demo.owner': /\/admin/, 'demo.cashier': /\/app/, superadmin: /\/platform/ };
+
+/** Log in and wait until the app has landed (helpers.login only submits the form). */
+async function signIn(p: Page, user: string) {
+  await login(p, user);
+  await expect(p).toHaveURL(HOME[user]!);
+}
+
 /** Tab B logs out the shared cookie without telling other tabs (as a crash / other device would), then signs in as `user`. */
 async function otherTabSignsInAs(context: BrowserContext, user: string) {
   const b = await context.newPage();
   await b.goto('/login');
+  await expect(b).not.toHaveURL(/\/login/); // tab B first restores the shared session — let that refresh finish
   await b.evaluate(() => fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }));
-  await login(b, user);
+  await signIn(b, user);
   return b;
 }
 
 async function impersonateDemo(a: Page) {
-  await login(a, 'superadmin');
-  await expect(a).toHaveURL(/\/platform/);
+  await signIn(a, 'superadmin');
   await a.goto('/platform/businesses');
   await a.getByRole('link', { name: 'Demo Jewellers' }).first().click();
   await a.getByRole('button', { name: 'Login as owner' }).click();
@@ -71,8 +79,7 @@ test.describe('ISS-19 cross-tab session safety', () => {
   test('1 · different users in two tabs: tab A stops at once, explicit screen, no data, never acts as B', async ({ context }) => {
     const a = await context.newPage();
     await recordLeaks(a);
-    await login(a, 'demo.owner');
-    await expect(a).toHaveURL(/\/admin/);
+    await signIn(a, 'demo.owner');
 
     const sent: (string | undefined)[] = [];
     a.on('request', (r) => { if (r.url().includes('/api/') && !r.url().includes('/api/auth/')) sent.push(r.headers().authorization); });
@@ -87,6 +94,7 @@ test.describe('ISS-19 cross-tab session safety', () => {
     expect(sent).toEqual([]); // a blocked tab sends nothing (and nothing with B's token)
 
     const { messages, storage } = await leaks(a);
+    expect(messages).toEqual([{ type: 'login', who: expect.stringMatching(/^\d+$/) }]); // A's own login: a user id, nothing else
     expect(JSON.stringify(messages)).not.toMatch(JWT);
     expect(storage).not.toMatch(JWT);
 
@@ -98,8 +106,7 @@ test.describe('ISS-19 cross-tab session safety', () => {
   test('1b · same scenario without the broadcast (BroadcastChannel unavailable): the refresh check alone blocks tab A', async ({ context }) => {
     const a = await context.newPage();
     await a.addInitScript(() => { delete (window as { BroadcastChannel?: unknown }).BroadcastChannel; });
-    await login(a, 'demo.owner');
-    await expect(a).toHaveURL(/\/admin/);
+    await signIn(a, 'demo.owner');
     await otherTabSignsInAs(context, 'demo.cashier');
     await expect(blocked(a)).toHaveCount(0); // tab A has not noticed yet
 
@@ -111,16 +118,17 @@ test.describe('ISS-19 cross-tab session safety', () => {
 
   test('2 · the same user signing in again in another tab does not disturb tab A', async ({ context }) => {
     const a = await context.newPage();
-    await login(a, 'demo.owner');
-    const b = await context.newPage();
-    await login(b, 'demo.owner');
-    await expect(b).toHaveURL(/\/admin/);
+    await signIn(a, 'demo.owner');
+    await otherTabSignsInAs(context, 'demo.owner'); // new session of the SAME account in the shared cookie
+    await openInApp(a, '/admin/users'); // A's old session is gone → its refresh returns the same identity → adopted
+    await expect(a).toHaveURL(/\/admin\/users/);
+    await expect(a.getByText('demo.cashier')).toBeVisible(); // A keeps working, with its own (owner) data
     await expect(blocked(a)).toHaveCount(0);
   });
 
   test('3 · logout in tab B → tab A shows "Signed out in another tab" and can only sign in again', async ({ context }) => {
     const a = await context.newPage();
-    await login(a, 'demo.owner');
+    await signIn(a, 'demo.owner');
     const b = await context.newPage();
     await b.goto('/admin');
     await expect(b).toHaveURL(/\/admin/);
@@ -132,7 +140,7 @@ test.describe('ISS-19 cross-tab session safety', () => {
 
   test('4 · simultaneous refresh: two tabs of one user refresh at once → neither is signed out (no token-reuse revoke)', async ({ context }) => {
     const a = await context.newPage();
-    await login(a, 'demo.owner');
+    await signIn(a, 'demo.owner');
     const b = await context.newPage();
     await b.goto('/admin');
     await expect(b).toHaveURL(/\/admin/);
@@ -152,8 +160,9 @@ test.describe('ISS-19 cross-tab session safety', () => {
     const a = await context.newPage();
     await recordLeaks(a);
     await impersonateDemo(a);
-    const { messages } = await leaks(a);
-    expect(messages).toEqual([{ type: 'login', who: expect.any(String) }]); // only the Super Admin's own login, ids only
+    const { messages, storage } = await leaks(a);
+    expect(messages).toEqual([]); // impersonation changes only this tab: nothing is broadcast (recorder restarts per page load)
+    expect(storage).not.toMatch(JWT);
 
     await otherTabSignsInAs(context, 'demo.cashier');
     await expect(blocked(a)).toContainText('Signed in as someone else in another tab');
@@ -183,8 +192,7 @@ test.describe('ISS-19 cross-tab session safety', () => {
 
   test('8 · pending API request during an identity change is aborted, its result never shown', async ({ context }) => {
     const a = await context.newPage();
-    await login(a, 'demo.owner');
-    await expect(a).toHaveURL(/\/admin/);
+    await signIn(a, 'demo.owner');
     let release!: () => void;
     const held = new Promise<void>((r) => (release = r));
     await a.route(/\/api\/admin\/users/, async (route) => { await held; await route.continue().catch(() => {}); });
@@ -199,7 +207,7 @@ test.describe('ISS-19 cross-tab session safety', () => {
 
   test('9 · React Query + permission isolation: after the switch the new account sees only its own menus and data', async ({ context }) => {
     const a = await context.newPage();
-    await login(a, 'demo.owner');
+    await signIn(a, 'demo.owner');
     await a.goto('/admin/users'); // fill the owner's cache with admin-only data
     await expect(a.getByRole('table')).toBeVisible();
     await otherTabSignsInAs(context, 'demo.cashier');
