@@ -63,13 +63,12 @@ export function PendingBills() {
           <TabsTrigger value="PURCHASE">{t('udhari.tab_purchase_only')}</TabsTrigger>
         </TabsList>
       </Tabs>
-      {/* summary over every bill matching the filters (server-side), not just this page; rupees only (BILL-15 R4) */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* summary over every bill matching the filters (server-side), not just this page; rupees only (BILL-15 R4); no netted total (owner rule) */}
+      <div className="grid gap-4 sm:grid-cols-3">
         {([
           [t('udhari.tab_pending'), sum ? String(sum.count) : '—'],
           [t('udhari.card_sale_due'), sum ? inr(sum.saleDue) : '—'],
           [t('udhari.card_purchase_due'), sum ? inr(sum.purchaseDue) : '—'],
-          [t('udhari.card_total_due'), sum ? inr(sum.totalDue) : '—'],
         ] as const).map(([label, value]) => (
           <Card key={label} className="gap-1 p-4">
             <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
