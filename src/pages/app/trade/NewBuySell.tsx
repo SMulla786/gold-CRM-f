@@ -114,7 +114,7 @@ export function NewBuySell() {
   const gross = lineRows.reduce((a, r) => a + amountOf(r), 0)
   const totalAmount = gross - n(f.discount)
   const paid = split ? payTotal(pays) : n(f.cash) + n(f.online)
-  const advance = delivered.reduce((a, b) => a + b.advance, 0) // nets like an order advance (party credit)
+  const advance = delivered.reduce((a, b) => a + b.advance, 0) // the booking advance already moved (SELL received / BUY given), so only the rest is due
   const balance = totalAmount - paid - advance
 
   const iuUnit = metalRateUnitGrams(iu.metal, settings)

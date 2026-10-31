@@ -1247,7 +1247,7 @@
   "trade.bhav.tile_open": "इस पेज पर खुले",
   "trade.bhav.tile_gold_due": "इस पेज पर बाकी सोना",
   "trade.bhav.tile_adv": "इस पेज पर अग्रिम",
-  "trade.bhav.tile_adv_sub": "इन लॉक पर लिया गया",
+  "trade.bhav.tile_adv_sub": "प्राप्त (SELL)। दिया (BUY): {{given}}",
   "trade.bhav.open_pending": "खुले (बाकी)",
   "trade.bhav.delete_selected": "चुने हुए हटाएँ ({n})",
   "trade.bhav.empty": "कोई बुकिंग नहीं",

@@ -1,16 +1,17 @@
 import type { BhavBookingDto } from '@/shared'
 
-type Bk = Pick<BhavBookingDto, 'side' | 'weight' | 'rate' | 'amount' | 'advance' | 'entryType'>
+type Bk = Pick<BhavBookingDto, 'side' | 'weight' | 'rate' | 'amount' | 'advance' | 'entryType' | 'settlement'>
 
 /** BUY / SELL column groups (parity list): a booking fills only its own side's weight / rate / amount. */
 export const sideFigures = (b: Bk, side: 'BUY' | 'SELL') => (b.side === side ? { weight: b.weight, rate: b.rate, amount: b.amount } : null)
 
 /**
- * GIVEN / RECEIVED: the advance in the direction it was posted. The posting rule (docs/api-phase10.md, bhav.ts postAdvance)
- * is MONEY IN + party credit on BOTH sides, so a posted advance is always RECEIVED. ONLY_ENTRY posts nothing (record only).
- * There is no GIVEN advance until the owner decides how a BUY booking's advance should post.
+ * GIVEN / RECEIVED (TRD-04): a BUY booking's money is GIVEN (the shop pays the party), a SELL booking's RECEIVED — the
+ * direction bhav.ts postAdvance posts it. The advance and the payments made on delivery (settlement) are separate figures;
+ * the bill total is never added to them. An ONLY_ENTRY advance posted nothing (record only). null = nothing to show.
  */
-export function advanceFlow(b: Bk): { kind: 'RECEIVED' | 'RECORD_ONLY' | 'NONE'; amount: string } {
-  if (!(Number(b.advance) > 0)) return { kind: 'NONE', amount: b.advance }
-  return { kind: b.entryType === 'ONLY_ENTRY' ? 'RECORD_ONLY' : 'RECEIVED', amount: b.advance }
+export function moneyFlow(b: Bk) {
+  const advance = Number(b.advance) > 0 ? b.advance : null
+  const settlement = Number(b.settlement) > 0 ? b.settlement : null
+  return { kind: b.side === 'BUY' ? ('GIVEN' as const) : ('RECEIVED' as const), advance, recordOnly: advance != null && b.entryType === 'ONLY_ENTRY', settlement }
 }

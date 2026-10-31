@@ -14,7 +14,7 @@ import { useT } from '@/lib/i18n'
 import { useBhavBookings } from '@/lib/tradeQueries'
 import { businessDayISO, METALS, TRADE_SIDES, type BhavBookingDto } from '@/shared'
 
-import { BhavRowMenu, VerifiedBadge } from './BhavBookings'
+import { BhavRowMenu, MoneyFlowCell, VerifiedBadge } from './BhavBookings'
 import { sideFigures } from './bhavSplit'
 import { DateRangeFilter } from './TradeExtras'
 import { bhavExportRows } from './tradeExport'
@@ -49,7 +49,7 @@ export function BhavOldBookings() {
       { id: `${side}-rate`, header: `${side} · ${t('udhari.rate')}`, cell: ({ row }) => <span className="tabular-nums">{sideFigures(row.original, side)?.rate ?? '—'}</span> },
     ]),
     { header: t('bill.amount'), cell: ({ row }) => <span className="tabular-nums">{inr(row.original.amount)}</span> },
-    { header: t('trade.col_advance'), cell: ({ row }) => <span className="tabular-nums">{inr(row.original.advance)}</span> },
+    { id: 'given-received', header: `${t('udhari.col_given')} / ${t('udhari.col_received')}`, cell: ({ row }) => <MoneyFlowCell b={row.original} /> },
     { header: t('udhari.col_narration'), cell: ({ row }) => <span className="text-muted-foreground">{row.original.narration ?? '—'}</span> },
     { header: t('stock.col_status'), cell: ({ row }) => <div className="flex flex-wrap gap-1"><Badge variant="outline">{row.original.status}</Badge><VerifiedBadge b={row.original} /></div> },
     { id: 'actions', header: '', cell: ({ row }) => (

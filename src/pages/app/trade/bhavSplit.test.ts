@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { advanceFlow, sideFigures } from './bhavSplit'
+import { moneyFlow, sideFigures } from './bhavSplit'
 
-const bk = (o: Partial<Parameters<typeof advanceFlow>[0]> = {}) => ({ side: 'BUY' as const, weight: '10.000', rate: '60000.00', amount: '60000.00', advance: '5000.00', entryType: 'LEDGER' as const, ...o })
+const bk = (o: Partial<Parameters<typeof moneyFlow>[0]> = {}) => ({ side: 'BUY' as const, weight: '10.000', rate: '60000.00', amount: '60000.00', advance: '5000.00', entryType: 'LEDGER' as const, settlement: '0.00', ...o })
 
 describe('bhav list BUY / SELL split', () => {
   it('fills only the booking\'s own side', () => {
@@ -12,11 +12,14 @@ describe('bhav list BUY / SELL split', () => {
   })
 })
 
-describe('GIVEN / RECEIVED', () => {
-  it('a posted advance is RECEIVED on both sides; ONLY_ENTRY is record-only; no advance → NONE', () => {
-    expect(advanceFlow(bk())).toEqual({ kind: 'RECEIVED', amount: '5000.00' })
-    expect(advanceFlow(bk({ side: 'SELL' })).kind).toBe('RECEIVED')
-    expect(advanceFlow(bk({ entryType: 'ONLY_ENTRY' })).kind).toBe('RECORD_ONLY')
-    expect(advanceFlow(bk({ advance: '0.00' })).kind).toBe('NONE')
+describe('GIVEN / RECEIVED (TRD-04)', () => {
+  it('BUY money is GIVEN, SELL money RECEIVED; advance and delivery settlement stay separate', () => {
+    expect(moneyFlow(bk({ settlement: '55000.00' }))).toEqual({ kind: 'GIVEN', advance: '5000.00', recordOnly: false, settlement: '55000.00' })
+    expect(moneyFlow(bk({ side: 'SELL' }))).toEqual({ kind: 'RECEIVED', advance: '5000.00', recordOnly: false, settlement: null })
+  })
+
+  it('ONLY_ENTRY advance is record-only; nothing paid → both null', () => {
+    expect(moneyFlow(bk({ entryType: 'ONLY_ENTRY' })).recordOnly).toBe(true)
+    expect(moneyFlow(bk({ advance: '0.00' }))).toMatchObject({ advance: null, recordOnly: false, settlement: null })
   })
 })

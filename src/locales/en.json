@@ -1247,7 +1247,7 @@
   "trade.bhav.tile_open": "Open on this page",
   "trade.bhav.tile_gold_due": "Gold due on this page",
   "trade.bhav.tile_adv": "Advances on this page",
-  "trade.bhav.tile_adv_sub": "Taken against these locks",
+  "trade.bhav.tile_adv_sub": "Received (SELL). Given (BUY): {{given}}",
   "trade.bhav.open_pending": "Open (pending)",
   "trade.bhav.delete_selected": "Delete selected ({n})",
   "trade.bhav.empty": "No bookings",
