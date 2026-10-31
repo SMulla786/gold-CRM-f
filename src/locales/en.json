@@ -1284,6 +1284,8 @@
   "trade.iu.linked": "Saved as udhar entry #{no}; it is edited and deleted with this trade.",
   "trade.iu.cash_in": "Jama cash (received ₹)",
   "trade.iu.cash_out": "Udhar cash (given ₹)",
+  "trade.iu.online_in": "Jama online (received ₹)",
+  "trade.iu.online_out": "Udhar online (given ₹)",
   "trade.iu.metal_in": "Jama metal (g)",
   "trade.iu.metal_out": "Udhar metal (g)",
   "trade.iu.bhav_none": "No bhav cut",

@@ -1284,6 +1284,8 @@
   "trade.iu.linked": "उधार प्रविष्टि #{no} के रूप में सहेजा गया; यह इसी सौदे के साथ बदलती और हटती है।",
   "trade.iu.cash_in": "जमा नकद (प्राप्त ₹)",
   "trade.iu.cash_out": "उधार नकद (दिया ₹)",
+  "trade.iu.online_in": "जमा ऑनलाइन (प्राप्त ₹)",
+  "trade.iu.online_out": "उधार ऑनलाइन (दिया ₹)",
   "trade.iu.metal_in": "जमा धातु (g)",
   "trade.iu.metal_out": "उधार धातु (g)",
   "trade.iu.bhav_none": "कोई भाव कट नहीं",

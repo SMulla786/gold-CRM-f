@@ -19,7 +19,7 @@ import { useBhavBooking, useBhavBookings, useBuySell, useCreateBuySell, useUpdat
 import { businessDayISO, METALS, TRADE_SIDES, metalToMoney, type PartyRefDto } from '@/shared'
 
 import { InlineUdharCard } from './InlineUdhar'
-import { blankInlineUdhar, fromInlineUdhar, toInlineUdhar } from './inlineUdharForm'
+import { blankInlineUdhar, fromInlineUdhar, inlineUdharBanksOk, toInlineUdhar } from './inlineUdharForm'
 import { blankPay, payBody, payRowsFrom, payTotal, payValid, type PayRow } from './splitPay'
 import { PartyBalanceChip, SplitPaymentTable, SplitToggle } from './TradeExtras'
 import { fineRate } from './tradeRates'
@@ -118,7 +118,7 @@ export function NewBuySell() {
   const balance = totalAmount - paid - advance
 
   const iuUnit = metalRateUnitGrams(iu.metal, settings)
-  const valid = branchReady && !!party && lineRows.every((r) => n(r.weight) > 0 && n(rateOf(r)) > 0) && totalWeight > 0
+  const valid = branchReady && !!party && inlineUdharBanksOk(iu) && lineRows.every((r) => n(r.weight) > 0 && n(rateOf(r)) > 0) && totalWeight > 0
     && delivered.every((b) => n(dels[b.id]!) <= b.max) && (split ? payValid(pays) : n(f.online) === 0 || f.bankAccountId)
 
   const body = () => ({
@@ -254,7 +254,7 @@ export function NewBuySell() {
           </CardContent>
         </Card>
       </div>
-      <InlineUdharCard value={iu} onChange={setIu} unitGrams={iuUnit} txnNo={editing?.udhar?.txnNo} />
+      <InlineUdharCard value={iu} onChange={setIu} unitGrams={iuUnit} txnNo={editing?.udhar?.txnNo} banks={banks} />
       <MpinDialog open={askMpin} title={t('trade.bs.save_changes_title', { no: editing?.buySellNo ?? '' })} onConfirm={saveEdit} onClose={() => setAskMpin(false)} />
     </div>
   )

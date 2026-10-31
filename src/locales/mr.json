@@ -1284,6 +1284,8 @@
   "trade.iu.linked": "उधार नोंद #{no} म्हणून जतन; ती याच व्यवहारासोबत बदलते आणि हटते.",
   "trade.iu.cash_in": "जमा रोख (मिळाले ₹)",
   "trade.iu.cash_out": "उधार रोख (दिले ₹)",
+  "trade.iu.online_in": "जमा ऑनलाइन (मिळाले ₹)",
+  "trade.iu.online_out": "उधार ऑनलाइन (दिले ₹)",
   "trade.iu.metal_in": "जमा धातू (g)",
   "trade.iu.metal_out": "उधार धातू (g)",
   "trade.iu.bhav_none": "भाव कट नाही",

@@ -3,14 +3,30 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useT } from '@/lib/i18n'
-import { METALS, moneyToMetal } from '@/shared'
+import { METALS, moneyToMetal, type BankAccountDto } from '@/shared'
 
 import type { InlineUdharForm } from './inlineUdharForm'
 
 /** TRD-02: udhar jama / udhar + bhav cut posted with a buy-sell or exchange as a linked udhar entry (same rules as New Udhar). */
-export function InlineUdharCard({ value, onChange, unitGrams, txnNo }: { value: InlineUdharForm; onChange: (v: InlineUdharForm) => void; unitGrams: number; txnNo?: number }) {
+export function InlineUdharCard({ value, onChange, unitGrams, txnNo, banks }: { value: InlineUdharForm; onChange: (v: InlineUdharForm) => void; unitGrams: number; txnNo?: number; banks?: BankAccountDto[] }) {
   const t = useT()
   const set = (k: keyof InlineUdharForm, v: string) => onChange({ ...value, [k]: v })
+  // online jama / udhar: amount + its bank account, as on New Udhar
+  const online = (dir: 'In' | 'Out') => {
+    const [amt, bank] = dir === 'In' ? (['onlineIn', 'inBankId'] as const) : (['onlineOut', 'outBankId'] as const)
+    return (
+      <div className="space-y-1.5">
+        <Label htmlFor={`iu-online-${dir}`}>{t(dir === 'In' ? 'trade.iu.online_in' : 'trade.iu.online_out')}</Label>
+        <Input id={`iu-online-${dir}`} type="number" min="0" value={value[amt]} onChange={(e) => set(amt, e.target.value)} />
+        {Number(value[amt]) > 0 && (
+          <Select value={value[bank]} onValueChange={(v) => set(bank, v)}>
+            <SelectTrigger aria-label={t(dir === 'In' ? 'udhari.in_bank' : 'udhari.out_bank')} aria-invalid={!value[bank]}><SelectValue placeholder={t(dir === 'In' ? 'udhari.in_bank' : 'udhari.out_bank')} /></SelectTrigger>
+            <SelectContent>{banks?.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.bankName} · {b.accountNo}</SelectItem>)}</SelectContent>
+          </Select>
+        )}
+      </div>
+    )
+  }
   const bhavWt = value.bhavDir && Number(value.bhavAmount) > 0 && Number(value.bhavRate) > 0 ? moneyToMetal(Number(value.bhavAmount), Number(value.bhavRate), unitGrams) : null
   return (
     <Card>
@@ -21,6 +37,8 @@ export function InlineUdharCard({ value, onChange, unitGrams, txnNo }: { value: 
       <CardContent className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5"><Label htmlFor="iu-cash-in">{t('trade.iu.cash_in')}</Label><Input id="iu-cash-in" type="number" min="0" value={value.cashIn} onChange={(e) => set('cashIn', e.target.value)} /></div>
         <div className="space-y-1.5"><Label htmlFor="iu-cash-out">{t('trade.iu.cash_out')}</Label><Input id="iu-cash-out" type="number" min="0" value={value.cashOut} onChange={(e) => set('cashOut', e.target.value)} /></div>
+        {online('In')}
+        {online('Out')}
         <div className="space-y-1.5">
           <Label>{t('udhari.metal')}</Label>
           <Select value={value.metal} onValueChange={(v) => set('metal', v)}>

@@ -26,7 +26,7 @@ import { blankPay, payBody, payRowsFrom, payTotal, payValid, type PayRow } from 
 import { PartyBalanceChip, SplitPaymentTable, SplitToggle } from './TradeExtras'
 import { DEFAULT_EXCHANGE, previewExchange } from './exchangeCalc'
 import { InlineUdharCard } from './InlineUdhar'
-import { blankInlineUdhar, fromInlineUdhar, toInlineUdhar } from './inlineUdharForm'
+import { blankInlineUdhar, fromInlineUdhar, inlineUdharBanksOk, toInlineUdhar } from './inlineUdharForm'
 import { ExchangeDefaultsDialog } from './ExchangeDefaults'
 import { fineRate } from './tradeRates'
 
@@ -131,7 +131,7 @@ export function NewExchange() {
     setWeighOpen(false); setWb(BLANK_WB); setTounchSample(null); setIu(blankInlineUdhar('GOLD'))
   }
 
-  const valid = branchReady && !!party && rows.every((r) => n(r.weight) > 0 && n(r.touch) > 0) && afterFine > 0 && pv.settleFine >= 0
+  const valid = branchReady && !!party && inlineUdharBanksOk(iu) && rows.every((r) => n(r.weight) > 0 && n(r.touch) > 0) && afterFine > 0 && pv.settleFine >= 0
     && (!pv.givenOn || (n(f.givenTouch) > 0 && n(f.givenLess) < n(f.givenGross)))
     && (moneyMode || (paid === 0 && n(f.charges) === 0 && n(f.discount) === 0))
     && (splitOn ? payValid(pays) : n(f.online) === 0 || f.bankAccountId)
@@ -323,7 +323,7 @@ export function NewExchange() {
         </Card>
       </div>
 
-      <InlineUdharCard value={iu} onChange={setIu} unitGrams={metalRateUnitGrams(iu.metal, settings)} txnNo={editing?.udhar?.txnNo} />
+      <InlineUdharCard value={iu} onChange={setIu} unitGrams={metalRateUnitGrams(iu.metal, settings)} txnNo={editing?.udhar?.txnNo} banks={banks} />
 
       <div className="flex flex-wrap justify-end gap-2">
         {can('settings.misc', 'edit') && <Button variant="ghost" className="w-full sm:mr-auto sm:w-auto" onClick={() => setSettingsOpen(true)}><Settings2 className="size-4" aria-hidden />{t('trade.ex.settings')}</Button>}
