@@ -1,12 +1,13 @@
 // Phase 1 masters & settings — TanStack Query hooks against the real /api/app/* routes.
 import { useQuery } from '@tanstack/react-query'
 
-import { api } from '@/lib/api'
+import { api, ApiException } from '@/lib/api'
 import { qs, useApiMutation } from '@/lib/queries'
 import type {
   BankAccountDto,
   BusinessProfileDto,
   CurrentRatesDto,
+  DeletePartyResultDto,
   HsnDto,
   KaratDto,
   OccasionDto,
@@ -32,8 +33,16 @@ export const useCreateParty = () =>
   useApiMutation((body: Record<string, unknown>) => api.post<PartyDto>('/app/parties', body), { invalidate: [['parties']], success: 'Party saved' })
 export const useUpdateParty = () =>
   useApiMutation(({ id, body }: { id: number; body: Record<string, unknown> }) => api.patch<PartyDto>(`/app/parties/${id}`, body), { invalidate: [['parties'], ['party']], success: 'Party updated' })
+// An unused party answers 409 CONFIRM_REQUIRED: returned as a result (not a toast) so the page can ask before the hard delete.
 export const useDeleteParty = () =>
-  useApiMutation((id: number) => api.del(`/app/parties/${id}`), { invalidate: [['parties']], success: 'Party removed' })
+  useApiMutation(
+    ({ id, confirm }: { id: number; confirm?: boolean }) =>
+      api.del<DeletePartyResultDto>(`/app/parties/${id}${confirm ? '?confirm=true' : ''}`).catch((e: unknown) => {
+        if (e instanceof ApiException && e.code === 'CONFIRM_REQUIRED') return { result: 'CONFIRM_REQUIRED' as const }
+        throw e
+      }),
+    { invalidate: [['parties'], ['party']] },
+  )
 
 // ───── Bank accounts ─────
 export const useBankAccounts = () => useQuery({ queryKey: ['bank-accounts'], queryFn: () => api.get<BankAccountDto[]>('/app/bank-accounts') })

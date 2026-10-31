@@ -2,6 +2,7 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { Network, UserCheck, UserX, Users, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { DataTable } from '@/components/DataTable'
@@ -39,6 +40,7 @@ export function Parties() {
   const [editId, setEditId] = useState<number | null>(null)
   const { data: editParty } = useParty(editId ?? undefined)
   const [removing, setRemoving] = useState<PartyListItemDto | null>(null)
+  const [purging, setPurging] = useState<PartyListItemDto | null>(null) // unused party: second confirm before the hard delete
 
   const columns: ColumnDef<PartyListItemDto, unknown>[] = [
     { accessorKey: 'name', header: 'Name', cell: ({ row }) => <span className="font-medium">{row.original.name}</span> },
@@ -139,14 +141,33 @@ export function Parties() {
 
       {creating && <NewPartyDialog open onClose={() => setCreating(false)} defaultType={(type || 'CUSTOMER') as PartyType} />}
       {editId && editParty && <NewPartyDialog open party={editParty} onClose={() => setEditId(null)} />}
+      {/* dues / pending bills come back as a 409 toast from the server; a party with history is archived; an unused one asks again */}
       <ConfirmDialog
         open={!!removing}
         title={`Remove ${removing?.name ?? ''}?`}
-        description="The party is deactivated, not deleted. You can re-add it later."
+        description="A party with any bills or history is archived (deactivated), not deleted. Parties with dues or pending bills cannot be removed."
         confirmLabel="Remove"
         destructive
-        onConfirm={async () => { if (removing) await del.mutateAsync(removing.id) }}
+        onConfirm={async () => {
+          if (!removing) return
+          const { result } = await del.mutateAsync({ id: removing.id })
+          if (result === 'CONFIRM_REQUIRED') setPurging(removing)
+          else toast.success('Party archived')
+        }}
         onClose={() => setRemoving(null)}
+      />
+      <ConfirmDialog
+        open={!!purging}
+        title={`Permanently delete ${purging?.name ?? ''}?`}
+        description="This party has no bills or history. It will be deleted for good and cannot be restored."
+        confirmLabel="Delete permanently"
+        destructive
+        onConfirm={async () => {
+          if (!purging) return
+          await del.mutateAsync({ id: purging.id, confirm: true })
+          toast.success('Party deleted')
+        }}
+        onClose={() => setPurging(null)}
       />
     </div>
   )
