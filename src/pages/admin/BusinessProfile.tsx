@@ -65,13 +65,16 @@ export function BusinessProfile() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="p-email">Email</Label>
-                <Input id="p-email" type="email" {...register('email')} />
+                {/* blank must reach zod as undefined: the email / GSTIN rules reject '' */}
+                <Input id="p-email" type="email" {...register('email', { setValueAs: (v: string) => v?.trim() || undefined })} />
+                {formState.errors.email && <p className="text-xs text-destructive">{formState.errors.email.message}</p>}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="p-gstin">GSTIN</Label>
-                <Input id="p-gstin" {...register('gstin')} />
+                <Input id="p-gstin" {...register('gstin', { setValueAs: (v: string) => v?.trim() || undefined })} />
+                {formState.errors.gstin && <p className="text-xs text-destructive">{formState.errors.gstin.message}</p>}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="p-alt-mobile">Alternate No</Label>
@@ -114,7 +117,8 @@ export function BusinessProfile() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="p-address">Address</Label>
-              <Input id="p-address" {...register('address')} />
+              <Input id="p-address" {...register('address', { setValueAs: (v: string) => v?.trim() || undefined })} />
+              {formState.errors.address && <p className="text-xs text-destructive">{formState.errors.address.message}</p>}
             </div>
             <Button type="submit" disabled={update.isPending}>
               {update.isPending ? 'Saving…' : 'Save changes'}

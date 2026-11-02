@@ -198,11 +198,14 @@ function UserDialog({ user, onClose }: { user?: UserDto; onClose: () => void }) 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="u-email">Email</Label>
-              <Input id="u-email" type="email" {...register('email')} />
+              {/* blank must reach zod as undefined: the email / mobile rules reject '' */}
+              <Input id="u-email" type="email" {...register('email', { setValueAs: (v: string) => v?.trim() || undefined })} />
+              {formState.errors.email && <p className="text-xs text-destructive">{formState.errors.email.message}</p>}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="u-mobile">Mobile</Label>
-              <Input id="u-mobile" {...register('mobile')} />
+              <Input id="u-mobile" {...register('mobile', { setValueAs: (v: string) => v?.trim() || undefined })} />
+              {formState.errors.mobile && <p className="text-xs text-destructive">{formState.errors.mobile.message}</p>}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
