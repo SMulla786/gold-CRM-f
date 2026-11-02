@@ -123,10 +123,8 @@ test('PROCESS reserves, two REFINEs consume the batch (raval stays kacha), guard
 
   // UI: the pool card shows physical kacha and no reservation left for this batch.
   await page.getByRole('link', { name: 'Kacha / Melting' }).click()
-  await page.waitForURL(/\/kacha$/) // the New Exchange form (with its own "Metal" select) must unmount first
-  await page.getByRole('combobox', { name: 'Metal', exact: true }).click()
-  await page.getByRole('option', { name: 'GOLD', exact: true }).click()
-  await expect(page.getByText(`${p2.kacha.toFixed(3)} g`).first()).toBeVisible()
+  await expect(page.getByRole('combobox', { name: 'Process type' })).toBeVisible() // only on the Kacha pool page
+  await expect(page.getByText(`${p2.kacha.toFixed(3)} g`).first()).toBeVisible() // the pool defaults to GOLD
 
   // Reverts: the batch only after its refines; child-first restores reservation then releases it.
   expect((await api(request, 'post', token, `/app/kacha/${batch.body.id}/revert`, branch, {}, MPIN)).status).toBe(409)

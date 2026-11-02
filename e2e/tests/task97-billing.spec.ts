@@ -79,6 +79,8 @@ test('purchase bill: GST details card is collapsed (fields unmounted) and only f
   await expect(toggle).toHaveCount(0);
 
   await page.goto('/app/billing'); // sell grid never shows the purchase-only columns
+  // wait for the sell form: navigating away mid start-up refresh reuses a rotated refresh token and logs the page out
+  await expect(page.getByRole('button', { name: '+ Cash' })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: 'HUID', exact: true })).toHaveCount(0);
   await page.goto('/app/billing/purchase');
 
