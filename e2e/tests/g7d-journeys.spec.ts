@@ -126,6 +126,9 @@ test('order with TWO advances → karigar issue/receive → bill by orderId: adv
   expect(await day(request, token, branch, 'ORDER_ADVANCE', ofOrder)).toMatchObject({ cashIn: 5000, cashOut: 0, rows: 2 })
 
   const itemId = order.body.items[0].id as number
+  // a karigar issue draws its fine gold from the branch's BULLION pool (G7 D-i): put the 10 g in first, never lean on the shared pool
+  const seed = await api(request, 'post', token, '/app/opening-balances', branch, { entries: [{ kind: 'METAL', metal: 'GOLD', metalForm: 'BULLION', fine: 10 }], remark: 'e2e karigar bullion' }, MPIN)
+  expect(seed.status, JSON.stringify(seed.body)).toBe(201)
   const issue = await api(request, 'post', token, '/app/karigar-issues', branch, { karigarId: karigar.id, orderItemIds: [itemId], goldFine: 10 })
   expect(issue.status, JSON.stringify(issue.body)).toBe(201)
   const recv = await api(request, 'post', token, `/app/karigar-issues/${issue.body.id}/receive`, branch,
