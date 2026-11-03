@@ -144,7 +144,7 @@ function InterestDialog({ batch, onClose }: { batch: GirviBatchDto; onClose: () 
   const pay = useGirviInterest()
   const [f, setF] = useState({ interest: batch.interestDue, discount: '0', cash: batch.interestDue, online: '0', bankAccountId: '' })
   const set = (k: string, v: string) => setF((s) => ({ ...s, [k]: v }))
-  const ok = n(f.interest) > 0 && (n(f.online) === 0 || f.bankAccountId)
+  const ok = n(f.interest) > 0 && Math.abs(n(f.cash) + n(f.online) - n(f.interest)) < 0.005 && (n(f.online) === 0 || f.bankAccountId)
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
@@ -200,7 +200,7 @@ function ReleaseDialog({ batch, onClose }: { batch: GirviBatchDto; onClose: () =
   const set = (k: string, v: string) => setF((s) => ({ ...s, [k]: v }))
   const releasingAll = ids.size === pledged.length
   const toggle = (id: number) => setIds((s) => { const x = new Set(s); if (x.has(id)) x.delete(id); else x.add(id); return x })
-  const ok = ids.size > 0 && (n(f.online) === 0 || f.bankAccountId) && (!releasingAll || Math.abs(n(f.principalPaid) - Number(batch.principal)) < 0.005)
+  const ok = ids.size > 0 && Math.abs(n(f.cash) + n(f.online) - n(f.principalPaid) - n(f.interestPaid)) < 0.005 && (n(f.online) === 0 || f.bankAccountId) && (!releasingAll || Math.abs(n(f.principalPaid) - Number(batch.principal)) < 0.005)
   const selected = pledged.filter((it) => ids.has(it.id))
   const { data: banks } = useBankAccounts()
   const bank = banks?.find((b) => String(b.id) === f.bankAccountId)
