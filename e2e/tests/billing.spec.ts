@@ -193,7 +193,7 @@ test('edit a saved sell bill today → MPIN, totals update, same bill no, item s
 test('a bill not dated today shows no Edit button', async ({ page, request }) => {
   test.setTimeout(60_000);
   const token = await apiToken(request, 'demo.owner');
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); // the shop's business day (IST), not UTC — 00:00–05:30 IST is still "yesterday" in UTC
   const bills = (await apiJson(request, token, '/app/bills?kind=SELL&page=1&pageSize=100')).body.items as Array<{ id: number; billNo: string; status: string; billDate: string }>;
   const past = bills.find((b) => b.status === 'ACTIVE' && b.billDate.slice(0, 10) !== today);
   test.skip(!past, 'demo data has no past-dated active sell bill to check');

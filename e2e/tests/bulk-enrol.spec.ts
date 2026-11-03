@@ -44,6 +44,7 @@ test('bulk-enrol books several members into a scheme in one submit', async ({ pa
     await page.getByPlaceholder('Search name / mobile').fill(nm);
     await page.waitForResponse((r) => r.url().includes('/app/parties/search'));
     await page.getByRole('option', { name: rx(nm) }).first().click();
+    await expect(page.getByPlaceholder('Search name / mobile')).toHaveCount(0); // picker closed before the next row's opens
   }
 
   await page.locator('#be-prefix').fill('E2E');
