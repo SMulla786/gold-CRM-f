@@ -263,10 +263,15 @@ test('branch Edit dialog: invalid mobile/GSTIN errors, new detail fields save an
     await page.locator('#b-incharge').fill(`T97 Incharge ${stamp}`);
     await page.locator('#b-mobile').fill('9876543210');
     await page.locator('#b-gstin').fill('27abcde1234f1z5'); // uppercased on save
+    // G7 review 2: real LGD districts — picking a state offers only that state's districts
+    const mhDistricts = (await getJson(request, token, '/public/states/27/districts')) as { id: number; name: string }[];
+    expect(mhDistricts).toHaveLength(36);
     await dlg.getByRole('combobox', { name: 'State' }).click();
-    await page.getByRole('option').first().click();
+    await page.getByRole('option', { name: 'MAHARASHTRA', exact: true }).click();
     await dlg.getByRole('combobox', { name: 'District' }).click();
-    await page.getByRole('option').first().click();
+    await expect(page.getByRole('option')).toHaveCount(36);
+    await expect(page.getByRole('option', { name: 'North Goa' })).toHaveCount(0);
+    await page.getByRole('option', { name: 'Pune', exact: true }).click();
     await page.locator('#b-address').fill(`T97 address ${stamp}`);
     await page.locator('#b-disclaimer').fill(`T97 disclaimer ${stamp}`);
     const [resp] = await Promise.all([
@@ -279,11 +284,12 @@ test('branch Edit dialog: invalid mobile/GSTIN errors, new detail fields save an
     expect(saved.inchargeName).toBe(`T97 Incharge ${stamp}`);
     expect(saved.mobile).toBe('9876543210');
     expect(saved.gstin).toBe('27ABCDE1234F1Z5');
-    expect(saved.stateId).toBeTruthy();
-    expect(saved.districtId).toBeTruthy();
+    expect(saved.stateId).toBe(27);
+    expect(saved.districtId).toBe(mhDistricts.find((d) => d.name === 'Pune')!.id);
     expect(saved.disclaimer).toBe(`T97 disclaimer ${stamp}`);
 
-    // row shows the contact line; reopening Edit pre-fills
+    // row shows the contact line; after a full reload, reopening Edit pre-fills (state + district included)
+    await page.reload();
     await expect(rowOf).toContainText(`T97 Incharge ${stamp}`);
     await rowOf.getByRole('button', { name: 'Actions' }).click();
     await page.getByRole('menuitem', { name: 'Edit' }).click();
@@ -292,6 +298,8 @@ test('branch Edit dialog: invalid mobile/GSTIN errors, new detail fields save an
     await expect(page.locator('#b-gstin')).toHaveValue('27ABCDE1234F1Z5');
     await expect(page.locator('#b-address')).toHaveValue(`T97 address ${stamp}`);
     await expect(page.locator('#b-disclaimer')).toHaveValue(`T97 disclaimer ${stamp}`);
+    await expect(dlg.getByRole('combobox', { name: 'State' })).toHaveText('MAHARASHTRA');
+    await expect(dlg.getByRole('combobox', { name: 'District' })).toHaveText('Pune');
   } finally {
     // shortcut: contract has no nullable fields, so values that were empty before stay set (only non-empty originals are restored)
     const restore = Object.fromEntries(Object.entries(orig).filter(([, v]) => v != null && v !== ''));
