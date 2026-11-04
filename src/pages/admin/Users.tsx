@@ -146,7 +146,7 @@ function UserDialog({ user, onClose }: { user?: UserDto; onClose: () => void }) 
           </dl>
           <DialogFooter>
             <Button variant="outline" title="Keep the role default permissions" onClick={onClose}>Done</Button>
-            <Button variant="outline" onClick={() => setPermsStep(true)}>Set permissions</Button>
+            {!me?.impersonatedBy && <Button variant="outline" onClick={() => setPermsStep(true)}>Set permissions</Button>}
             <Button onClick={() => copyLoginDetails(shop, created.username, created.password)}>
               <Copy className="size-4" aria-hidden /> Copy login details
             </Button>
@@ -233,8 +233,8 @@ function UserDialog({ user, onClose }: { user?: UserDto; onClose: () => void }) 
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="BRANCH_USER">Branch user</SelectItem>
-                  <SelectItem value="ADMIN" disabled={!adminAllowed}>
-                    Admin {adminAllowed ? '' : '(needs admin-node branch)'}
+                  <SelectItem value="ADMIN" disabled={!adminAllowed || !!me?.impersonatedBy}>
+                    Admin {me?.impersonatedBy ? '(not while impersonating)' : adminAllowed ? '' : '(needs admin-node branch)'}
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -474,8 +474,11 @@ export function Users() {
       cell: ({ row }) => {
         const u = row.original
         // Only the business owner may manage the owner row; nobody may block themselves.
-        const canManage = !u.isOwner || me?.isOwner
-        const canBlock = !u.isOwner && u.id !== me?.id
+        // Impersonating, the owner / admin rows and access grants are the owner's alone (the API refuses them too).
+        const support = !!me?.impersonatedBy
+        const locked = support && (u.isOwner || u.level === 'ADMIN')
+        const canManage = (!u.isOwner || me?.isOwner) && !locked
+        const canBlock = !u.isOwner && u.id !== me?.id && !locked
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -487,7 +490,7 @@ export function Users() {
               ) : (
                 <>
                   {canManage && <DropdownMenuItem onClick={() => setEditing(u)}>Edit</DropdownMenuItem>}
-                  {canManage && <DropdownMenuItem onClick={() => setPermsFor(u)}>Permissions</DropdownMenuItem>}
+                  {canManage && !support && <DropdownMenuItem onClick={() => setPermsFor(u)}>Permissions</DropdownMenuItem>}
                   {canManage && <DropdownMenuItem onClick={() => setResetting(u)}>Reset password</DropdownMenuItem>}
                   {canManage && <DropdownMenuItem onClick={() => setMpinFor(u)}>Set MPIN</DropdownMenuItem>}
                   {canBlock &&

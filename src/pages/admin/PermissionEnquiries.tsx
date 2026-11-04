@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { useAuth } from '@/lib/auth'
 import { useApproveEnquiry, useEnquiries, useRejectEnquiry } from '@/lib/queries'
 import { ENQUIRY_STATUS, type PermissionEnquiryDto } from '@/shared'
 
@@ -34,6 +35,7 @@ export function PermissionEnquiries() {
   const [page, setPage] = useState(1)
   const { data, isLoading } = useEnquiries({ page, status: status || undefined })
   const approve = useApproveEnquiry()
+  const support = !!useAuth().me?.impersonatedBy // approving is a permission grant: the owner's alone (API refuses it too)
   const [rejecting, setRejecting] = useState<PermissionEnquiryDto | null>(null)
 
   return (
@@ -70,7 +72,7 @@ export function PermissionEnquiries() {
                   <TableCell>
                     {e.status === 'PENDING' ? (
                       <div className="flex gap-2">
-                        <Button size="sm" disabled={approve.isPending} onClick={() => approve.mutate(e.id)}>Approve</Button>
+                        <Button size="sm" disabled={approve.isPending || support} title={support ? 'Not while impersonating — the owner must do this' : undefined} onClick={() => approve.mutate(e.id)}>Approve</Button>
                         <Button size="sm" variant="ghost" onClick={() => setRejecting(e)}>Reject</Button>
                       </div>
                     ) : (

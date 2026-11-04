@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useAuth } from '@/lib/auth'
 import { useAdminBusiness, useDistricts, useStates, useUpdateAdminBusiness } from '@/lib/queries'
 import { updateBusinessBody } from '@/shared'
 
@@ -18,6 +19,8 @@ export function BusinessProfile() {
   const { data, isLoading } = useAdminBusiness()
   const { data: states } = useStates()
   const update = useUpdateAdminBusiness()
+  // impersonating: the owner's contact details are read-only (the API refuses a change; unchanged values still save)
+  const support = !!useAuth().me?.impersonatedBy
   const { register, handleSubmit, reset, watch, setValue, formState } = useForm<ProfileForm>({ resolver: zodResolver(updateBusinessBody) })
   const stateId = watch('stateId')
   const { data: districts } = useDistricts(stateId ? Number(stateId) : undefined)
@@ -61,12 +64,12 @@ export function BusinessProfile() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="p-mobile">Mobile</Label>
-                <Input id="p-mobile" {...register('mobile', { required: true })} />
+                <Input id="p-mobile" readOnly={support} title={support ? 'Not while impersonating — the owner must do this' : undefined} {...register('mobile', { required: true })} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="p-email">Email</Label>
                 {/* blank must reach zod as undefined: the email / GSTIN rules reject '' */}
-                <Input id="p-email" type="email" {...register('email', { setValueAs: (v: string) => v?.trim() || undefined })} />
+                <Input id="p-email" type="email" readOnly={support} title={support ? 'Not while impersonating — the owner must do this' : undefined} {...register('email', { setValueAs: (v: string) => v?.trim() || undefined })} />
                 {formState.errors.email && <p className="text-xs text-destructive">{formState.errors.email.message}</p>}
               </div>
             </div>
@@ -79,7 +82,7 @@ export function BusinessProfile() {
               <div className="space-y-1.5">
                 <Label htmlFor="p-alt-mobile">Alternate No</Label>
                 {/* blank -> null so saving clears it */}
-                <Input id="p-alt-mobile" inputMode="numeric" maxLength={10} {...register('alternateMobile', { setValueAs: (v) => (v?.trim() ? v.trim() : null) })} />
+                <Input id="p-alt-mobile" inputMode="numeric" maxLength={10} readOnly={support} title={support ? 'Not while impersonating — the owner must do this' : undefined} {...register('alternateMobile', { setValueAs: (v) => (v?.trim() ? v.trim() : null) })} />
                 {formState.errors.alternateMobile && <p className="text-xs text-destructive">{formState.errors.alternateMobile.message}</p>}
               </div>
             </div>

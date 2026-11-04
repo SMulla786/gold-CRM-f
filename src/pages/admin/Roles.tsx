@@ -142,7 +142,8 @@ export function Roles() {
       <DataTable columns={columns} data={rows} isLoading={isLoading} />
       {creating && <RoleNameDialog onClose={() => setCreating(false)} />}
       {renaming && <RoleNameDialog role={renaming} onClose={() => setRenaming(null)} />}
-      {editing && <RolePermissionsDialog role={editing} canManage={canManage} onClose={() => setEditing(null)} />}
+      {/* impersonating: role permissions are view only (the API refuses grants while impersonating) */}
+      {editing && <RolePermissionsDialog role={editing} canManage={canManage && !me?.impersonatedBy} onClose={() => setEditing(null)} />}
     </div>
   )
 }
