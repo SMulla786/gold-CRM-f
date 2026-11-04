@@ -2,7 +2,8 @@ import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
-// Admin branch context -> X-Branch-Id. Hidden when the user has a single fixed branch.
+// Admin branch context -> X-Branch-Id. Hidden when the user has a single fixed branch. An inactive branch stays here
+// (its history and reports are readable) but is marked; new-entry pages ask for an active branch instead (useTxnBranchReady).
 export function BranchSwitcher() {
   const { me, activeBranch, setBranch } = useAuth()
   const t = useT()
@@ -22,6 +23,7 @@ export function BranchSwitcher() {
         <option key={b.id} value={String(b.id)}>
           {' '.repeat(b.depth * 2)}
           {b.name}
+          {!b.isActive && ` (${t('counters.inactive')})`}
         </option>
       ))}
     </select>

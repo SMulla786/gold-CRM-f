@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { MpinDialog } from '@/components/MpinDialog'
 import { PartyPicker } from '@/components/PartyPicker'
 import { TABLE_EDGES } from '@/components/SectionCard'
-import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
+import { SelectBranchForTxn, useTxnBranchReady } from '@/components/SelectBranchForTxn'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -52,8 +52,8 @@ const returnDateOf = (issueISO: string, months: number): Date | null => {
 export function NewGirvi() {
   const t = useT()
   const navigate = useNavigate()
-  const { activeBranch, can } = useAuth()
-  const branchReady = activeBranch !== '' && activeBranch !== 'all'
+  const { can } = useAuth()
+  const branchReady = useTxnBranchReady()
   const { data: settings } = useSettings()
   // karat → purity helper needs /app/karats (settings.misc view)
   const canKarat = can('settings.misc', 'view')

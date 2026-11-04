@@ -269,7 +269,7 @@ function recordPayment(b: BusinessDetailDto, body: Body) {
   return pay
 }
 function impersonate(b: BusinessDetailDto): LoginResponse {
-  const branch: BranchRef = { id: 1, name: 'HQ', parentId: null, path: '/1/', depth: 0, isAdminNode: true }
+  const branch: BranchRef = { id: 1, name: 'HQ', parentId: null, path: '/1/', depth: 0, isAdminNode: true, isActive: true }
   const user: MeDto = {
     id: b.owner?.id ?? 0, name: b.owner?.name ?? b.ownerName, username: b.owner?.username ?? 'owner', level: 'ADMIN', isOwner: true,
     business: { id: b.id, name: b.name, status: b.status }, branch, accessibleBranches: [branch],

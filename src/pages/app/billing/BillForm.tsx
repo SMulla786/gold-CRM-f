@@ -9,7 +9,7 @@ import { NewPartyDialog } from '@/components/NewPartyDialog'
 import { PartyPicker } from '@/components/PartyPicker'
 import { SampleLookupButton } from '@/components/SamplePicker'
 import { TABLE_EDGES } from '@/components/SectionCard'
-import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
+import { SelectBranchForTxn, useTxnBranchReady } from '@/components/SelectBranchForTxn'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -166,8 +166,9 @@ const SUPPLY_OPTS = [['TAXABLE', 'gst.taxable'], ['ZERO_RATED', 'gst.supply_zero
 export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDto }) {
   const t = useT()
   const navigate = useNavigate()
-  const { activeBranch, can } = useAuth()
-  const branchReady = !!editBill || (activeBranch !== '' && activeBranch !== 'all') // a bill posts to one branch; edit keeps the bill's branch
+  const { can } = useAuth()
+  const txnReady = useTxnBranchReady() // one concrete, active branch
+  const branchReady = !!editBill || txnReady // a bill posts to one branch; edit keeps the bill's branch
   const { data: settings } = useSettings()
   const { data: banks } = useBankAccounts()
   const { data: karats } = useKarats()

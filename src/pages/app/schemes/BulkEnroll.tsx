@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 
 import { PartyPicker } from '@/components/PartyPicker'
-import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
+import { SelectBranchForTxn, useTxnBranchReady } from '@/components/SelectBranchForTxn'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -10,7 +10,6 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useBankAccounts } from '@/lib/appQueries'
-import { useAuth } from '@/lib/auth'
 import { useBulkEnroll, useSchemeGroups, useSchemes } from '@/lib/schemesQueries'
 import { plural } from '@/lib/plural'
 import type { BulkEnrollResult } from '@/lib/schemesQueries'
@@ -25,8 +24,7 @@ let uid = 0
 const blank = (): MemberRow => ({ key: `m${uid++}`, party: null, displayName: '', assignId: '', mode: 'ENROLL', payAmount: '', payDate: today(), payMedium: 'CASH', payBankId: '' })
 
 export function BulkEnroll() {
-  const { activeBranch } = useAuth()
-  const branchReady = activeBranch !== '' && activeBranch !== 'all'
+  const branchReady = useTxnBranchReady()
   const { data: schemes } = useSchemes({ active: 'true', pageSize: 100 })
   const bulk = useBulkEnroll()
   const { data: banks } = useBankAccounts()

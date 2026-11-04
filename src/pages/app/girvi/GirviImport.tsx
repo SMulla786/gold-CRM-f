@@ -2,7 +2,7 @@ import { Download, FileCheck2, Upload } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
-import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
+import { SelectBranchForTxn, useTxnBranchReady } from '@/components/SelectBranchForTxn'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,7 +12,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { api } from '@/lib/api'
 import { useBankAccounts } from '@/lib/appQueries'
-import { useAuth } from '@/lib/auth'
 import { ApiException } from '@/lib/errors'
 import { useT } from '@/lib/i18n'
 import type { GirviImportResultDto } from '@/shared'
@@ -22,14 +21,13 @@ const inr = (s: string) => new Intl.NumberFormat('en-IN', { style: 'currency', c
 /** Girvi > Import: upload a CSV of existing loans, check every row, then import (only when all loans are valid). */
 export function GirviImport() {
   const t = useT()
-  const { activeBranch } = useAuth()
   const { data: banks } = useBankAccounts()
   const [file, setFile] = useState<File | null>(null)
   const [bankAccountId, setBankAccountId] = useState('')
   const [result, setResult] = useState<GirviImportResultDto | null>(null)
   const [busy, setBusy] = useState(false)
   const [onlyErrors, setOnlyErrors] = useState(false)
-  const branchReady = activeBranch !== '' && activeBranch !== 'all'
+  const branchReady = useTxnBranchReady()
 
   const run = async (dryRun: boolean) => {
     if (!file || busy) return

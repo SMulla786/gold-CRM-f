@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom'
 
 import { DataTable } from '@/components/DataTable'
 import { PartyPicker } from '@/components/PartyPicker'
-import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
+import { SelectBranchForTxn, useTxnBranchReady } from '@/components/SelectBranchForTxn'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -68,7 +68,7 @@ function GirviItemsPicker({ batchId, picked, toggle }: { batchId: number; picked
 
 function NewTransferDialog({ onClose }: { onClose: () => void }) {
   const t = useT()
-  const { activeBranch } = useAuth()
+  const branchReady = useTxnBranchReady()
   const create = useCreateGirviTransfer()
   const { data: settings } = useSettings()
   const def = settings?.['girvi.defaults']
@@ -105,7 +105,7 @@ function NewTransferDialog({ onClose }: { onClose: () => void }) {
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader><DialogTitle>{t('girvi.transfer_title')}</DialogTitle></DialogHeader>
         <div className="space-y-5">
-          {(activeBranch === '' || activeBranch === 'all') && <SelectBranchForTxn note={t('girvi.transfer_branch_note')} />}
+          {!branchReady && <SelectBranchForTxn note={t('girvi.transfer_branch_note')} />}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5"><Label htmlFor="gt-lender">{t('girvi.lender_req')}</Label><PartyPicker value={lender} onChange={setLender} id="gt-lender" ariaLabel="Lender" placeholder={t('girvi.search_lender')} /></div>
             <div className="space-y-1.5"><Label htmlFor="gt-date">{t('girvi.transfer_date')}</Label><Input id="gt-date" type="date" value={transferDate} onChange={(e) => setTransferDate(e.target.value)} /></div>

@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 
 import { MpinDialog } from '@/components/MpinDialog'
 import { PartyPicker } from '@/components/PartyPicker'
-import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
+import { SelectBranchForTxn, useTxnBranchReady } from '@/components/SelectBranchForTxn'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -12,7 +12,6 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useBankAccounts, useCurrentRates, useSettings } from '@/lib/appQueries'
-import { useAuth } from '@/lib/auth'
 import { metalRateUnitGrams } from '@/lib/billingQueries'
 import { useT } from '@/lib/i18n'
 import { useBhavBooking, useBhavBookings, useBuySell, useCreateBuySell, useUpdateBuySell } from '@/lib/tradeQueries'
@@ -36,8 +35,7 @@ const blankRow = (rate = ''): Row => ({ key: k(), weight: '', rate })
 export function NewBuySell() {
   const t = useT()
   const navigate = useNavigate()
-  const { activeBranch } = useAuth()
-  const branchReady = activeBranch !== '' && activeBranch !== 'all'
+  const branchReady = useTxnBranchReady()
   const { data: settings } = useSettings()
   const { data: banks } = useBankAccounts()
   const { data: rates } = useCurrentRates()

@@ -7,7 +7,7 @@ import { CsvExportButton } from '@/components/CsvExportButton'
 import { DataTable } from '@/components/DataTable'
 import { MpinDialog } from '@/components/MpinDialog'
 import { PartyPicker } from '@/components/PartyPicker'
-import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
+import { SelectBranchForTxn, useTxnBranchReady } from '@/components/SelectBranchForTxn'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -41,8 +41,8 @@ const blankW = (weight = '', rate = ''): WRow => ({ key: `w${uid++}`, weight, ra
 /** Create / edit form. Unmounts with the dialog, so it starts fresh (or from `editing`) every time it opens. */
 function BookingForm({ editing, onDone }: { editing?: BhavBookingDto; onDone: () => void }) {
   const t = useT()
-  const { activeBranch } = useAuth()
-  const branchReady = !!editing || (activeBranch !== '' && activeBranch !== 'all')
+  const txnReady = useTxnBranchReady() // one concrete, active branch
+  const branchReady = !!editing || txnReady
   const { data: banks } = useBankAccounts()
   const { data: settings } = useSettings()
   const create = useCreateBhav()

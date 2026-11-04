@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom'
 import { z } from 'zod'
 
 import { DataTable } from '@/components/DataTable'
-import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
+import { SelectBranchForTxn, useTxnBranchReady } from '@/components/SelectBranchForTxn'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -34,8 +34,7 @@ const ANJUMAN_VIEWS: { to: string; label: string; key: string; alt?: string }[] 
 ]
 
 function NewSchemeDialog({ kind }: { kind: SchemeKind }) {
-  const { activeBranch } = useAuth()
-  const branchReady = activeBranch !== '' && activeBranch !== 'all'
+  const branchReady = useTxnBranchReady()
   const create = useCreateScheme()
   const [open, setOpen] = useState(false)
   const [f, setF] = useState({ type: 'CASH', name: '', title: '', description: '', emiAmount: '', tenureMonths: '12', bonusType: 'NONE', bonusValue: '0', startDate: today(), validityDate: '' })

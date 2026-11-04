@@ -7,7 +7,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { MpinDialog } from '@/components/MpinDialog'
 import { PartyPicker } from '@/components/PartyPicker'
 import { SamplePicker } from '@/components/SamplePicker'
-import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
+import { SelectBranchForTxn, useTxnBranchReady } from '@/components/SelectBranchForTxn'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -45,8 +45,8 @@ const BLANK_WB = { gross: '', less: '', sample: '' }
 export function NewExchange() {
   const t = useT()
   const navigate = useNavigate()
-  const { activeBranch, can } = useAuth()
-  const branchReady = activeBranch !== '' && activeBranch !== 'all'
+  const { can } = useAuth()
+  const branchReady = useTxnBranchReady()
   const { data: settings } = useSettings()
   const { data: banks } = useBankAccounts()
   const { data: rates } = useCurrentRates()

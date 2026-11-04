@@ -3,7 +3,7 @@ import { useState } from 'react'
 
 import { MpinDialog } from '@/components/MpinDialog'
 import { PartyPicker } from '@/components/PartyPicker'
-import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
+import { SelectBranchForTxn, useTxnBranchReady } from '@/components/SelectBranchForTxn'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -27,8 +27,8 @@ interface MetalRow { key: string; metal: string; metalForm: string; fine: string
 interface PartyRow { key: string; party: PartyRefDto | null; amount: string; gold: string; silver: string }
 
 export function OpeningBalances() {
-  const { can, activeBranch } = useAuth()
-  const branchReady = activeBranch !== '' && activeBranch !== 'all'
+  const { can } = useAuth()
+  const branchReady = useTxnBranchReady()
   const canEdit = can('settings.misc', 'edit')
   const canDelete = can('settings.misc', 'delete')
   const { data: banks } = useBankAccounts()

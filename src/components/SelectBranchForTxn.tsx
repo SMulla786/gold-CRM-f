@@ -1,7 +1,8 @@
 import { useAuth } from '@/lib/auth'
+import { txnBranchReady, txnBranches } from '@/lib/txnBranch'
 
-/** Transactions (bills, udhar) post to one branch (X-Branch-Id); when the admin is on "All branches",
- *  force a concrete choice. Sets the active branch like BranchSwitcher (no "all" option here). */
+/** Transactions (bills, udhar) post to one branch (X-Branch-Id); when the admin is on "All branches" or an inactive branch,
+ *  force a concrete choice. Sets the active branch like BranchSwitcher (no "all" option, no inactive branch here). */
 export function SelectBranchForTxn({ note }: { note: string }) {
   const { me, setBranch } = useAuth()
   return (
@@ -14,10 +15,16 @@ export function SelectBranchForTxn({ note }: { note: string }) {
         onChange={(e) => e.target.value && setBranch(e.target.value)}
       >
         <option value="" disabled>Select a branch…</option>
-        {me?.accessibleBranches.map((b) => (
+        {txnBranches(me?.accessibleBranches).map((b) => (
           <option key={b.id} value={String(b.id)}>{b.name}</option>
         ))}
       </select>
     </div>
   )
+}
+
+/** A new-transaction form may open: the active branch is one concrete, active branch. */
+export function useTxnBranchReady(): boolean {
+  const { me, activeBranch } = useAuth()
+  return txnBranchReady(me?.accessibleBranches, activeBranch)
 }

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 
 import { PartyPicker } from '@/components/PartyPicker'
 import { TABLE_EDGES } from '@/components/SectionCard'
-import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
+import { SelectBranchForTxn, useTxnBranchReady } from '@/components/SelectBranchForTxn'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -11,7 +11,6 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useBankAccounts, useKarats, useSettings } from '@/lib/appQueries'
-import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
 import { metalRateUnitGrams, usePartyBalance } from '@/lib/billingQueries'
 import { useCreateJustBill, useJustBillNextNo } from '@/lib/justbillQueries'
@@ -33,8 +32,7 @@ const blankPay = (mode: string): PayRow => ({ key: k(), mode, amount: '', bankAc
 export function JustBill() {
   const t = useT()
   const navigate = useNavigate()
-  const { activeBranch } = useAuth()
-  const branchReady = activeBranch !== '' && activeBranch !== 'all'
+  const branchReady = useTxnBranchReady()
   const { data: settings } = useSettings()
   const { data: banks } = useBankAccounts()
   const create = useCreateJustBill()
