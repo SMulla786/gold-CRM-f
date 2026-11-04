@@ -276,6 +276,7 @@
   "bill.stock_handling": "Stock handling",
   "bill.item_return": "Item Return — put items back in stock",
   "bill.delete_only": "Delete Only — leave stock as is",
+  "bill.order_delete_note": "This bill delivers an order: deleting it puts the items back in stock, reserved for the order, and the order is ready to bill again.",
   "bill.delete_bill": "Delete bill",
   "bill.share": "Share",
   "bill.deleted": "Deleted",

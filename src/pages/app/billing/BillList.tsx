@@ -35,16 +35,21 @@ function DeleteBillDialog({ bill, onClose }: { bill: BillListItemDto; onClose: (
       <DialogContent>
         <DialogHeader><DialogTitle>{t('bill.delete_q', { no: bill.billNo })}</DialogTitle></DialogHeader>
         <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label>{t('bill.stock_handling')}</Label>
-            <Select value={returnStock} onValueChange={setReturnStock}>
-              <SelectTrigger aria-label="Stock handling"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">{t('bill.item_return')}</SelectItem>
-                <SelectItem value="false">{t('bill.delete_only')}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {/* G7: an order's bill is only ever deleted with its stock (the API refuses "delete only") */}
+          {bill.orderId != null ? (
+            <p className="text-sm text-muted-foreground">{t('bill.order_delete_note')}</p>
+          ) : (
+            <div className="space-y-1.5">
+              <Label>{t('bill.stock_handling')}</Label>
+              <Select value={returnStock} onValueChange={setReturnStock}>
+                <SelectTrigger aria-label="Stock handling"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="true">{t('bill.item_return')}</SelectItem>
+                  <SelectItem value="false">{t('bill.delete_only')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label htmlFor="del-mpin">{t('mpin.label')}</Label>
             <Input id="del-mpin" inputMode="numeric" maxLength={4} value={mpin} onChange={(e) => setMpin(e.target.value.replace(/\D/g, ''))} />
@@ -54,7 +59,7 @@ function DeleteBillDialog({ bill, onClose }: { bill: BillListItemDto; onClose: (
           <Button
             variant="destructive"
             disabled={mpin.length !== 4 || del.isPending}
-            onClick={async () => { await del.mutateAsync({ id: bill.id, returnStock: returnStock === 'true', mpin }); onClose() }}
+            onClick={async () => { await del.mutateAsync({ id: bill.id, returnStock: bill.orderId != null || returnStock === 'true', mpin }); onClose() }}
           >
             {t('bill.delete_bill')}
           </Button>
