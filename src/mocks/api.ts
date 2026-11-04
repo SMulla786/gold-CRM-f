@@ -122,7 +122,7 @@ export async function mockHandle<T>(method: string, rawPath: string, body?: unkn
     }
     throw notFound('Subscription not found')
   }
-  if (m === 'POST /platform/impersonation/end') return undefined as T
+  if (m === 'POST /platform/impersonation/end' || m === 'POST /auth/impersonation/end') return undefined as T
   if (m === 'GET /platform/payments') return paged(db.allPayments(), sp) as T
 
   if (m === 'GET /platform/plans') return db.plans as T

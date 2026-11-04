@@ -134,12 +134,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [apply, queryClient],
   )
 
-  // End impersonation by restoring the real (super admin) session from the cookie.
+  // End impersonation server-side with the impersonation token itself (G7 review 4: the old /platform call was refused,
+  // so it never ended), then restore the real (super admin) session from the cookie.
   const endImpersonation = useCallback(async () => {
     try {
-      await api.post('/platform/impersonation/end')
+      await api.post('/auth/impersonation/end')
     } catch {
-      // ignore — restore is what matters
+      // still restore the Super Admin: the impersonation token is dropped from memory either way
     }
     dropUserState(queryClient) // also forgets the impersonated identity, so restore() adopts the Super Admin's own session
     if (clearAdState('/platform')) return
