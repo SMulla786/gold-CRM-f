@@ -92,12 +92,18 @@ async function raw<T>(method: string, path: string, body?: unknown, opts: Reques
 // (which the backend's reuse detection would treat as a stolen token and revoke all sessions).
 // Across tabs a Web Lock serialises refreshes: two tabs presenting the same cookie at once would look like token reuse
 // (the backend then revokes every session); the second tab waits and sends the rotated cookie.
+// Login / logout take the same lock, so a refresh still in flight in another tab can't land its cookie over a new login.
+// (The backend also gives a duplicate refresh a 5 s grace, for browsers without Web Locks.) The lock is not re-entrant:
+// never wrap a call that can answer 401 UNAUTHENTICATED (it would wait on its own refresh).
+export function withAuthLock<T>(fn: () => Promise<T>): Promise<T> {
+  const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined
+  return locks ? locks.request('ju-auth-refresh', fn) : fn()
+}
+
 let refreshing: Promise<boolean> | null = null
 export function refreshAccessToken(): Promise<boolean> {
   if (changed) return Promise.resolve(false) // a stray request must not quietly pick up the new cookie's session
-  const post = () => raw<{ accessToken: string }>('POST', '/auth/refresh')
-  const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined
-  refreshing ??= (locks ? locks.request('ju-auth-refresh', post) : post())
+  refreshing ??= withAuthLock(() => raw<{ accessToken: string }>('POST', '/auth/refresh'))
     .then((r) => {
       const mine = identity
       const next = tokenIdentity(r.accessToken)

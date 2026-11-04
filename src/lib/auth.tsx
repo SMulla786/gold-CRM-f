@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 
 import { SessionChanged } from '@/components/SessionChanged'
 import { clearAdState } from '@/lib/ads'
-import { api, blockSession, getIdentity, refreshAccessToken, setAccessToken, setActiveBranch, setOnAuthLost, setOnSessionChanged } from '@/lib/api'
+import { api, blockSession, getIdentity, refreshAccessToken, setAccessToken, setActiveBranch, setOnAuthLost, setOnSessionChanged, withAuthLock } from '@/lib/api'
 import { announce, cookieOwner, onAnnounce, reactTo, type SessionChange } from '@/lib/session'
 import { dropUserState } from '@/lib/userState'
 import type { LoginResponse, MeDto, PermissionAction } from '@/shared'
@@ -99,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     async (loginId: string, password: string) => {
-      const res = await api.post<LoginResponse>('/auth/login', { login: loginId, password })
+      const res = await withAuthLock(() => api.post<LoginResponse>('/auth/login', { login: loginId, password }))
       queryClient.clear() // nothing cached for a previous user survives a login
       setAccessToken(res.accessToken)
       apply(res.user)
@@ -113,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     const mine = getIdentity()
     try {
-      await api.post('/auth/logout')
+      await withAuthLock(() => api.post('/auth/logout'))
     } finally {
       dropUserState(queryClient) // pending requests, token and cached data, so the next user can't see them
       apply(null)
