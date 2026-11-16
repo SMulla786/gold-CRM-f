@@ -4,6 +4,13 @@ import { defineConfig, devices } from '@playwright/test';
 // reuseExistingServer lets it attach to servers a teammate already has running locally.
 const FRONTEND = 'http://localhost:5173';
 
+// E2E_PASSWORD / E2E_SA_PASSWORD may live in the git-ignored frontend/.env; values already exported in the shell win.
+try {
+  process.loadEnvFile(new URL('../.env', import.meta.url));
+} catch {
+  // no frontend/.env: tests/helpers.ts reports the missing variable
+}
+
 export default defineConfig({
   testDir: './tests',
   timeout: 30_000,

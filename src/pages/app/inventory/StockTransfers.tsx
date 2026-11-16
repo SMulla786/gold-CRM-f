@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useCreateStockTransfer, useStock, useStockTransfer, useStockTransfers } from '@/lib/inventoryQueries'
 import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
+import { txnBranches } from '@/lib/txnBranch'
 import type { BranchRef, StockTransferDto } from '@/shared'
 
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
@@ -157,7 +158,7 @@ function DetailDialog({ id, onClose }: { id: number; onClose: () => void }) {
 export function StockTransfers() {
   const t = useT()
   const { me } = useAuth()
-  const branches = me?.accessibleBranches ?? []
+  const branches = txnBranches(me?.accessibleBranches) // an inactive branch neither sends nor receives stock
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const { data, isLoading } = useStockTransfers({ page, pageSize })

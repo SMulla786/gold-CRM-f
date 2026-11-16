@@ -17,7 +17,7 @@ test('display settings: hiding a block persists across reload; Show all brings i
   await page.getByRole('button', { name: 'Display settings' }).click();
   const dlg = page.getByRole('dialog', { name: 'Dashboard display settings' });
   await dlg.getByRole('checkbox', { name: 'Recent activity' }).click();
-  await dlg.getByRole('checkbox', { name: 'Monthly chart' }).click();
+  await dlg.getByRole('checkbox', { name: 'Monthly earnings' }).click();
   await expect(dlg.getByRole('checkbox', { name: 'Recent activity' })).not.toBeChecked();
   await page.keyboard.press('Escape');
   await expect(activity).toHaveCount(0);
@@ -44,6 +44,9 @@ test('recent activity: search and date range are sent to /app/activity', async (
   expect(searched.status()).toBe(200);
 
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  // dates: the filter defaults to Today; Custom range shows the From / To inputs
+  await page.getByRole('combobox', { name: 'Activity date' }).click();
+  await page.getByRole('option', { name: 'Custom range' }).click();
   const [dated] = await Promise.all([
     page.waitForResponse((r) => r.url().includes('/app/activity?') && r.url().includes(`from=${today}`)),
     page.getByLabel('Activity from').fill(today),

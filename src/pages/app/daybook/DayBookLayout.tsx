@@ -15,6 +15,7 @@ const TABS = [
   { to: '/app/daybook/artificial', tk: 'class.ARTIFICIAL', key: 'daybook.artificial' },
   { to: '/app/daybook/franchise', tk: 'class.FRANCHISE', key: 'daybook.franchise' },
   { to: '/app/daybook/old-metal', tk: 'daybook.tab_old_metal', key: 'daybook.gold' },
+  { to: '/app/daybook/settings', tk: 'daybook.settings.tab', key: 'settings.misc' },
 ]
 
 export function DayBookLayout() {

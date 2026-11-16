@@ -1,8 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 import { login } from './helpers';
 
-// TASK-98 owner dashboard: '% vs last month' Trend lines on KPI tiles (DashboardDto.lastMonth), 'Bills advance' under
-// Pending, and the 'Udhar overdue' card + its Display settings toggle. Expected values come from the same
+// TASK-98 owner dashboard: '% vs last month' Trend lines on KPI tiles / section footers (DashboardDto.lastMonth), the 'Bills advance'
+// tile (with 'Bill pending'), and the 'Udhar overdue' card + its Display settings toggle. Expected values come from the same
 // /app/dashboard response the page rendered, so they hold whatever the demo data is.
 type Dash = {
   sales: { todayTotal: string; monthTotal: string };
@@ -23,7 +23,7 @@ const trend = (cur: string | number, prev: string | number | undefined, prefix?:
   const pct = Math.round(((Number(cur) - p) / Math.abs(p)) * 100);
   return `${prefix ? `${prefix} ` : ''}${pct >= 0 ? '+' : ''}${pct}% vs last month`;
 };
-// KPI tiles are <a> (TileLink) whose text starts with the tile label
+// KPI tiles and section-footer figures are <a> whose text starts with the label
 const tile = (page: Page, label: string) => page.getByRole('main').getByRole('link').filter({ hasText: new RegExp(`^${rx(label)}`) });
 
 async function openDashboard(page: Page): Promise<Dash> {
@@ -42,11 +42,11 @@ test('KPI tiles: "% vs last month" trend lines match lastMonth', async ({ page }
   expect(d.lastMonth, 'dashboard sends lastMonth').toBeTruthy();
   const lm = d.lastMonth!;
   const cases: Array<[string, string | null]> = [
-    ['Sales today', trend(d.sales.todayTotal, lm.todayTotal)],
-    ['Sales this month', trend(d.sales.monthTotal, lm.monthTotal)],
+    ['Total sell (today)', trend(d.sales.todayTotal, lm.todayTotal)],
+    ['This month', trend(d.sales.monthTotal, lm.monthTotal)],
     ['Purchases this month', trend(d.purchases.monthTotal, lm.purchasesMonthTotal)],
-    ['Udhari receivable', trend(d.udhari.collectedThisMonth, lm.collectedThisMonth, 'Collected')],
-    ['Customers', trend(d.parties.customersNewThisMonth, lm.customersNewThisMonth, 'New')],
+    ['Collected this month', trend(d.udhari.collectedThisMonth, lm.collectedThisMonth)],
+    ['Total customers', trend(d.parties.customersNewThisMonth, lm.customersNewThisMonth, 'New')],
   ];
   for (const [label, text] of cases) {
     const t = tile(page, label);
@@ -59,12 +59,13 @@ test('KPI tiles: "% vs last month" trend lines match lastMonth', async ({ page }
   test.skip(expected === 0, 'every lastMonth figure is 0 in demo data: only the hidden case was checked');
 });
 
-test('Pending tile shows "Bills advance"', async ({ page }) => {
+test('Bills advance tile shows the advance and Bill pending', async ({ page }) => {
   const d = await openDashboard(page);
   expect(d.billsAdvance, 'dashboard sends billsAdvance').toBeDefined();
-  const pending = tile(page, 'Pending (receivable)');
-  await expect(pending).toHaveCount(1);
-  await expect(pending).toContainText(`Bills advance ${inr0(d.billsAdvance!)}`);
+  const adv = tile(page, 'Bills advance');
+  await expect(adv).toHaveCount(1);
+  await expect(adv).toContainText(inr0(d.billsAdvance!));
+  await expect(adv).toContainText('Bill pending');
 });
 
 test('Udhar overdue card: rows from the API; Display settings toggle hides it across reload; Show all restores', async ({ page }) => {
@@ -93,7 +94,7 @@ test('Udhar overdue card: rows from the API; Display settings toggle hides it ac
 
   await page.reload();
   await expect(page.getByRole('button', { name: 'Display settings' })).toBeVisible();
-  await expect(page.getByRole('link', { name: /^Sales today/ })).toBeVisible(); // dashboard data loaded
+  await expect(page.getByRole('link', { name: /^Total sell \(today\)/ })).toBeVisible(); // dashboard data loaded
   await expect(title).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Display settings' }).click();

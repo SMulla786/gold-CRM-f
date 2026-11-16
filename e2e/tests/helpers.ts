@@ -1,8 +1,13 @@
 import { expect, type Page } from '@playwright/test';
 
-export const PW = 'ChangeMe@123';
+// Credentials come only from the environment (see e2e/README.md): the old hardcoded demo password is public.
+const envPw = process.env.E2E_PASSWORD;
+if (!envPw) throw new Error('E2E_PASSWORD is not set: export it, or add it to frontend/.env (see e2e/README.md). There is no default.');
+export const PW: string = envPw;
+/** superadmin may have its own password (E2E_SA_PASSWORD); otherwise the shared demo one. */
+export const pwFor = (user: string): string => (user === 'superadmin' && process.env.E2E_SA_PASSWORD) || PW;
 
-export async function login(page: Page, user: string, pw = PW) {
+export async function login(page: Page, user: string, pw = pwFor(user)) {
   await page.goto('/login');
   await page.fill('#login', user);
   await page.fill('#password', pw);

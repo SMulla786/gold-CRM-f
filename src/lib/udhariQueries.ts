@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { api } from '@/lib/api'
 import { qs, useApiMutation } from '@/lib/queries'
-import type { BillListItemDto, Paged, PartyBalanceRowDto, StatementDto, UdharEntryRowDto, UdharTxnDto } from '@/shared'
+import type { BillListItemDto, Paged, PartyBalanceRowDto, PendingBillsSummaryDto, StatementDto, UdharEntryRowDto, UdharTxnDto } from '@/shared'
 
 // udhar moves party balances + money/metal ledgers (and bill.paid when settling), so refresh all.
 const UDHAR_KEYS = [['udhar-txn'], ['udhar-entries'], ['udhar-ledger'], ['party-balance'], ['party-statement'], ['pending-bills'], ['ledger'], ['day-book'], ['bills'], ['bill']]
@@ -15,7 +15,7 @@ export const useUdharLedger = (params: Record<string, string | number | undefine
   useQuery({ queryKey: ['udhar-ledger', params], queryFn: () => api.get<Paged<PartyBalanceRowDto>>(`/app/udhar/ledger${qs(params)}`) })
 
 export const usePendingBills = (params: Record<string, string | number | undefined>, enabled = true) =>
-  useQuery({ queryKey: ['pending-bills', params], queryFn: () => api.get<Paged<BillListItemDto>>(`/app/udhar/pending-bills${qs(params)}`), enabled })
+  useQuery({ queryKey: ['pending-bills', params], queryFn: () => api.get<Paged<BillListItemDto> & { summary: PendingBillsSummaryDto }>(`/app/udhar/pending-bills${qs(params)}`), enabled })
 
 export const usePartyStatement = (partyId?: number, params: Record<string, string | number | undefined> = {}) =>
   useQuery({ queryKey: ['party-statement', partyId, params], queryFn: () => api.get<StatementDto>(`/app/udhar/parties/${partyId}/statement${qs(params)}`), enabled: !!partyId })

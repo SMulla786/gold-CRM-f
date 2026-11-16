@@ -1,12 +1,12 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
-import { login, PW } from './helpers';
+import { login, pwFor } from './helpers';
 
 // TASK-98 business 'Alternate No': owner /admin/business #p-alt-mobile (save, invalid, clear -> null),
 // platform New business wizard 'Alternate No' (step-1 validation, sent on create), BusinessDetail Overview row.
 type Profile = { id: number; name: string; alternateMobile: string | null };
 
 async function apiToken(request: APIRequestContext, user: string): Promise<string> {
-  return (await (await request.post('/api/auth/login', { data: { login: user, password: PW } })).json()).accessToken as string;
+  return (await (await request.post('/api/auth/login', { data: { login: user, password: pwFor(user) } })).json()).accessToken as string;
 }
 const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
 async function profile(request: APIRequestContext, token: string): Promise<Profile> {

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { PartyPicker } from '@/components/PartyPicker'
-import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
+import { SelectBranchForTxn, useTxnBranchReady } from '@/components/SelectBranchForTxn'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -31,7 +31,7 @@ const blankPay = (mode: string): PayRow => ({ key: k(), mode, amount: '', bankAc
 export function NewOrder() {
   const navigate = useNavigate()
   const { activeBranch, can } = useAuth()
-  const branchReady = activeBranch !== '' && activeBranch !== 'all'
+  const branchReady = useTxnBranchReady()
   // TASK-98 preview of the next order no. (a peek, not reserved); hidden without permission or on error
   const nextNo = useNextOrderNo(branchReady && can('orders.create', 'view'), activeBranch)
   const { data: settings } = useSettings()

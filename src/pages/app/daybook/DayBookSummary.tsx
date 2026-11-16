@@ -14,9 +14,12 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useCloseDay, useDayBook, useOpenDay } from '@/lib/accountsQueries'
+import { useSettings } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
 import { sourceLabel } from '@/lib/sourceLinks'
+
+import { dayBookPrefs, shownAssets } from './dayBookPrefs'
 
 const today = businessDayISO
 const unit = (asset: string) => (asset === 'MONEY' ? '₹' : asset === 'GOLD' || asset === 'SILVER' ? 'g' : 'pcs')
@@ -37,6 +40,9 @@ export function DayBookSummary() {
   const openDay = useOpenDay()
   const closeDay = useCloseDay()
   const [confirm, setConfirm] = useState<'open' | 'close' | null>(null)
+  // SET-08: only the asset groups chosen in Day Book Settings
+  const shown = new Set<string>(shownAssets(dayBookPrefs(useSettings().data)))
+  const show = (r: { asset: string }) => shown.has(r.asset)
 
   return (
     <div className="space-y-6">
@@ -74,9 +80,9 @@ export function DayBookSummary() {
         </div>
       ) : (
         <>
-          {data.totals.length > 0 && (
+          {data.totals.some(show) && (
             <div className="stagger grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
-              {data.totals.map((r) => (
+              {data.totals.filter(show).map((r) => (
                 <KpiTile key={r.asset} size="sm" label={r.asset} value={`${r.closing} ${unit(r.asset)}`} sub={`₹${r.value}`}
                   icon={ASSET_ICON[r.asset] ?? Scale} tone={r.asset === 'MONEY' || r.asset === 'GOLD' ? 'gold' : 'slate'} />
               ))}
@@ -96,7 +102,7 @@ export function DayBookSummary() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.totals.map((r) => (
+                  {data.totals.filter(show).map((r) => (
                     <TableRow key={r.asset}>
                       <TableCell className="font-medium">{r.asset}</TableCell>
                       <TableCell>{r.opening} {unit(r.asset)}</TableCell>
@@ -119,7 +125,7 @@ export function DayBookSummary() {
                       <TableHead>{t('db98.sn')}</TableHead>
                       <TableHead>{t('daybook.col_date')}</TableHead>
                       <TableHead>{t('daybook.col_status')}</TableHead>
-                      {data.days[0]!.totals.map((a) => <TableHead key={a.asset} className="text-right whitespace-nowrap">{a.asset}</TableHead>)}
+                      {data.days[0]!.totals.filter(show).map((a) => <TableHead key={a.asset} className="text-right whitespace-nowrap">{a.asset}</TableHead>)}
                       <TableHead />
                     </TableRow>
                   </TableHeader>
@@ -130,7 +136,7 @@ export function DayBookSummary() {
                         <TableCell className="whitespace-nowrap font-medium">{new Date(d.date).toLocaleDateString('en-IN')}</TableCell>
                         <TableCell>{d.status ? <Badge variant={d.status === 'OPEN' ? 'secondary' : 'destructive'}>{d.status}</Badge> : '—'}</TableCell>
                         {/* opening → closing per asset; in/out on hover */}
-                        {d.totals.map((a) => (
+                        {d.totals.filter(show).map((a) => (
                           <TableCell key={a.asset} className="text-right whitespace-nowrap tabular-nums" title={`+${a.in} / −${a.out}`}>
                             <span className="text-muted-foreground">{a.opening}</span> → <span className="font-medium">{a.closing}</span>
                           </TableCell>
@@ -165,8 +171,8 @@ export function DayBookSummary() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.bySource.length ? (
-                    data.bySource.map((s, i) => (
+                  {data.bySource.some(show) ? (
+                    data.bySource.filter(show).map((s, i) => (
                       <TableRow key={i}>
                         <TableCell>{sourceLabel(t, s.source)}</TableCell>
                         <TableCell>{s.asset}</TableCell>

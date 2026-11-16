@@ -4,14 +4,13 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { MpinDialog } from '@/components/MpinDialog'
 import { PartyPicker } from '@/components/PartyPicker'
-import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
+import { SelectBranchForTxn, useTxnBranchReady } from '@/components/SelectBranchForTxn'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useBankAccounts, useParty } from '@/lib/appQueries'
-import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
 import { usePartyBalance } from '@/lib/billingQueries'
 import { useCreateUdhar, usePendingBills, useUdharEntries, useUdharTxn, useUpdateUdhar } from '@/lib/udhariQueries'
@@ -36,8 +35,7 @@ function NumField({ id, label, value, onChange, step = '0.01' }: { id: string; l
 export function NewUdhar() {
   const t = useT()
   const create = useCreateUdhar()
-  const { activeBranch } = useAuth()
-  const branchReady = activeBranch !== '' && activeBranch !== 'all' // udhar posts to one branch
+  const branchReady = useTxnBranchReady() // udhar posts to one branch
   const { data: banks } = useBankAccounts()
   const [party, setParty] = useState<PartyRefDto | null>(null)
   // ?partyId= pre-fills the party (Udhar Ledger row "New entry"); only until the user picks one

@@ -37,7 +37,7 @@ export function useAppNav(): NavItem[] {
   const { can, hasModule } = useAuth()
   const items = MODULES.filter(
     (m) => hasModule(m.key, m.core) && m.pages.some((pg) => can(pg.key, 'view')),
-  ).map((m) => ({ to: `/app/${m.key}`, label: m.label }))
+  ).map((m) => ({ to: m.key === 'stock_summary' ? '/app/inventory/summary' : `/app/${m.key}`, label: m.label })) // stock_summary's page lives under inventory
   // Self-service: any store user can ask for access they don't have (TASK-87).
   items.push({ to: '/app/access-requests', label: 'Access requests' })
   return items

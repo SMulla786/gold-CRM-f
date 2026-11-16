@@ -147,6 +147,8 @@ export function BulkEditDialog({ ids, onClose }: { ids: number[]; onClose: () =>
   const bulk = useBulkEditStock()
   const [form, setForm] = useState<Record<string, string>>({})
   const [labourUnit, setLabourUnit] = useState('')
+  // '' = keep each item's code type. Never sends epcCode (unique per item; backend rejects it in bulk).
+  const [codeType, setCodeType] = useState<StockCodeType | ''>('')
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
@@ -175,9 +177,24 @@ export function BulkEditDialog({ ids, onClose }: { ids: number[]; onClose: () =>
               </SelectContent>
             </Select>
           </div>
+          <div className="space-y-1.5">
+            <Label>{t('inv.code.code_type')}</Label>
+            <Select value={codeType || 'keep'} onValueChange={(v) => setCodeType(v === 'keep' ? '' : (v as StockCodeType))}>
+              <SelectTrigger aria-label="Bulk code type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="keep">{t('inv.stock.keep')}</SelectItem>
+                {CODE_TYPES.map((c) => (
+                  <SelectItem key={c} value={c}>{t(CODE_TYPE_LABEL[c])}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
+        {codeType === 'RFID' && <p className="text-xs text-muted-foreground">{t('stock.bulk_rfid_epc_hint')}</p>}
         <DialogFooter>
-          <Button disabled={bulk.isPending} onClick={async () => { await bulk.mutateAsync({ ids, patch: toBody(form, labourUnit) }); onClose() }}>
+          <Button disabled={bulk.isPending} onClick={async () => { await bulk.mutateAsync({ ids, patch: { ...toBody(form, labourUnit), ...(codeType ? { codeType } : {}) } }); onClose() }}>
             {t('inv.stock.apply_to', { n: ids.length })}
           </Button>
         </DialogFooter>

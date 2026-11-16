@@ -38,7 +38,7 @@ function CreateWizard() {
     reset()
   }
   const next = async () => {
-    const ok = await trigger(step === 1 ? (['name', 'ownerName', 'mobile', 'alternateMobile'] as const) : (['owner'] as const))
+    const ok = await trigger(step === 1 ? (['name', 'ownerName', 'mobile', 'alternateMobile', 'email', 'gstin'] as const) : (['owner'] as const))
     if (ok) setStep((s) => s + 1)
   }
   const onSubmit = handleSubmit(async (values) => {
@@ -69,16 +69,17 @@ function CreateWizard() {
                 <Field label="Mobile" error={formState.errors.mobile?.message}>
                   <Input {...register('mobile')} />
                 </Field>
-                <Field label="Email">
-                  <Input type="email" {...register('email')} />
+                {/* blank must reach zod as undefined: the email / GSTIN rules reject '' */}
+                <Field label="Email" error={formState.errors.email?.message}>
+                  <Input type="email" {...register('email', { setValueAs: (v: string) => v?.trim() || undefined })} />
                 </Field>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Alternate No" error={formState.errors.alternateMobile?.message}>
                   <Input inputMode="numeric" maxLength={10} {...register('alternateMobile', { setValueAs: (v) => (v?.trim() ? v.trim() : undefined) })} />
                 </Field>
-                <Field label="GSTIN">
-                  <Input {...register('gstin')} />
+                <Field label="GSTIN" error={formState.errors.gstin?.message}>
+                  <Input {...register('gstin', { setValueAs: (v: string) => v?.trim() || undefined })} />
                 </Field>
               </div>
               <Field label="State">

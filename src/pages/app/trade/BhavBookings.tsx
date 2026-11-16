@@ -7,7 +7,7 @@ import { CsvExportButton } from '@/components/CsvExportButton'
 import { DataTable } from '@/components/DataTable'
 import { MpinDialog } from '@/components/MpinDialog'
 import { PartyPicker } from '@/components/PartyPicker'
-import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
+import { SelectBranchForTxn, useTxnBranchReady } from '@/components/SelectBranchForTxn'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -24,6 +24,7 @@ import { useT } from '@/lib/i18n'
 import { useBhavBookings, useBulkDeleteBhav, useCancelBhav, useCreateBhav, useDeleteBhav, useUndeliverBhav, useUpdateBhav, useVerifyBhav } from '@/lib/tradeQueries'
 import { BHAV_STATUSES, businessDayISO, METALS, TRADE_SIDES, metalToMoney, type BhavBookingDto, type PartyRefDto } from '@/shared'
 
+import { moneyFlow, sideFigures } from './bhavSplit'
 import { blankPay, payBody, payRowsFrom, payTotal, payValid, type PayRow } from './splitPay'
 import { DateRangeFilter, HistoryDialog, PartyBalanceChip, SplitPaymentTable, SplitToggle } from './TradeExtras'
 import { bhavExportRows } from './tradeExport'
@@ -40,8 +41,8 @@ const blankW = (weight = '', rate = ''): WRow => ({ key: `w${uid++}`, weight, ra
 /** Create / edit form. Unmounts with the dialog, so it starts fresh (or from `editing`) every time it opens. */
 function BookingForm({ editing, onDone }: { editing?: BhavBookingDto; onDone: () => void }) {
   const t = useT()
-  const { activeBranch } = useAuth()
-  const branchReady = !!editing || (activeBranch !== '' && activeBranch !== 'all')
+  const txnReady = useTxnBranchReady() // one concrete, active branch
+  const branchReady = !!editing || txnReady
   const { data: banks } = useBankAccounts()
   const { data: settings } = useSettings()
   const create = useCreateBhav()
@@ -179,6 +180,20 @@ export function VerifiedBadge({ b }: { b: BhavBookingDto }) {
   return <Badge variant="outline" title={t('trade.bhav.verified_title', { by, date: new Date(b.verifiedAt).toLocaleString('en-IN') })}><BadgeCheck className="size-3.5" aria-hidden />{t('trade.bhav.verified')}</Badge>
 }
 
+/** Given / Received cell (TRD-04): the advance and the payments made on delivery, each on its own line. */
+export function MoneyFlowCell({ b }: { b: BhavBookingDto }) {
+  const t = useT()
+  const f = moneyFlow(b)
+  if (f.advance == null && f.settlement == null) return <>—</>
+  return (
+    <div className="tabular-nums">
+      <div className="text-xs text-muted-foreground">{t(f.kind === 'GIVEN' ? 'udhari.col_given' : 'udhari.col_received')}</div>
+      {f.advance != null && <div>{t('trade.col_advance')}: {inr(f.advance)}{f.recordOnly && <span className="text-xs text-muted-foreground"> ({t('trade.bhav.record_only_lc')})</span>}</div>}
+      {f.settlement != null && <div>{t('trade.ex.settlement')}: {inr(f.settlement)}</div>}
+    </div>
+  )
+}
+
 /** Secondary row actions: Edit (pending only), History, Verify / Remove verification, Undeliver (MPIN). */
 export function BhavRowMenu({ b }: { b: BhavBookingDto }) {
   const t = useT()
@@ -253,14 +268,16 @@ export function BhavBookings() {
     } satisfies ColumnDef<BhavBookingDto, unknown>] : []),
     { header: t('trade.col_no'), cell: ({ row }) => <span className="font-medium">#{row.original.bookingNo}</span> },
     { header: t('udhari.date'), cell: ({ row }) => date(row.original.txnDate) },
-    { header: t('trade.side'), cell: ({ row }) => <Badge variant="secondary">{row.original.side}</Badge> },
     { header: t('udhari.party'), cell: ({ row }) => row.original.party.name },
     { header: t('udhari.metal'), cell: ({ row }) => row.original.metal },
-    { header: t('bill.col_weight'), cell: ({ row }) => `${row.original.weight} g` },
+    // parity: BUY (WT | RATE | AMT) and SELL (WT | RATE | AMT) groups; a booking fills only its own side
+    ...TRADE_SIDES.flatMap((side): ColumnDef<BhavBookingDto, unknown>[] => [
+      { id: `${side}-wt`, header: `${side} · ${t('bill.col_weight')}`, cell: ({ row }) => { const f = sideFigures(row.original, side); return f ? `${f.weight} g` : '—' } },
+      { id: `${side}-rate`, header: `${side} · ${t('udhari.rate')}`, cell: ({ row }) => sideFigures(row.original, side)?.rate ?? '—' },
+      { id: `${side}-amt`, header: `${side} · ${t('bill.amount')}`, cell: ({ row }) => { const f = sideFigures(row.original, side); return f ? inr(f.amount) : '—' } },
+    ]),
     { header: t('trade.col_pending'), cell: ({ row }) => `${row.original.pendingWeight} g` },
-    { header: t('udhari.rate'), cell: ({ row }) => row.original.rate },
-    { header: t('bill.amount'), cell: ({ row }) => inr(row.original.amount) },
-    { header: t('trade.col_advance'), cell: ({ row }) => <span>{inr(row.original.advance)}{row.original.entryType === 'ONLY_ENTRY' && <span className="block text-xs text-muted-foreground">{t('trade.bhav.record_only_lc')}</span>}</span> },
+    { id: 'given-received', header: `${t('udhari.col_given')} / ${t('udhari.col_received')}`, cell: ({ row }) => <MoneyFlowCell b={row.original} /> },
     { header: t('stock.col_status'), cell: ({ row }) => <div className="flex flex-wrap gap-1"><Badge variant={STATUS_VARIANT[row.original.status]}>{row.original.status}</Badge><VerifiedBadge b={row.original} /></div> },
     { id: 'actions', header: '', cell: ({ row }) => {
       const b = row.original
@@ -286,7 +303,8 @@ export function BhavBookings() {
   const openRows = items.filter((b) => b.status === 'PENDING' || b.status === 'PARTIAL')
   const goldDue = openRows.filter((b) => b.metal === 'GOLD').reduce((sum, b) => sum + n(b.pendingWeight), 0)
   const silverDue = openRows.filter((b) => b.metal === 'SILVER').reduce((sum, b) => sum + n(b.pendingWeight), 0)
-  const advanceTotal = items.reduce((sum, b) => sum + n(b.advance), 0)
+  // TRD-04: received (SELL) and given (BUY) advances are never added together
+  const advanceTotal = (side: 'BUY' | 'SELL') => items.filter((b) => b.side === side).reduce((sum, b) => sum + n(b.advance), 0)
 
   const tile = (label: string, value: string, sub: string | undefined, Icon: LucideIcon) => (
     <Card className="gap-2 hover:-translate-y-1">
@@ -315,7 +333,7 @@ export function BhavBookings() {
         {tile(t('trade.bhav.tile_locked'), data ? String(data.total) : '—', t('inv.shortage.rows_listed_sub'), Lock)}
         {tile(t('trade.bhav.tile_open'), data ? String(openRows.length) : '—', data ? t('payments.rejected_sub', { total: items.length }) : undefined, Hourglass)}
         {tile(t('trade.bhav.tile_gold_due'), data ? `${goldDue.toFixed(3)} g` : '—', data ? t('trade.silver_sub', { wt: silverDue.toFixed(3) }) : undefined, Scale)}
-        {tile(t('trade.bhav.tile_adv'), data ? inr(String(advanceTotal)) : '—', t('trade.bhav.tile_adv_sub'), Wallet)}
+        {tile(t('trade.bhav.tile_adv'), data ? inr(String(advanceTotal('SELL'))) : '—', data ? t('trade.bhav.tile_adv_sub', { given: inr(String(advanceTotal('BUY'))) }) : undefined, Wallet)}
       </div>
 
       <Card>

@@ -122,7 +122,7 @@ export async function mockHandle<T>(method: string, rawPath: string, body?: unkn
     }
     throw notFound('Subscription not found')
   }
-  if (m === 'POST /platform/impersonation/end') return undefined as T
+  if (m === 'POST /platform/impersonation/end' || m === 'POST /auth/impersonation/end') return undefined as T
   if (m === 'GET /platform/payments') return paged(db.allPayments(), sp) as T
 
   if (m === 'GET /platform/plans') return db.plans as T
@@ -269,12 +269,12 @@ function recordPayment(b: BusinessDetailDto, body: Body) {
   return pay
 }
 function impersonate(b: BusinessDetailDto): LoginResponse {
-  const branch: BranchRef = { id: 1, name: 'HQ', parentId: null, path: '/1/', depth: 0, isAdminNode: true }
+  const branch: BranchRef = { id: 1, name: 'HQ', parentId: null, path: '/1/', depth: 0, isAdminNode: true, isActive: true }
   const user: MeDto = {
     id: b.owner?.id ?? 0, name: b.owner?.name ?? b.ownerName, username: b.owner?.username ?? 'owner', level: 'ADMIN', isOwner: true,
     business: { id: b.id, name: b.name, status: b.status }, branch, accessibleBranches: [branch],
     permissions: {}, modules: b.subscriptions[0]?.modules ?? [], hasMpin: false,
-    subscription: { planName: b.planName ?? '—', endsAt: b.endsAt ?? '', readOnly: b.status === 'SUSPENDED' },
+    subscription: { planName: b.planName ?? '—', endsAt: b.endsAt ?? '', readOnly: b.status === 'SUSPENDED', adEligible: false },
     impersonatedBy: { id: 100, name: 'Platform Admin' },
   }
   return { accessToken: `mock.impersonate.${b.id}`, user }

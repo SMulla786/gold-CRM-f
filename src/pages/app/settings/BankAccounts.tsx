@@ -26,7 +26,8 @@ type BankOut = z.output<typeof bankAccountBody>
 function BankDialog({ account, onClose }: { account?: BankAccountDto; onClose: () => void }) {
   const save = useSaveBankAccount()
   const { data: root } = useBranches()
-  const branches = root ? flatten(root) : []
+  // G7: an inactive branch takes no new entries (the API answers 403 BRANCH_INACTIVE) — only an account already on one keeps showing it
+  const branches = root ? flatten(root).filter((b) => b.isActive || b.id === account?.branchId) : []
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<BankIn, unknown, BankOut>({
     resolver: zodResolver(bankAccountBody),
     defaultValues: account

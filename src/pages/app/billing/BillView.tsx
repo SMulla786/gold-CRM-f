@@ -1,8 +1,9 @@
 import { businessDayISO, INVOICE_FORMATS, type InvoiceFormat } from '@/shared'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { FileDown, Printer } from 'lucide-react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 
+import { WhatsAppShareDialog } from '@/components/WhatsAppShareDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -11,7 +12,7 @@ import { useBill } from '@/lib/billingQueries'
 import { useStates } from '@/lib/queries'
 import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
-import { downloadPdf, shareOnWhatsApp } from '@/lib/share'
+import { downloadPdf } from '@/lib/share'
 import { InvoicePrint } from '@/pages/app/billing/InvoicePrint'
 import { defaultInvoiceFormat, FORMAT_LABEL_KEY } from '@/pages/app/billing/invoice/format'
 
@@ -28,6 +29,13 @@ export function BillView() {
   const { data: business } = useBusinessProfile() // any tenant user; branch gstin/state override applied server-side
   const { data: states } = useStates()
   const [override, setOverride] = useState<InvoiceFormat | null>(null)
+  // BillForm "Send on WhatsApp" → opens the share dialog once; state cleared so a refresh doesn't reopen it
+  const location = useLocation()
+  const [sharing, setSharing] = useState(() => !!(location.state as { share?: boolean } | null)?.share)
+  useEffect(() => {
+    if ((location.state as { share?: boolean } | null)?.share) navigate(location.pathname, { replace: true, state: null })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   if (isLoading || !bill) return <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
 
@@ -50,7 +58,7 @@ export function BillView() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {editable && <Button variant="outline" onClick={() => navigate(`/app/billing/edit/${bill.id}`)}>{t('common.edit')}</Button>}
-          <Button variant="outline" onClick={() => shareOnWhatsApp(bill.party.mobile, summary)}>{t('bill.share')}</Button>
+          <Button variant="outline" onClick={() => setSharing(true)}>{t('bill.share')}</Button>
           <Select value={layout} onValueChange={(v) => setOverride(v as InvoiceFormat)}>
             <SelectTrigger className="w-44" aria-label="Print layout"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -63,6 +71,7 @@ export function BillView() {
       </div>
 
       <InvoicePrint bill={bill} format={layout} settings={settings} shopName={shopName} business={business} stateName={stateName} />
+      <WhatsAppShareDialog open={sharing} onClose={() => setSharing(false)} name={bill.party.name} mobile={bill.party.mobile} buildText={() => summary} />
     </div>
   )
 }

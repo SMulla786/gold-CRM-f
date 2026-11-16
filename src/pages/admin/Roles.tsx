@@ -3,6 +3,7 @@ import { useState } from 'react'
 
 import { DataTable } from '@/components/DataTable'
 import { PermissionMatrix, grantsToMap, mapToGrants, type GrantMap } from '@/components/PermissionMatrix'
+import { SupportNote } from '@/components/SupportNote'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -49,6 +50,7 @@ function RolePermissionsDialog({ role, canManage, onClose }: { role: RoleDto; ca
   const { data: catalog } = usePermissionCatalog()
   const save = useSaveRolePermissions()
   const [map, setMap] = useState<GrantMap>(grantsToMap(role.grants))
+  const support = !!useAuth().me?.impersonatedBy
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -56,7 +58,9 @@ function RolePermissionsDialog({ role, canManage, onClose }: { role: RoleDto; ca
         <DialogHeader>
           <DialogTitle>{role.name} · permissions</DialogTitle>
           <DialogDescription>
-            {!canManage
+            {support
+              ? "View only in a support session — role permissions are the owner's to change."
+              : !canManage
               ? 'View only — role defaults are managed by the business owner or root admin.'
               : role.isSystem
                 ? 'System template — saving creates an editable copy for this business.'
@@ -85,6 +89,7 @@ function RolePermissionsDialog({ role, canManage, onClose }: { role: RoleDto; ca
 export function Roles() {
   const { me } = useAuth()
   const canManage = !!me && (me.isOwner || me.branch?.parentId === null)
+  const support = !!me?.impersonatedBy // role permissions and role delete are refused; create / rename stay open
   const { data, isLoading } = useRoles()
   const del = useDeleteRole()
   const [creating, setCreating] = useState(false)
@@ -113,8 +118,8 @@ export function Roles() {
                   variant="ghost"
                   size="sm"
                   className="text-destructive"
-                  disabled={r.userCount > 0 || del.isPending}
-                  title={r.userCount > 0 ? 'Move its users to another role first' : undefined}
+                  disabled={r.userCount > 0 || del.isPending || support}
+                  title={support ? "Not in a support session — the owner's to delete" : r.userCount > 0 ? 'Move its users to another role first' : undefined}
                   onClick={() => {
                     if (window.confirm(`Delete role ${r.name}?`)) del.mutate(r.id)
                   }}
@@ -138,11 +143,13 @@ export function Roles() {
         </div>
         {canManage && <Button onClick={() => setCreating(true)}>New role</Button>}
       </div>
+      <SupportNote what="roles" />
       <Input className="max-w-xs" aria-label="Search roles" placeholder="Search role name…" value={q} onChange={(e) => setQ(e.target.value)} />
       <DataTable columns={columns} data={rows} isLoading={isLoading} />
       {creating && <RoleNameDialog onClose={() => setCreating(false)} />}
       {renaming && <RoleNameDialog role={renaming} onClose={() => setRenaming(null)} />}
-      {editing && <RolePermissionsDialog role={editing} canManage={canManage} onClose={() => setEditing(null)} />}
+      {/* impersonating: role permissions are view only (the API refuses grants while impersonating) */}
+      {editing && <RolePermissionsDialog role={editing} canManage={canManage && !support} onClose={() => setEditing(null)} />}
     </div>
   )
 }

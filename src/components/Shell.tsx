@@ -7,6 +7,8 @@ import { Suspense, useState, type ComponentType } from 'react'
 import { useTheme } from '@/lib/theme'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
+import { AdSlot } from '@/components/AdSlot'
+import { adsAllowed } from '@/lib/ads'
 import { BranchSwitcher } from '@/components/BranchSwitcher'
 import { CommandPalette } from '@/components/CommandPalette'
 import { NewPartyDialog } from '@/components/NewPartyDialog'
@@ -17,6 +19,7 @@ import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth'
 import { LOCALES, useLocale, useT } from '@/lib/i18n'
 import type { NavItem } from '@/lib/nav'
+import { writeBranch } from '@/lib/txnBranch'
 import { cn } from '@/lib/utils'
 
 function ThemeToggle() {
@@ -63,12 +66,14 @@ interface ShellProps {
 }
 
 export function Shell({ area, nav, showBranch }: ShellProps) {
-  const { me, can, hasModule, logout, readOnly, endImpersonation } = useAuth()
+  const { me, activeBranch, can, hasModule, logout, readOnly, endImpersonation } = useAuth()
   const t = useT()
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const [newParty, setNewParty] = useState(false)
   const isStore = area === 'Store'
+  // G7: the API refuses every store write on an inactive branch (403 BRANCH_INACTIVE) — say so before anyone fills a form
+  const offBranch = isStore ? writeBranch(me, activeBranch) : null
   const canBill = can('billing.sell_bill', 'view') || can('billing.purchase_bill', 'view')
   const canAddParty = can('settings.parties', 'edit')
   const canSeeStock = hasModule('inventory') && can('inventory.all_stock', 'view')
@@ -125,6 +130,11 @@ export function Shell({ area, nav, showBranch }: ShellProps) {
           {t('shell.readonly')}
         </div>
       )}
+      {offBranch && !offBranch.isActive && (
+        <div role="status" className="bg-destructive px-4 py-1.5 text-center text-sm font-medium text-destructive-foreground">
+          {t('shell.branch_inactive', { name: offBranch.name })}
+        </div>
+      )}
 
       <div className="flex flex-1">
         <nav className="w-60 shrink-0 space-y-0.5 border-r bg-card p-3">
@@ -159,12 +169,14 @@ export function Shell({ area, nav, showBranch }: ShellProps) {
             )
           })}
         </nav>
-        <main className="flex-1 p-4 sm:p-8">
+        {/* min-w-0: wide tables scroll inside their card instead of pushing the page sideways */}
+        <main className="min-w-0 flex-1 p-4 sm:p-8">
           <Suspense fallback={<p className="text-sm text-muted-foreground">{t('common.loading')}</p>}>
             <div key={pathname} className="animate-page-in">
               <Outlet />
             </div>
           </Suspense>
+          {adsAllowed(me, pathname, import.meta.env) && <AdSlot key={pathname} />}
         </main>
       </div>
     </div>

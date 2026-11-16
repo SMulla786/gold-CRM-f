@@ -6,7 +6,7 @@ import type { z } from 'zod'
 
 import { DataTable } from '@/components/DataTable'
 import { PartyCombobox } from '@/components/PartyCombobox'
-import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
+import { SelectBranchForTxn, useTxnBranchReady } from '@/components/SelectBranchForTxn'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -40,8 +40,8 @@ function StatusBadge({ status }: { status: SampleStatus }) {
 /** New sample (POST) or edit (PATCH, only IN_HAND / RETURNED). Fine follows gross × tounch / 100 until typed over. */
 function SampleFormDialog({ sample, onClose }: { sample?: SampleDto; onClose: () => void }) {
   const t = useT()
-  const { activeBranch } = useAuth()
-  const branchReady = !!sample || (activeBranch !== '' && activeBranch !== 'all')
+  const txnReady = useTxnBranchReady() // one concrete, active branch
+  const branchReady = !!sample || txnReady
   const create = useCreateSample()
   const update = useUpdateSample()
   const { register, handleSubmit, control, setValue, formState: { errors } } = useForm<FormIn, unknown, FormOut>({

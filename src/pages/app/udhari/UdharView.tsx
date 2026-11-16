@@ -2,6 +2,7 @@ import { FileDown, Pencil, Printer, Share2 } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
+import { EditHistoryButton } from '@/components/EditHistoryButton'
 import { MpinDialog } from '@/components/MpinDialog'
 import { WhatsAppShareDialog, type ShareSize } from '@/components/WhatsAppShareDialog'
 import { Badge } from '@/components/ui/badge'
@@ -77,6 +78,7 @@ export function UdharView() {
           {can('udhari.entry', 'edit') && !txn.isDeleted && (
             <Button asChild variant="outline"><Link to={`/app/udhari?edit=${txn.id}`}><Pencil aria-hidden />{t('common.edit')}</Link></Button>
           )}
+          <EditHistoryButton entity="UdharTxn" entityId={txn.id} className="h-9" />
           <Select value={thermal ? 'THERMAL_80' : 'A4'} onValueChange={(v) => setThermal(v === 'THERMAL_80')}>
             <SelectTrigger className="w-40" aria-label="Print layout"><SelectValue /></SelectTrigger>
             <SelectContent>

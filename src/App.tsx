@@ -6,6 +6,7 @@ import { RequireAuth, RequireLevel, homeForLevel } from '@/components/guards'
 import { useAuth } from '@/lib/auth'
 import { PLATFORM_NAV, useAdminNav, useAppNav } from '@/lib/nav'
 import { Login } from '@/pages/Login'
+import { Privacy } from '@/pages/Privacy'
 
 // Route-level code splitting: each page is its own chunk, loaded on navigation.
 const ModulePlaceholder = lazy(() => import('@/pages/Placeholder').then((m) => ({ default: m.ModulePlaceholder })))
@@ -54,6 +55,7 @@ const DayBookSummary = lazy(() => import('@/pages/app/daybook/DayBookSummary').t
 const DayBookAllInOne = lazy(() => import('@/pages/app/daybook/DayBookAllInOne').then((m) => ({ default: m.DayBookAllInOne })))
 const OldMetal = lazy(() => import('@/pages/app/daybook/OldMetal').then((m) => ({ default: m.OldMetal })))
 const AssetLedger = lazy(() => import('@/pages/app/daybook/AssetLedger').then((m) => ({ default: m.AssetLedger })))
+const DayBookSettings = lazy(() => import('@/pages/app/daybook/DayBookSettings').then((m) => ({ default: m.DayBookSettings })))
 const BillingLayout = lazy(() => import('@/pages/app/billing/BillingLayout').then((m) => ({ default: m.BillingLayout })))
 const SellBill = lazy(() => import('@/pages/app/billing/SellBill').then((m) => ({ default: m.SellBill })))
 const PurchaseBill = lazy(() => import('@/pages/app/billing/PurchaseBill').then((m) => ({ default: m.PurchaseBill })))
@@ -131,6 +133,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/privacy" element={<Privacy />} />
 
       <Route element={<RequireAuth />}>
         <Route path="/" element={<HomeRedirect />} />
@@ -198,6 +201,7 @@ export default function App() {
               <Route index element={<DayBookSummary />} />
               <Route path="all-in-one" element={<DayBookAllInOne />} />
               <Route path="old-metal" element={<OldMetal />} />
+              <Route path="settings" element={<DayBookSettings />} />
               <Route path=":asset" element={<AssetLedger />} />
             </Route>
             <Route path="billing" element={<BillingLayout />}>

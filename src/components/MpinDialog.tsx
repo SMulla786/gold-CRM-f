@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ApiException } from '@/lib/api'
+import { errorText } from '@/lib/errors'
 import { useT } from '@/lib/i18n'
 
 interface Props {
@@ -29,7 +29,7 @@ export function MpinDialog({ open, title, onConfirm, onClose }: Props) {
       setMpin('')
       onClose()
     } catch (e) {
-      setError(e instanceof ApiException ? e.message : t('mpin.failed'))
+      setError(errorText(e, t('mpin.failed')))
     } finally {
       setBusy(false)
     }

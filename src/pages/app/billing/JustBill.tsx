@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 
 import { PartyPicker } from '@/components/PartyPicker'
 import { TABLE_EDGES } from '@/components/SectionCard'
-import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
+import { SelectBranchForTxn, useTxnBranchReady } from '@/components/SelectBranchForTxn'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -11,10 +11,10 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useBankAccounts, useKarats, useSettings } from '@/lib/appQueries'
-import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
 import { metalRateUnitGrams, usePartyBalance } from '@/lib/billingQueries'
 import { useCreateJustBill, useJustBillNextNo } from '@/lib/justbillQueries'
+import { SchemeEnrollmentSelect } from '@/pages/app/billing/SchemeEnrollmentSelect'
 import { businessDayISO, CHARGE_UNITS, DISCOUNT_UNITS, METALS, QTY_UNITS, computeBill, computeJustLine, metalToMoney, type PartyRefDto } from '@/shared'
 
 let uid = 0
@@ -26,14 +26,13 @@ const n = (s: string) => Number(s) || 0
 interface Row { key: string; name: string; karat: string; purity: string; quantity: string; unit: string; rate: string; making: string; makingUnit: string; other: string }
 const blankRow = (): Row => ({ key: k(), name: '', karat: '', purity: '', quantity: '', unit: 'GRAM', rate: '0', making: '0', makingUnit: 'PER_GRAM', other: '0' })
 /** karat = UI-only helper for METAL rows (fills tunch); remark = cheque / reference no. (sent) */
-interface PayRow { key: string; mode: string; amount: string; bankAccountId: string; metal: string; metalForm: string; gross: string; less: string; tunch: string; rate: string; karat: string; remark: string }
-const blankPay = (mode: string): PayRow => ({ key: k(), mode, amount: '', bankAccountId: '', metal: 'GOLD', metalForm: 'KACHA', gross: '', less: '0', tunch: '', rate: '', karat: '', remark: '' })
+interface PayRow { key: string; mode: string; amount: string; bankAccountId: string; metal: string; metalForm: string; gross: string; less: string; tunch: string; rate: string; karat: string; remark: string; enrollmentId: string }
+const blankPay = (mode: string): PayRow => ({ key: k(), mode, amount: '', bankAccountId: '', metal: 'GOLD', metalForm: 'KACHA', gross: '', less: '0', tunch: '', rate: '', karat: '', remark: '', enrollmentId: '' })
 
 export function JustBill() {
   const t = useT()
   const navigate = useNavigate()
-  const { activeBranch } = useAuth()
-  const branchReady = activeBranch !== '' && activeBranch !== 'all'
+  const branchReady = useTxnBranchReady()
   const { data: settings } = useSettings()
   const { data: banks } = useBankAccounts()
   const create = useCreateJustBill()
@@ -61,10 +60,10 @@ export function JustBill() {
   // party balance: + = party owes the shop, - = shop holds the party's money (credit usable as udhar advance)
   const credit = partyBal ? Math.max(0, -Number(partyBal.amount)) : null
   const advanceUsed = pays.filter((p) => p.mode === 'UDHAR_ADVANCE').reduce((a, p) => a + n(p.amount), 0)
-  // an udhar advance needs a party, so drop those rows when the party is cleared
+  // an udhar advance / scheme needs a party (the scheme is that party's), so drop those rows when the party changes
   const pickParty = (p: PartyRefDto | null) => {
+    if (p?.id !== party?.id) setPays((ps) => ps.filter((x) => x.mode !== 'SCHEME' && (p || x.mode !== 'UDHAR_ADVANCE')))
     setParty(p)
-    if (!p) setPays((ps) => ps.filter((x) => x.mode !== 'UDHAR_ADVANCE'))
   }
   const setPay = (i: number, patch: Partial<PayRow>) => setPays((ps) => ps.map((x, j) => (j === i ? { ...x, ...patch } : x)))
 
@@ -94,7 +93,7 @@ export function JustBill() {
   const paid = pays.reduce((a, p) => a + payAmount(p), 0)
   const balanceDue = Number(bill.final) - paid
 
-  const valid = branchReady && (!!party || !!custName.trim()) && rows.length > 0 && rows.every((r) => r.name.trim() && n(r.quantity) > 0)
+  const valid = branchReady && (!!party || !!custName.trim()) && rows.length > 0 && rows.every((r) => r.name.trim() && n(r.quantity) > 0) && pays.every((p) => p.mode !== 'SCHEME' || !!p.enrollmentId)
 
   const submit = async () => {
     const body = {
@@ -109,7 +108,9 @@ export function JustBill() {
             ? { mode: 'ONLINE', amount: n(p.amount), bankAccountId: Number(p.bankAccountId), remark }
             : p.mode === 'UDHAR_ADVANCE'
               ? { mode: 'UDHAR_ADVANCE', amount: n(p.amount), remark }
-              : { mode: 'CASH', amount: n(p.amount), remark }
+              : p.mode === 'SCHEME'
+                ? { mode: 'SCHEME', enrollmentId: Number(p.enrollmentId), amount: n(p.amount), remark }
+                : { mode: 'CASH', amount: n(p.amount), remark }
       }),
       remark: remark || undefined,
     }
@@ -195,6 +196,7 @@ export function JustBill() {
               <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('CASH')])}>{t('bill.add_cash')}</Button>
               <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('ONLINE')])}>{t('bill.add_online')}</Button>
               <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('METAL')])}>{t('jbill.add_old_metal')}</Button>
+              {party && <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('SCHEME')])}>{t('bill.add_scheme')}</Button>}
               {party && showAdvance && <Button type="button" size="sm" variant="outline" onClick={() => setPays((p) => [...p, blankPay('UDHAR_ADVANCE')])}>{t('jb98.add_advance')}</Button>}
             </div>
           </div>
@@ -233,6 +235,11 @@ export function JustBill() {
                       <SelectTrigger className="w-44" aria-label="Bank account"><SelectValue placeholder={t('bill.bank')} /></SelectTrigger>
                       <SelectContent>{banks?.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.bankName} · {b.accountNo}</SelectItem>)}</SelectContent>
                     </Select>
+                  )}
+                  {p.mode === 'SCHEME' && party && (
+                    // picking an enrollment prefills its value, capped at what is still due (same as the sell bill)
+                    <SchemeEnrollmentSelect className="w-60" partyId={party.id} value={p.enrollmentId}
+                      onChange={(id, value) => setPay(i, { enrollmentId: id, amount: p.amount || String(Math.max(0, Math.min(value, balanceDue))) })} />
                   )}
                   {p.mode === 'UDHAR_ADVANCE' && credit != null && (
                     <span className={`text-xs ${advanceUsed > credit ? 'text-destructive' : 'text-muted-foreground'}`}>

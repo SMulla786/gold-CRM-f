@@ -5,14 +5,14 @@ import { SAMPLES_PERM } from '@/lib/samplesQueries'
 import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
-// `key` = permission key; `tk` = i18n key for the label (translated at render).
+// `key` = permission key (`alt` = a second key that also grants the tab); `tk` = i18n key for the label (translated at render).
 const TABS = [
   { to: '/app/inventory', tk: 'dash.title', key: 'inventory.dashboard', end: true },
   { to: '/app/inventory/masters', tk: 'inv.tab.masters', key: 'inventory.item_masters' },
   { to: '/app/inventory/new', tk: 'inv.tab.new_stock', key: 'inventory.new_stock' },
   { to: '/app/inventory/stock', tk: 'inv.tab.stock', key: 'inventory.all_stock' },
   { to: '/app/inventory/groups', tk: 'inv.tab.groups', key: 'inventory.all_stock' },
-  { to: '/app/inventory/summary', tk: 'inv.tab.summary', key: 'inventory.all_stock' },
+  { to: '/app/inventory/summary', tk: 'inv.tab.summary', key: 'inventory.all_stock', alt: 'stock_summary.view' },
   { to: '/app/inventory/import', tk: 'inv.import.import', key: 'inventory.import_stock' },
   { to: '/app/inventory/shortage', tk: 'inv.shortage.st_shortage', key: 'inventory.all_stock' },
   { to: '/app/inventory/samples', tk: 'samples.tab', key: SAMPLES_PERM },
@@ -27,7 +27,7 @@ export function InventoryLayout() {
   const t = useT()
   const { can, me } = useAuth()
   const multiBranch = (me?.accessibleBranches.length ?? 0) >= 2
-  const tabs = TABS.filter((tab) => can(tab.key, 'view') && (!tab.needsBranches || multiBranch))
+  const tabs = TABS.filter((tab) => (can(tab.key, 'view') || (!!tab.alt && can(tab.alt, 'view'))) && (!tab.needsBranches || multiBranch))
   return (
     <div className="space-y-6">
       <header>

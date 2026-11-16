@@ -1,6 +1,7 @@
 import { FileDown, Printer } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 
+import { ItemPhoto } from '@/components/ItemPhoto'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -18,7 +19,7 @@ const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
 export function JustBillView() {
   const t = useT()
   const { id } = useParams()
-  const { me } = useAuth()
+  const { me, can } = useAuth()
   const { data: bill, isLoading } = useJustBill(Number(id))
   const { data: business } = useBusinessProfile()
   const { data: states } = useStates()
@@ -72,7 +73,10 @@ export function JustBillView() {
           <TableBody>
             {bill.items.map((it) => (
               <TableRow key={it.id}>
-                <TableCell className="break-words">{it.name}</TableCell>
+                <TableCell className="break-words">
+                  {/* JB-03 line photo (upload once the bill is saved: photos are per saved line) */}
+                  <div className="flex items-center gap-2">{it.name}<ItemPhoto path={`/app/justbill/items/${it.id}/photo`} name={it.name} hasPhoto={!!it.photoUrl} canEdit={bill.status === 'ACTIVE' && can('billing.just_bill', 'edit')} invalidate={[['just-bill']]} /></div>
+                </TableCell>
                 <TableCell>{it.karat ?? '—'}</TableCell>
                 <TableCell>{it.quantity} {it.unit === 'GRAM' ? 'g' : 'pcs'}</TableCell>
                 {showRate && <TableCell>{it.rate}</TableCell>}

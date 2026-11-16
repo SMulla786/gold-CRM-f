@@ -45,17 +45,17 @@ export const plans: PlanDto[] = [
   {
     id: 1, name: 'Starter', description: 'Single branch, core billing', durationDays: 365, price: '4999.00',
     maxBranches: 1, maxUsers: 3, modules: ['dashboard', 'billing', 'inventory', 'udhari', 'settings', 'daybook'],
-    isActive: true, activeSubscriptions: 1,
+    isActive: true, adSupported: false, activeSubscriptions: 1,
   },
   {
     id: 2, name: 'Growth', description: 'Multi-branch + schemes', durationDays: 365, price: '9999.00',
     maxBranches: 5, maxUsers: 15,
     modules: ['dashboard', 'billing', 'orders', 'inventory', 'udhari', 'girvi', 'schemes', 'settings', 'daybook', 'stock_summary'],
-    isActive: true, activeSubscriptions: 1,
+    isActive: true, adSupported: false, activeSubscriptions: 1,
   },
   {
     id: 3, name: 'Enterprise', description: 'All modules, unlimited-ish', durationDays: 365, price: '19999.00',
-    maxBranches: 50, maxUsers: 200, modules: [...MODULE_KEYS], isActive: true, activeSubscriptions: 0,
+    maxBranches: 50, maxUsers: 200, modules: [...MODULE_KEYS], isActive: true, adSupported: false, activeSubscriptions: 0,
   },
 ]
 

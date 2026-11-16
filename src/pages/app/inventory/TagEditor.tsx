@@ -1,5 +1,5 @@
 import { Barcode, Image as ImageIcon, Plus, QrCode, Tag, Trash2, Type, Variable } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -14,7 +14,7 @@ import { useActivateTagTemplate, useDeleteTagTemplate, useSaveTagTemplate, useSt
 import { cn } from '@/lib/utils'
 import { STOCK_CLASSES, TAG_DIRECTIONS, TAG_FIELDS, TAG_SHAPES, type StockItemDto, type TagElement, type TagTemplateDto } from '@/shared'
 
-import { TagLabel } from './TagLabel'
+import { TagLabel, type TagLabelEdit } from './TagLabel'
 
 // Labels below are i18n keys, translated at render. 'HUID' is not a key: t() returns it unchanged.
 const SHAPE_LABEL: Record<string, string> = { RECT: 'inv.editor.shape_rect', ROUNDED: 'inv.editor.shape_rounded', BUTTERFLY: 'inv.editor.shape_butterfly' }
@@ -48,6 +48,10 @@ const newDraft = (): Draft => ({
     { id: 'e4', type: 'field', field: 'tagNo', x: 46, y: 5, w: 30, h: 3, fontSize: 6 },
   ],
 })
+
+/** Arrow key → on-screen direction (nudge on the preview canvas). */
+const ARROWS: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }
+const PX_PER_MM = 96 / 25.4
 
 const presetOf = (w: number, h: number) => PRESETS.find(([, , pw, ph]) => pw === w && ph === h)?.[0] ?? 'custom'
 
@@ -121,7 +125,8 @@ function Editor({ initial, sample, shopName, canEdit, canDelete, onDone }: { ini
   const [preset, setPreset] = useState(() => presetOf(initial.widthMm, initial.heightMm))
   const selected = d.elements.find((e) => e.id === sel)
   const set = (patch: Partial<Draft>) => setD({ ...d, ...patch })
-  const setEl = (el: TagElement) => set({ elements: d.elements.map((e) => (e.id === el.id ? el : e)) })
+  // Functional so pointer-move bursts between renders never apply a stale draft.
+  const setEl = (el: TagElement) => setD((p) => ({ ...p, elements: p.elements.map((e) => (e.id === el.id ? el : e)) }))
   const addEl = (type: TagElement['type']) => {
     const id = `e${Date.now().toString(36)}`
     const base = { id, type, x: 1, y: 1, w: type === 'barcode' ? 28 : type === 'image' || type === 'qr' ? 8 : 20, h: type === 'text' || type === 'field' ? 3 : type === 'qr' ? 8 : 6 }
@@ -134,6 +139,26 @@ function Editor({ initial, sample, shopName, canEdit, canDelete, onDone }: { ini
   const saveDraft = async () => (await save.mutateAsync({ id: d.id, body: body() })).id
   const scale = Math.max(1, Math.min(6, 150 / Math.max(d.widthMm, d.heightMm, 1)))
   const vertical = d.direction === 'VERTICAL'
+  const pxPerMm = scale * PX_PER_MM
+  const drag = useRef<{ el: TagElement; mode: 'move' | 'resize'; px: number; py: number } | null>(null)
+  /** Moves (or resizes) by an on-screen mm delta, clamped inside the label. VERTICAL turns the design 90° clockwise. */
+  const shifted = (el: TagElement, dx: number, dy: number, mode: 'move' | 'resize'): TagElement => {
+    const [lx, ly] = vertical ? [dy, -dx] : [dx, dy]
+    const clamp = (v: number, max: number, min = 0) => Math.round(Math.min(Math.max(v, min), Math.max(min, max)) * 10) / 10
+    return mode === 'move'
+      ? { ...el, x: clamp(el.x + lx, d.widthMm - el.w), y: clamp(el.y + ly, d.heightMm - el.h) }
+      : { ...el, w: clamp(el.w + lx, d.widthMm - el.x, 1), h: clamp(el.h + ly, d.heightMm - el.y, 1) }
+  }
+  const edit: TagLabelEdit = {
+    selectedId: sel,
+    handleMm: 8 / pxPerMm,
+    onPointerDown: (e: ReactPointerEvent, el, mode) => {
+      if (e.button !== 0) return
+      setSel(el.id)
+      e.currentTarget.closest<HTMLElement>('[data-tag-canvas]')?.setPointerCapture(e.pointerId)
+      drag.current = { el, mode, px: e.clientX, py: e.clientY }
+    },
+  }
 
   return (
     <div className="space-y-6">
@@ -143,11 +168,31 @@ function Editor({ initial, sample, shopName, canEdit, canDelete, onDone }: { ini
           <CardDescription>{sample === SAMPLE ? t('inv.editor.sample') : t('inv.editor.using', { name: sample.tagNo ?? sample.itemName.name })}</CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto p-6 pt-0">
-          <div style={{ width: `${(vertical ? d.heightMm : d.widthMm) * scale}mm`, height: `${(vertical ? d.widthMm : d.heightMm) * scale}mm` }}>
+          <div
+            data-tag-canvas
+            tabIndex={0}
+            aria-label="Label canvas: click an element to select it, drag to move, drag its corner to resize, arrow keys to nudge"
+            className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            style={{ width: `${(vertical ? d.heightMm : d.widthMm) * scale}mm`, height: `${(vertical ? d.widthMm : d.heightMm) * scale}mm` }}
+            onPointerMove={(e) => {
+              const g = drag.current
+              if (g) setEl(shifted(g.el, (e.clientX - g.px) / pxPerMm, (e.clientY - g.py) / pxPerMm, g.mode))
+            }}
+            onPointerUp={() => { drag.current = null }}
+            onPointerCancel={() => { drag.current = null }}
+            onKeyDown={(e) => {
+              const dir = ARROWS[e.key]
+              if (!dir || !selected) return
+              e.preventDefault()
+              const step = e.shiftKey ? 5 : 1
+              setEl(shifted(selected, dir[0] * step, dir[1] * step, 'move'))
+            }}
+          >
             <div className="origin-top-left" style={{ transform: `scale(${scale})` }}>
-              <TagLabel template={d} item={sample} shopName={shopName} />
+              <TagLabel template={d} item={sample} shopName={shopName} edit={edit} />
             </div>
           </div>
+          <p className="mt-3 text-xs text-muted-foreground">{t('tag_editor.canvas_hint')}</p>
         </CardContent>
       </Card>
 

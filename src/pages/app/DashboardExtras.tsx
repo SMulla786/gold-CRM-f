@@ -1,4 +1,4 @@
-import { Activity, ArrowDownRight, ArrowUpRight, CalendarClock, Gem, HandCoins, Settings2, Users } from 'lucide-react'
+import { Activity, ArrowDownRight, ArrowUpRight, CalendarClock, CirclePlus, Gem, HandCoins, ListChecks, Pencil, Settings2, Trash2, Undo2, Users, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -19,18 +19,21 @@ const inr = (n: number) => new Intl.NumberFormat('en-IN', { style: 'currency', c
 // ───── Display settings (show/hide blocks), per user in this browser ─────
 
 // label = i18n key, translated at render.
+// Website order. Old keys keep their saved show/hide choice ('kpis' = Billing & Sales, 'secondary' = purchases + cash tiles).
 export const DASHBOARD_BLOCKS = [
-  { key: 'kpis', label: 'dash.block_kpis' },
-  { key: 'secondary', label: 'dash.block_secondary' },
-  { key: 'today', label: 'dash.today_activity' },
-  { key: 'chart', label: 'dash.block_chart' },
   { key: 'rates', label: 'rates.today' },
-  { key: 'stock', label: 'dash.stock_on_hand' },
+  { key: 'parties', label: 'dash.block_parties' },
+  { key: 'stock', label: 'dash.inventory_stock' },
+  { key: 'kpis', label: 'dash.billing_sales' },
+  { key: 'udhari', label: 'dash.udhari_overview' },
   { key: 'schemes', label: 'dash.schemes_overview' },
-  { key: 'branches', label: 'dash.by_branch' },
-  { key: 'occasions', label: 'dash.occasions' },
-  { key: 'overdue', label: 'Udhar overdue' }, // plain English until an i18n key is added (t() echoes unknown keys)
+  { key: 'today', label: 'dash.today_activity' },
   { key: 'activity', label: 'dash.recent_activity' },
+  { key: 'chart', label: 'dash.monthly_earnings' },
+  { key: 'secondary', label: 'dash.block_extras' },
+  { key: 'branches', label: 'dash.by_branch' },
+  { key: 'overdue', label: 'Udhar overdue' }, // plain English until an i18n key is added (t() echoes unknown keys)
+  { key: 'occasions', label: 'dash.occasions' },
 ] as const
 export type DashboardBlock = (typeof DASHBOARD_BLOCKS)[number]['key']
 
@@ -93,26 +96,26 @@ export function DisplaySettings({ prefs }: { prefs: ReturnType<typeof useDashboa
 
 // ───── Today's activity counters (DashboardDto.activityToday) ─────
 
+const ACTION_ICON: Record<string, LucideIcon> = { CREATED: CirclePlus, EDITED: Pencil, DELETED: Trash2, REVERSED: Undo2 }
+
+/** Website: a row of counter tiles (Today's total, Created, Edited, Deleted …) right above Recent System Activity. */
 export function TodayActivity({ counts }: { counts: DashboardDto['activityToday'] }) {
   const t = useT()
   const entries = Object.entries(counts) as [string, number][]
   const total = entries.reduce((s, [, n]) => s + n, 0)
   const label = (a: string) => a.charAt(0) + a.slice(1).toLowerCase()
   return (
-    <SectionCard title={t('dash.today_activity')} bodyClassName="flex flex-wrap gap-3 p-6" actions={<Link to="/app/daybook" className="text-xs font-medium text-brand hover:underline">{t('dash.view_daybook')}</Link>}>
-      <div className="min-w-28 rounded-2xl bg-brand/10 px-4 py-3">
-        <div className="text-xs font-semibold text-muted-foreground">{t('oldmetal.total')}</div>
-        <div className="text-2xl font-extrabold">{total}</div>
-      </div>
-      {entries.map(([action, n]) => (
-        <div key={action} className="min-w-28 rounded-2xl bg-muted px-4 py-3">
-          <div className="text-xs font-semibold text-muted-foreground">{label(action)}</div>
-          <div className="text-2xl font-extrabold">{n}</div>
-        </div>
-      ))}
-    </SectionCard>
+    <div className="stagger grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5" aria-label={t('dash.today_activity')} role="group">
+      <KpiTile size="sm" icon={ListChecks} label={t('dash.todays_total')} value={String(total)} />
+      {entries.map(([action, n]) => <KpiTile key={action} size="sm" icon={ACTION_ICON[action] ?? Activity} tone="slate" label={label(action)} value={String(n)} />)}
+    </div>
   )
 }
+
+/** Thin line under a section's tiles (website: "This month ₹… / This year ₹…"). */
+export const SectionFooter = ({ children }: { children: React.ReactNode }) => (
+  <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2 border-t px-6 py-3 text-sm text-muted-foreground">{children}</div>
+)
 
 // ───── Schemes overview (from the scheme APIs; each figure only if the user may read it) ─────
 
@@ -130,6 +133,23 @@ function CollectedToday() {
   return <KpiTile size="sm" icon={HandCoins} label={t('dash.collected_today')} value={data ? inr(Number(data.moneyIn)) : '—'} sub={data ? t('dash.payments_count', { n: data.rows.length }) : undefined} />
 }
 
+/** Pending for one scheme = Σ dueAmount of its rows in the dues list (same data as "Due now"; one shared query). */
+function SchemePending({ schemeId }: { schemeId: number }) {
+  const { data } = useSchemeDues({})
+  if (!data) return null
+  const amt = data.filter((r) => r.scheme.id === schemeId).reduce((a, r) => a + Number(r.dueAmount), 0)
+  return <span className={amt > 0 ? 'text-destructive' : undefined}>Pending {inr(amt)}</span>
+}
+
+/** Σ dueAmount over the whole dues list (same shared query as "Due now"). */
+function TotalPending() {
+  const t = useT()
+  const { data } = useSchemeDues({})
+  if (!data) return null
+  const amt = data.reduce((a, r) => a + Number(r.dueAmount), 0)
+  return <span className={amt > 0 ? 'text-destructive' : undefined}>{t('dash.pending_payments', { amt: inr(amt) })}</span>
+}
+
 export function SchemesOverview() {
   const t = useT()
   const { can } = useAuth()
@@ -137,15 +157,18 @@ export function SchemesOverview() {
   const { data } = useSchemes({ active: 'true', pageSize: 100 })
   const schemes = data?.items ?? []
   const members = schemes.reduce((s, x) => s + x.memberCount, 0)
+  const canDues = can('schemes.due_list', 'view')
+  const collected = schemes.some((s) => s.collected != null) ? schemes.reduce((a, s) => a + Number(s.collected ?? 0), 0) : null
   return (
     <SectionCard
       title={t('dash.schemes_overview')}
+      subtitle={t('dash.schemes_sub')}
       actions={can('schemes.add_money', 'edit') && can('schemes.all', 'view') ? (
         <Button asChild size="sm" variant="outline"><Link to="/app/schemes/members">{t('dash.collect_payment')}</Link></Button>
       ) : undefined}
-      bodyClassName="space-y-4 p-6"
     >
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="space-y-4 p-6">
+      <div className="stagger grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiTile size="sm" icon={Gem} label={t('dash.active_schemes')} value={data ? String(data.total) : '—'} />
         <KpiTile size="sm" icon={Users} tone="slate" label={t('dash.enrolled_members')} value={data ? String(members) : '—'} />
         {can('schemes.due_list', 'view') && <DueNow />}
@@ -157,7 +180,15 @@ export function SchemesOverview() {
             <li key={s.id} className="flex items-center gap-2 py-2">
               <Link to={`/app/schemes/members?schemeId=${s.id}${s.kind === 'ANJUMAN' ? '&kind=ANJUMAN' : ''}`} className="font-medium hover:underline">{s.name}</Link>
               {s.kind === 'ANJUMAN' && <Badge variant="secondary">Anjuman</Badge>}
-              <span className="ml-auto text-muted-foreground">{t('dash.scheme_meta', { n: s.memberCount, amt: inr(Number(s.emiAmount)) })}</span>
+              <span className="ml-auto text-right text-muted-foreground">
+                {t('dash.scheme_meta', { n: s.memberCount, amt: inr(Number(s.emiAmount)) })}
+                {(s.collected != null || canDues) && (
+                  <span className="flex justify-end gap-x-3 text-xs">
+                    {s.collected != null && <span>Collected {inr(Number(s.collected))}</span>}
+                    {canDues && <SchemePending schemeId={s.id} />}
+                  </span>
+                )}
+              </span>
             </li>
           ))}
           {schemes.length > 5 && (
@@ -166,6 +197,13 @@ export function SchemesOverview() {
         </ul>
       )}
       {data && !schemes.length && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Activity className="size-4" aria-hidden /> {t('dash.no_schemes')}</p>}
+      </div>
+      {(collected != null || canDues) && (
+        <SectionFooter>
+          {collected != null ? <span>{t('dash.total_collected', { amt: inr(collected) })}</span> : <span />}
+          {canDues && <TotalPending />}
+        </SectionFooter>
+      )}
     </SectionCard>
   )
 }

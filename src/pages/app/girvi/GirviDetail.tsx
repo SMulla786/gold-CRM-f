@@ -2,6 +2,7 @@ import { FileDown, FileText, FileUp, History as HistoryIcon, MessageCircle, Prin
 import { useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
+import { EditHistoryButton } from '@/components/EditHistoryButton'
 import { AuthedImage } from '@/components/AuthedImage'
 import { MpinDialog } from '@/components/MpinDialog'
 import { QrImage } from '@/components/QrImage'
@@ -143,7 +144,7 @@ function InterestDialog({ batch, onClose }: { batch: GirviBatchDto; onClose: () 
   const pay = useGirviInterest()
   const [f, setF] = useState({ interest: batch.interestDue, discount: '0', cash: batch.interestDue, online: '0', bankAccountId: '' })
   const set = (k: string, v: string) => setF((s) => ({ ...s, [k]: v }))
-  const ok = n(f.interest) > 0 && (n(f.online) === 0 || f.bankAccountId)
+  const ok = n(f.interest) > 0 && Math.abs(n(f.cash) + n(f.online) - n(f.interest)) < 0.005 && (n(f.online) === 0 || f.bankAccountId)
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
@@ -154,6 +155,7 @@ function InterestDialog({ batch, onClose }: { batch: GirviBatchDto; onClose: () 
           <div className="space-y-1.5"><Label>{t('girvi.discount_inr')}</Label><Input type="number" aria-label="Discount" value={f.discount} onChange={(e) => set('discount', e.target.value)} /></div>
           <BankPay cash={f.cash} online={f.online} bankAccountId={f.bankAccountId} set={(k, v) => set(k, v)} />
         </div>
+        <p className="text-sm tabular-nums" aria-label="Allocation">{t('girvi.alloc_interest_only', { interest: inr(f.interest || '0'), discount: inr(f.discount || '0'), left: inr(Math.max(0, n(batch.interestDue) - n(f.interest) - n(f.discount)).toFixed(2)), principal: inr(batch.principal) })}</p>
         <DialogFooter>
           <Button disabled={!ok || pay.isPending} onClick={async () => { await pay.mutateAsync({ id: batch.id, body: { interest: n(f.interest), discount: n(f.discount), cash: n(f.cash), online: n(f.online), bankAccountId: n(f.online) > 0 ? Number(f.bankAccountId) : undefined } }); onClose() }}>{t('girvi.pay_interest')}</Button>
         </DialogFooter>
@@ -178,6 +180,7 @@ function TopupDialog({ batch, onClose }: { batch: GirviBatchDto; onClose: () => 
           <div />
           <BankPay cash={f.cash} online={f.online} bankAccountId={f.bankAccountId} set={(k, v) => set(k, v)} />
         </div>
+        {n(f.principal) > 0 && <p className="text-sm tabular-nums" aria-label="Allocation">{t('girvi.alloc_topup', { before: inr(batch.principal), after: inr((n(batch.principal) + n(f.principal)).toFixed(2)) })}</p>}
         <DialogFooter>
           <Button disabled={!ok || top.isPending} onClick={async () => { await top.mutateAsync({ id: batch.id, body: { principal: n(f.principal), cash: n(f.cash), online: n(f.online), bankAccountId: n(f.online) > 0 ? Number(f.bankAccountId) : undefined } }); onClose() }}>{t('girvi.add_topup')}</Button>
         </DialogFooter>
@@ -199,7 +202,7 @@ function ReleaseDialog({ batch, onClose }: { batch: GirviBatchDto; onClose: () =
   const set = (k: string, v: string) => setF((s) => ({ ...s, [k]: v }))
   const releasingAll = ids.size === pledged.length
   const toggle = (id: number) => setIds((s) => { const x = new Set(s); if (x.has(id)) x.delete(id); else x.add(id); return x })
-  const ok = ids.size > 0 && (n(f.online) === 0 || f.bankAccountId) && (!releasingAll || Math.abs(n(f.principalPaid) - Number(batch.principal)) < 0.005)
+  const ok = ids.size > 0 && Math.abs(n(f.cash) + n(f.online) - n(f.principalPaid) - n(f.interestPaid)) < 0.005 && (n(f.online) === 0 || f.bankAccountId) && (!releasingAll || Math.abs(n(f.principalPaid) - Number(batch.principal)) < 0.005)
   const selected = pledged.filter((it) => ids.has(it.id))
   const { data: banks } = useBankAccounts()
   const bank = banks?.find((b) => String(b.id) === f.bankAccountId)
@@ -208,9 +211,11 @@ function ReleaseDialog({ batch, onClose }: { batch: GirviBatchDto; onClose: () =
     onClose()
   }
 
+  const principalAfter = Math.max(0, n(batch.principal) - n(f.principalPaid)).toFixed(2)
   if (confirming) {
     const rows: [string, string][] = [
       [t('girvi.principal_paid'), inr(f.principalPaid || '0')],
+      [t('girvi.principal_after'), inr(principalAfter)],
       [t('girvi.interest_paid'), inr(f.interestPaid || '0')],
       [t('girvi.discount_inr'), inr(f.discount || '0')],
       [t('udhari.cash'), inr(f.cash || '0')],
@@ -272,6 +277,7 @@ function ReleaseDialog({ batch, onClose }: { batch: GirviBatchDto; onClose: () =
           <div />
           <BankPay cash={f.cash} online={f.online} bankAccountId={f.bankAccountId} set={(k, v) => set(k, v)} />
         </div>
+        <p className="text-sm tabular-nums" aria-label="Allocation">{t('girvi.alloc_release', { principal: inr(f.principalPaid || '0'), interest: inr(f.interestPaid || '0'), discount: inr(f.discount || '0'), before: inr(batch.principal), after: inr(principalAfter) })}</p>
         <label className="flex items-start gap-2 rounded-2xl border border-brand/30 bg-brand/10 p-3 text-sm">
           <Checkbox className="mt-0.5" aria-label="I confirm the customer has checked the items and there is no loss/damage" checked={ack} onCheckedChange={(v) => setAck(v === true)} />
           {t('girvi.ack_no_damage')}
@@ -367,6 +373,7 @@ export function GirviDetail() {
           </Select>
           <Button size="sm" variant="outline" onClick={() => window.print()}><Printer aria-hidden />{t('udhari.print')}</Button>
           <Button size="sm" variant="outline" onClick={downloadPdf}><FileDown aria-hidden />PDF</Button>
+          <EditHistoryButton entity="GIRVI" entityId={batch.id} />
           {canDelete && grantOnly && <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDeleting(true)}>{t('common.delete')}</Button>}
           {canEdit && batch.status === 'ACTIVE' && <>
             <Button size="sm" variant="outline" onClick={() => setDialog('interest')}>{t('girvi.pay_interest')}</Button>

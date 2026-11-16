@@ -1,6 +1,7 @@
 import { expect, test, type APIRequestContext } from '@playwright/test';
 import { login, PW } from './helpers';
 
+const MPIN = '1234';
 async function apiToken(request: APIRequestContext, user: string): Promise<string> {
   return (await (await request.post('/api/auth/login', { data: { login: user, password: PW } })).json()).accessToken as string;
 }
@@ -27,6 +28,11 @@ test('order + advance → issue to karigar → receive with ghat → READY → b
   await page.waitForURL(/\/admin/);
   await page.goto('/app/orders/new');
   await page.getByRole('combobox', { name: 'Active branch' }).selectOption({ index: 1 });
+  // the karigar issue below draws 10 g fine gold from this branch's BULLION pool (G7 D-i): put it in first, never lean on the shared pool
+  const branch = await page.getByRole('combobox', { name: 'Active branch' }).inputValue();
+  await request.post('/api/auth/mpin', { headers: { Authorization: `Bearer ${token}` }, data: { password: PW, mpin: MPIN } });
+  const seed = await request.post('/api/app/opening-balances', { headers: { Authorization: `Bearer ${token}`, 'X-Branch-Id': branch, 'X-MPIN': MPIN }, data: { entries: [{ kind: 'METAL', metal: 'GOLD', metalForm: 'BULLION', fine: 10 }], remark: 'e2e karigar bullion' } });
+  expect(seed.status(), await seed.text()).toBe(201);
 
   // customer + one GOLD line
   await page.getByRole('combobox', { name: 'Customer' }).click();

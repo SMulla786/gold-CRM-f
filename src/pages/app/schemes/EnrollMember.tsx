@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 
 import { PartyPicker } from '@/components/PartyPicker'
-import { SelectBranchForTxn } from '@/components/SelectBranchForTxn'
+import { SelectBranchForTxn, useTxnBranchReady } from '@/components/SelectBranchForTxn'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -10,7 +10,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useBankAccounts } from '@/lib/appQueries'
-import { useAuth } from '@/lib/auth'
 import { useEnroll, useSchemeGroups, useSchemes } from '@/lib/schemesQueries'
 import { businessDayISO, SCHEME_BANK_MEDIUMS, SCHEME_PAY_MEDIUMS, type PartyRefDto, type SchemeDto } from '@/shared'
 
@@ -20,8 +19,7 @@ const bankMedium = (m: string) => SCHEME_BANK_MEDIUMS.includes(m) // ONLINE / CH
 
 export function EnrollMember() {
   const navigate = useNavigate()
-  const { activeBranch } = useAuth()
-  const branchReady = activeBranch !== '' && activeBranch !== 'all'
+  const branchReady = useTxnBranchReady()
   const { data: banks } = useBankAccounts()
   const { data: schemes } = useSchemes({ active: 'true', pageSize: 100 })
   const enroll = useEnroll()

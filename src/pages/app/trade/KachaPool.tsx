@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ArrowUpFromLine, Coins, Flame, Recycle, Scale, TrendingDown, type LucideIcon } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, Coins, Flame, Recycle, Scale, TrendingDown, X, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
@@ -13,13 +13,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
 import { fetchAllPaged } from '@/lib/queries'
-import { useBulkRevertKacha, useKachaBalance, useKachaList, useRevertKacha } from '@/lib/tradeQueries'
+import { useBulkRevertKacha, useKachaBalance, useKachaList, useKachaSummary, useRevertKacha } from '@/lib/tradeQueries'
 import { businessDayISO, METALS, type KachaProcessDto } from '@/shared'
 
 import { ProcessKachaDialog } from './ProcessKachaDialog'
 
 const date = (s: string) => new Date(s).toLocaleDateString('en-IN')
-const n = (s: string) => Number(s) || 0
+const n = (s: string | undefined) => Number(s) || 0
+/** Exchange column: a linked exchange, or the exchanges of a PROCESS batch; '' = from the pool */
+const source = (p: KachaProcessDto) => (p.exchanges?.length ? p.exchanges : p.exchange ? [p.exchange] : []).map((e) => `#${e.exchangeNo}`).join(', ')
 
 export function KachaPool() {
   const t = useT()
@@ -28,13 +30,16 @@ export function KachaPool() {
   const [metal, setMetal] = useState('GOLD')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
-  // Melt / Refine view and metal ('' = All) are server-side filters.
-  const [view, setView] = useState<'' | 'MELT' | 'REFINE'>('')
+  // Melt / Refine / Process view, metal ('' = All) and the batch (its refines) are server-side filters.
+  const [view, setView] = useState<'' | 'MELT' | 'REFINE' | 'PROCESS'>('')
+  const [batch, setBatch] = useState<KachaProcessDto | null>(null)
   const { data: bal } = useKachaBalance(metal)
-  const { data: list, isLoading } = useKachaList({ metal: metal || undefined, type: view || undefined, page, pageSize })
+  const { data: summary } = useKachaSummary(metal)
+  const { data: list, isLoading } = useKachaList({ metal: metal || undefined, type: view || undefined, parentId: batch?.id, page, pageSize })
   const rows = list?.items ?? []
   const revert = useRevertKacha()
   const [processing, setProcessing] = useState(false)
+  const [refining, setRefining] = useState<KachaProcessDto | null>(null)
   const [reverting, setReverting] = useState<number | null>(null)
   const pageCount = list ? Math.max(1, Math.ceil(list.total / list.pageSize)) : 1
   const sNo = (i: number) => (list ? (list.page - 1) * list.pageSize : 0) + i + 1
@@ -52,19 +57,20 @@ export function KachaPool() {
 
   const exportRows = async () => {
     const all = await fetchAllPaged<KachaProcessDto>('/app/kacha', { metal: metal || undefined, type: view || undefined })
-    const header = ['S.No', 'Date', 'Type', 'Metal', 'Exchange', 'In (fine g)', 'Out (fine g)', 'Raval (g)', 'Loss (g)', 'Status', 'Remark']
-    const body = all.map((p, i) => [i + 1, date(p.txnDate), p.type, p.metal, p.exchange ? `#${p.exchange.exchangeNo}` : 'Pool', p.inFine, p.outFine, p.ravalFine, p.difference, p.reverted ? 'Reverted' : 'Done', p.remark])
+    const header = ['S.No', 'Date', 'Type', 'Metal', 'Exchange', 'In (fine g)', 'Out (fine g)', 'Raval (g)', 'Loss (g)', 'Self diff (g)', 'Status', 'Remark']
+    const body = all.map((p, i) => [i + 1, date(p.txnDate), p.type, p.metal, source(p) || 'Pool', p.inFine, p.outFine, p.ravalFine, p.difference, p.selfDiff ?? '', p.reverted ? 'Reverted' : 'Done', p.remark])
     return [header, ...body]
   }
 
-  // Summary numbers derived from the list already fetched (no extra requests).
+  // G5 summary cards: all active entries of the metal (GET /kacha/summary), the chosen type or melt + refine.
+  // A PROCESS batch only reserves kacha, so it is not counted in "all".
   const activeRows = rows.filter((p) => !p.reverted)
-  const sumOf = (pick: (p: (typeof rows)[number]) => string) => activeRows.reduce((sum, p) => sum + n(pick(p)), 0)
-  const lossOnPage = sumOf((p) => p.difference)
-  const inOnPage = sumOf((p) => p.inFine)
-  const outOnPage = sumOf((p) => p.outFine)
-  const ravalOnPage = sumOf((p) => p.ravalFine)
-  const scope = view ? t('trade.kacha.scope_type', { type: view === 'MELT' ? t('trade.kacha.melt') : t('trade.kacha.refine') }) : t('trade.kacha.scope_active')
+  const groups = summary?.byType.filter((g) => (view ? g.type === view : g.type !== 'PROCESS')) ?? []
+  const sumOf = (k: 'inFine' | 'outFine' | 'ravalFine' | 'difference' | 'selfDiff') => groups.reduce((sum, g) => sum + n(g[k]), 0)
+  const [lossAll, inAll, outAll, ravalAll, selfAll] = [sumOf('difference'), sumOf('inFine'), sumOf('outFine'), sumOf('ravalFine'), sumOf('selfDiff')]
+  const typeLabel = (v: string) => t(v === 'MELT' ? 'trade.kacha.melt' : v === 'REFINE' ? 'trade.kacha.refine' : 'trade.kacha.process')
+  const scope = view ? t('trade.kacha.scope_type', { type: typeLabel(view) }) : t('trade.kacha.scope_active')
+  const reserved = metal ? n(bal?.reservedFine ?? '0') : 0 // never summed across gold and silver
   // All metals: one figure per metal, never summed across gold and silver.
   const balOf = (m: string) => bal?.byMetal?.find((b) => b.metal === m)
   const poolCard = (form: 'kachaFine' | 'bullionFine') => metal
@@ -100,10 +106,15 @@ export function KachaPool() {
             <SelectTrigger className="w-32" aria-label="Metal"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="all">{t('trade.all_metals')}</SelectItem>{METALS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
           </Select>
-          <Select value={view || 'all'} onValueChange={(v) => { setView(v === 'MELT' || v === 'REFINE' ? v : ''); setPage(1); clearSel() }}>
+          <Select value={view || 'all'} onValueChange={(v) => { setView(v === 'MELT' || v === 'REFINE' || v === 'PROCESS' ? v : ''); setPage(1); clearSel() }}>
             <SelectTrigger className="w-40" aria-label="Process type"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="all">{t('trade.kacha.all_processes')}</SelectItem><SelectItem value="MELT">{t('trade.kacha.melt')}</SelectItem><SelectItem value="REFINE">{t('trade.kacha.refine')}</SelectItem></SelectContent>
+            <SelectContent><SelectItem value="all">{t('trade.kacha.all_processes')}</SelectItem><SelectItem value="MELT">{t('trade.kacha.melt')}</SelectItem><SelectItem value="REFINE">{t('trade.kacha.refine')}</SelectItem><SelectItem value="PROCESS">{t('trade.kacha.process')}</SelectItem></SelectContent>
           </Select>
+          {batch && (
+            <Button variant="secondary" size="sm" onClick={() => { setBatch(null); setPage(1); clearSel() }}>
+              {t('trade.kacha.batch_filter', { id: batch.id })}<X className="size-4" aria-label={t('common.close')} />
+            </Button>
+          )}
           <div className="ml-auto flex flex-wrap items-center gap-2">
             {selected.length > 0 && (
               <Button variant="outline" className="text-destructive hover:text-destructive" disabled={bulkRevert.isPending} onClick={() => setBulkReverting(true)}>
@@ -116,17 +127,17 @@ export function KachaPool() {
       </Card>
 
       <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {tile(t('trade.kacha.tile_kacha', { metal: metal || 'GOLD / SILVER' }), poolCard('kachaFine'), t('trade.kacha.tile_kacha_sub'), Recycle)}
+        {tile(t('trade.kacha.tile_kacha', { metal: metal || 'GOLD / SILVER' }), poolCard('kachaFine'), reserved > 0 ? t('trade.kacha.reserved_sub', { fine: reserved.toFixed(3) }) : t('trade.kacha.tile_kacha_sub'), Recycle)}
         {tile(t('trade.kacha.tile_bullion', { metal: metal || 'GOLD / SILVER' }), poolCard('bullionFine'), t('trade.kacha.tile_bullion_sub'), Coins)}
         {tile(t('trade.kacha.tile_entries'), list ? String(list.total) : '—', list ? t('trade.kacha.tile_active', { n: activeRows.length }) : undefined, Flame)}
-        {tile(t('trade.kacha.tile_loss'), list ? `${lossOnPage.toFixed(3)} g` : '—', t('trade.kacha.tile_loss_sub'), TrendingDown)}
+        {tile(t('trade.kacha.tile_loss'), summary ? `${lossAll.toFixed(3)} g` : '—', t('trade.kacha.tile_loss_sub'), TrendingDown)}
       </div>
 
       <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {tile(t('trade.kacha.tile_deduct'), list ? `${inOnPage.toFixed(3)} g` : '—', t('trade.kacha.fine_in', { scope }), ArrowDownToLine)}
-        {tile(t('trade.kacha.tile_add'), list ? `${outOnPage.toFixed(3)} g` : '—', t('trade.kacha.fine_out', { scope }), ArrowUpFromLine)}
-        {tile(t('trade.kacha.tile_diff'), list ? `${(inOnPage - outOnPage).toFixed(3)} g` : '—', t('trade.kacha.tile_diff_sub'), Scale)}
-        {tile(t('trade.kacha.tile_raval'), list ? `${ravalOnPage.toFixed(3)} / ${lossOnPage.toFixed(3)} g` : '—', scope, TrendingDown)}
+        {tile(t('trade.kacha.tile_deduct'), summary ? `${inAll.toFixed(3)} g` : '—', t('trade.kacha.fine_in', { scope }), ArrowDownToLine)}
+        {tile(t('trade.kacha.tile_add'), summary ? `${outAll.toFixed(3)} g` : '—', t('trade.kacha.fine_out', { scope }), ArrowUpFromLine)}
+        {tile(t('trade.kacha.tile_diff'), summary ? `${(inAll - outAll).toFixed(3)} g` : '—', selfAll ? t('trade.kacha.self_diff_total', { fine: selfAll.toFixed(3) }) : t('trade.kacha.tile_diff_sub'), Scale)}
+        {tile(t('trade.kacha.tile_raval'), summary ? `${ravalAll.toFixed(3)} / ${lossAll.toFixed(3)} g` : '—', scope, TrendingDown)}
       </div>
 
       <section className="space-y-3">
@@ -142,11 +153,19 @@ export function KachaPool() {
                   <TableRow key={p.id}>
                     {canEdit && <TableCell>{!p.reverted && <Checkbox aria-label={`Choose entry ${sNo(i)}`} checked={sel.has(p.id)} onCheckedChange={() => toggle(p.id)} />}</TableCell>}
                     <TableCell className="tabular-nums text-muted-foreground">{sNo(i)}</TableCell>
-                    <TableCell>{date(p.txnDate)}</TableCell><TableCell>{p.type}{!metal && <span className="block text-xs text-muted-foreground">{p.metal}</span>}</TableCell>
-                    <TableCell className="text-muted-foreground">{p.exchange ? `#${p.exchange.exchangeNo}` : t('trade.kacha.pool')}</TableCell>
-                    <TableCell className="tabular-nums">{p.inFine}</TableCell><TableCell className="tabular-nums">{p.outFine}</TableCell><TableCell className="tabular-nums">{p.ravalFine}</TableCell><TableCell className="tabular-nums">{p.difference}</TableCell>
+                    <TableCell>{date(p.txnDate)}</TableCell>
+                    <TableCell>{p.type}{!metal && <span className="block text-xs text-muted-foreground">{p.metal}</span>}
+                      {p.type === 'PROCESS' && !p.reverted && <span className="block text-xs text-muted-foreground tabular-nums">{t('trade.kacha.reserved_left', { fine: p.reservedFine ?? '0' })}</span>}
+                      {p.parentId != null && <span className="block text-xs text-muted-foreground">{t('trade.kacha.of_batch', { id: p.parentId })}</span>}</TableCell>
+                    <TableCell className="text-muted-foreground">{source(p) || t('trade.kacha.pool')}</TableCell>
+                    <TableCell className="tabular-nums">{p.inFine}</TableCell><TableCell className="tabular-nums">{p.outFine}</TableCell><TableCell className="tabular-nums">{p.ravalFine}</TableCell>
+                    <TableCell className="tabular-nums">{p.difference}{p.selfDiff && n(p.selfDiff) !== 0 && <span className="block text-xs text-muted-foreground">{t('trade.kacha.self_diff', { fine: p.selfDiff })}</span>}</TableCell>
                     <TableCell>{p.reverted ? <Badge variant="secondary">{t('trade.kacha.reverted')}</Badge> : <Badge>{t('trade.kacha.done')}</Badge>}</TableCell>
-                    <TableCell>{canEdit && !p.reverted && <Button variant="ghost" size="sm" onClick={() => setReverting(p.id)}>{t('trade.kacha.revert')}</Button>}</TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {p.type === 'PROCESS' && <Button variant="ghost" size="sm" onClick={() => { setBatch(p); setView(''); setPage(1); clearSel() }}>{t('trade.kacha.show_refines')}</Button>}
+                      {canEdit && p.type === 'PROCESS' && !p.reverted && n(p.reservedFine ?? '0') > 0 && <Button variant="ghost" size="sm" onClick={() => setRefining(p)}>{t('trade.kacha.refine_batch')}</Button>}
+                      {canEdit && !p.reverted && <Button variant="ghost" size="sm" onClick={() => setReverting(p.id)}>{t('trade.kacha.revert')}</Button>}
+                    </TableCell>
                   </TableRow>
                 )) : (
                   <TableRow>
@@ -179,6 +198,7 @@ export function KachaPool() {
       </section>
 
       {processing && <ProcessKachaDialog metal={metal || 'GOLD'} onClose={() => setProcessing(false)} />}
+      {refining && <ProcessKachaDialog metal={refining.metal} batch={refining} onClose={() => setRefining(null)} />}
       <MpinDialog
         open={bulkReverting}
         title={t('trade.kacha.bulk_revert_title', { n: selected.length })}

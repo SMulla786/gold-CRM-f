@@ -3,7 +3,7 @@
 import { AuthedImage } from '@/components/AuthedImage'
 import { amountInWords } from '@/lib/amountInWords'
 import { cn } from '@/lib/utils'
-import { INVOICE_PRINT_COLUMNS, type BillDto, type BillLineDto, type BusinessProfileDto } from '@/shared'
+import { INVOICE_PRINT_COLUMNS, type BillDto, type BillLineDto, type BillPaymentDto, type BusinessProfileDto } from '@/shared'
 
 type Col = (typeof INVOICE_PRINT_COLUMNS)[number]
 
@@ -20,6 +20,27 @@ const COLSPEC: Record<Col, { label: string; get: (it: BillLineDto) => string | n
 }
 /** A5 is half the width of A4 — only the columns that matter most fit. */
 const A5_COLS: Col[] = ['hsn', 'karat', 'net', 'fine', 'rate', 'labour', 'total']
+/** A6 (original "Luxury Boutique") is a quarter of A4. */
+const A6_COLS: Col[] = ['karat', 'net', 'rate', 'total']
+
+const PAY_LABEL: Record<string, string> = { CASH: 'Cash', ONLINE: 'Online', SCHEME: 'Scheme', UDHAR_ADVANCE: 'Udhar advance' }
+const payLabel = (p: BillPaymentDto, metalWeight: boolean) => {
+  if (p.mode !== 'METAL') return p.mode === 'ONLINE' && p.bankAccount?.name ? `Online · ${p.bankAccount.name}` : PAY_LABEL[p.mode] ?? p.mode
+  const what = `${p.metal === 'SILVER' ? 'Silver' : 'Gold'}${p.jewelleryType?.name ? ` (${p.jewelleryType.name})` : ''}`
+  return metalWeight ? `${what} ${p.gross} g · fine ${p.fine} g @ ${p.rate}` : what
+}
+
+/** Active payments on the bill; METAL rows show weights when billing.invoice.showMetalPaymentWeight is on. Shared by every layout. */
+export function Received({ bill, metalWeight, className }: { bill: BillDto; metalWeight: boolean; className?: string }) {
+  const pays = bill.payments.filter((p) => p.isActive)
+  if (!pays.length) return null
+  return (
+    <div className={cn('space-y-0.5 tabular-nums', className)}>
+      <div className="font-medium">{bill.kind === 'SELL' ? 'Received' : 'Paid out'}</div>
+      {pays.map((p) => <Row key={p.id} label={payLabel(p, metalWeight)} value={inr(p.amount)} />)}
+    </div>
+  )
+}
 
 export interface InvoiceMedia { logoUrl: string | null; signatureUrl: string | null; watermarkUrl: string | null }
 export interface InvoiceLayoutProps {
@@ -37,6 +58,7 @@ export interface InvoiceLayoutProps {
   showWords: boolean
   showHsn: boolean
   due?: { label: string; value: string } | null
+  showMetalPaymentWeight: boolean
 }
 
 function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
@@ -66,15 +88,16 @@ function Totals({ bill, due, combineTax, className }: { bill: BillDto; due?: Inv
 const title = (bill: BillDto, estimate: boolean) =>
   estimate ? 'ESTIMATE' : `${bill.kind === 'SELL' ? 'TAX INVOICE' : 'PURCHASE'} ${bill.billType === 'ROUGH' ? '(ROUGH)' : ''}`
 
-/** Sheet layouts: A4 estimate (no GSTIN / HSN, tax as one line), A5 (compact columns), A4 with item photos. */
-export function SheetInvoice({ variant, ...p }: InvoiceLayoutProps & { variant: 'estimate' | 'a5' | 'images' }) {
+/** Sheet layouts: A4 estimate (no GSTIN / HSN, tax as one line), A5 / A6 (compact columns), A4 with item photos. */
+export function SheetInvoice({ variant, ...p }: InvoiceLayoutProps & { variant: 'estimate' | 'a5' | 'a6' | 'images' }) {
   const { bill, media } = p
   const estimate = variant === 'estimate'
-  const a5 = variant === 'a5'
+  const a6 = variant === 'a6'
+  const a5 = variant === 'a5' || a6 // A6 = A5 styling, narrower page and fewer columns
   const picked = INVOICE_PRINT_COLUMNS.filter((c) => p.columns.length === 0 || p.columns.includes(c))
-  const cols = picked.filter((c) => (c !== 'hsn' || (p.showHsn && !estimate)) && (!a5 || A5_COLS.includes(c)))
+  const cols = picked.filter((c) => (c !== 'hsn' || (p.showHsn && !estimate)) && (!a5 || (a6 ? A6_COLS : A5_COLS).includes(c)))
   return (
-    <div className={cn('relative space-y-3', a5 ? 'mx-auto max-w-[148mm] text-xs' : 'space-y-4 text-sm')}>
+    <div className={cn('relative space-y-3', a6 ? 'mx-auto max-w-[105mm] text-[10px]' : a5 ? 'mx-auto max-w-[148mm] text-xs' : 'space-y-4 text-sm')}>
       {media?.watermarkUrl && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center" style={{ opacity: (p.watermarkOpacity ?? 10) / 100 }}>
           <AuthedImage path="/app/files/invoice/watermark" alt="" className="max-h-[60%] max-w-[60%] object-contain" />
@@ -123,6 +146,7 @@ export function SheetInvoice({ variant, ...p }: InvoiceLayoutProps & { variant: 
         </tbody>
       </table>
       <Totals bill={bill} due={p.due} combineTax={estimate} className={a5 ? 'ml-auto max-w-[60%]' : 'ml-auto max-w-xs'} />
+      <Received bill={bill} metalWeight={p.showMetalPaymentWeight} className={a6 ? 'ml-auto max-w-[80%]' : a5 ? 'ml-auto max-w-[60%]' : 'ml-auto max-w-xs'} />
       {p.showWords && <p><span className="text-muted-foreground">In words:</span> {amountInWords(bill.final)}</p>}
       {media?.signatureUrl && (
         <div className="mt-6 text-right">
@@ -167,6 +191,7 @@ export function Thermal58Invoice(p: InvoiceLayoutProps) {
         </tbody>
       </table>
       <Totals bill={bill} due={p.due} className="border-t border-dashed pt-1" />
+      <Received bill={bill} metalWeight={p.showMetalPaymentWeight} />
       {p.showWords && <p>In words: {amountInWords(bill.final)}</p>}
       {p.terms && <p className="text-[9px] whitespace-pre-line text-muted-foreground">{p.terms}</p>}
       <p className="text-center">Thank you!</p>

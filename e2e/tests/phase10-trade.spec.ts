@@ -62,7 +62,7 @@ test('exchange BUY at a rate → kacha card shows it → melt (MPIN) moves it to
   // SPA-navigate to the kacha pool (keeps the active branch); the pool grew by exactly the 20 g bought in.
   await page.getByRole('link', { name: 'Kacha / Melting' }).click()
   const bal1 = (await apiJson(request, token, '/app/kacha/balance?metal=GOLD', branch)).body
-  expect(Number(bal1.kachaFine) - Number(bal0.kachaFine)).toBe(20)
+  expect(Number(bal1.kachaFine) - Number(bal0.kachaFine)).toBeCloseTo(20, 3) // float subtraction of 3-dp strings
   await expect(page.getByText(`${bal1.kachaFine} g`).first()).toBeVisible() // the card reflects the pool
 
   await page.getByRole('button', { name: 'Melt / Refine' }).click()
@@ -76,7 +76,7 @@ test('exchange BUY at a rate → kacha card shows it → melt (MPIN) moves it to
   ])
 
   const bal2 = (await apiJson(request, token, '/app/kacha/balance?metal=GOLD', branch)).body
-  expect(Number(bal1.kachaFine) - Number(bal2.kachaFine)).toBe(12) // 12 g kacha consumed
+  expect(Number(bal1.kachaFine) - Number(bal2.kachaFine)).toBeCloseTo(12, 3) // 12 g kacha consumed
   expect(Number(bal2.bullionFine) - Number(bal1.bullionFine)).toBeCloseTo(11.8, 3) // 11.8 g bullion produced (0.2 melt loss)
   await expect(page.getByText(`${bal2.bullionFine} g`).first()).toBeVisible() // bullion card moved
 })
@@ -111,8 +111,8 @@ test('bhav SELL booking + advance → buy-sell SELL at the booking rate → DELI
   await expect(page.getByRole('combobox', { name: 'Side' })).toBeVisible()
   await radix(page, page, 'Side', /Sell/)
   await pickParty(page, page, party.name)
-  await radix(page, page, 'Bhav booking', rx(`#${booking.bookingNo} `)) // trailing space + first(): avoid #1 matching #10
-  await page.getByRole('spinbutton', { name: 'Weight' }).first().fill('10') // rate auto-filled & locked to the booking
+  // TRD-03: one weight input per open booking; the line (weight + locked rate) comes from the delivery
+  await page.getByRole('spinbutton', { name: `Deliver from booking ${booking.bookingNo}` }).fill('10')
   await page.locator('#bs-cash').fill('55000')
   await Promise.all([
     page.waitForResponse((r) => r.url().endsWith('/app/buy-sell') && r.request().method() === 'POST' && r.status() === 201),

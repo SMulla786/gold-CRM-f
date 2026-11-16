@@ -19,7 +19,11 @@ test('girvi defaults tab saves (MPIN)', async ({ page, request }) => {
   await login(page, 'demo.owner');
   await page.waitForURL(/\/admin/);
   await page.goto('/app/settings/girvi');
-  await page.locator('#gd-std').fill('55');
+  // a value different from the saved one, or the form isn't dirty and Save stays disabled on a re-run
+  const std = page.locator('#gd-std');
+  await expect(std).not.toHaveValue('');
+  const next = (await std.inputValue()) === '55' ? '56' : '55';
+  await std.fill(next);
   await page.getByRole('button', { name: 'Save (MPIN)' }).click();
   await page.getByLabel('MPIN').fill('1234');
   const [resp] = await Promise.all([
@@ -27,7 +31,7 @@ test('girvi defaults tab saves (MPIN)', async ({ page, request }) => {
     page.getByRole('button', { name: 'Confirm' }).click(),
   ]);
   expect([200, 204]).toContain(resp.status());
-  expect(Number((await apiJson(request, token, '/app/settings')).body['girvi.defaults'].stdPercent)).toBe(55);
+  expect(Number((await apiJson(request, token, '/app/settings')).body['girvi.defaults'].stdPercent)).toBe(Number(next));
 });
 
 test('girvi loan → pay interest → partial release → final release closes', async ({ page, request }) => {

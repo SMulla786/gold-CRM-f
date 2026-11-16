@@ -36,7 +36,7 @@ test('repair: Ledger tab reads ?status= from the URL, searches, exports', async 
   const [resp] = await Promise.all([apiResp(page, '/app/repairs', 'status=DELIVERED'), page.goto('/app/repair/ledger?status=DELIVERED')]);
   expect(resp.status()).toBe(200);
   await expect(page.getByRole('heading', { name: 'Repair ledger' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Board' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Board', exact: true })).toBeVisible(); // not the "Dashboard" nav link
   const [q] = await Promise.all([apiResp(page, '/app/repairs', 'q=9876543210'), page.getByRole('textbox', { name: 'Search repairs' }).fill('9876543210')]);
   expect(q.status()).toBe(200);
   await expect(page.getByRole('button', { name: 'Export CSV' })).toBeVisible();

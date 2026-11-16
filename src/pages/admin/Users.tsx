@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 
 import { DataTable } from '@/components/DataTable'
 import { PermissionMatrix, grantsToMap, mapToGrants, type GrantMap } from '@/components/PermissionMatrix'
+import { SupportNote } from '@/components/SupportNote'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -198,11 +199,14 @@ function UserDialog({ user, onClose }: { user?: UserDto; onClose: () => void }) 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="u-email">Email</Label>
-              <Input id="u-email" type="email" {...register('email')} />
+              {/* blank must reach zod as undefined: the email / mobile rules reject '' */}
+              <Input id="u-email" type="email" {...register('email', { setValueAs: (v: string) => v?.trim() || undefined })} />
+              {formState.errors.email && <p className="text-xs text-destructive">{formState.errors.email.message}</p>}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="u-mobile">Mobile</Label>
-              <Input id="u-mobile" {...register('mobile')} />
+              <Input id="u-mobile" {...register('mobile', { setValueAs: (v: string) => v?.trim() || undefined })} />
+              {formState.errors.mobile && <p className="text-xs text-destructive">{formState.errors.mobile.message}</p>}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -445,6 +449,7 @@ function useStatusCounts(): Record<StatusTab, number | undefined> {
 
 export function Users() {
   const { me } = useAuth()
+  const support = !!me?.impersonatedBy
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [tab, setTab] = useState<StatusTab>('ALL')
@@ -469,6 +474,7 @@ export function Users() {
       id: 'actions',
       header: '',
       cell: ({ row }) => {
+        if (support) return null // every account / access change is the owner's (the API refuses them all while impersonating)
         const u = row.original
         // Only the business owner may manage the owner row; nobody may block themselves.
         const canManage = !u.isOwner || me?.isOwner
@@ -519,8 +525,9 @@ export function Users() {
           <h1>Users</h1>
           <p className="mt-1 text-sm text-muted-foreground">Staff logins, their roles and which branches they can work in.</p>
         </div>
-        <Button onClick={() => setCreating(true)}>New user</Button>
+        <Button disabled={support} onClick={() => setCreating(true)}>New user</Button>
       </div>
+      <SupportNote what="users" />
       <Tabs
         value={tab}
         onValueChange={(v) => {

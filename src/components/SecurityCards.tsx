@@ -28,6 +28,7 @@ function Err({ e }: { e?: FieldError }) {
 
 export function ChangePasswordCard() {
   const t = useT()
+  const support = !!useAuth().me?.impersonatedBy // the API refuses it: the owner's own credentials (SupportNote says why)
   const change = useChangePassword()
   const { register, handleSubmit, reset, formState } = useForm<z.infer<typeof passwordForm>>({ resolver: zodResolver(passwordForm) })
   const onSubmit = handleSubmit(async ({ current, next }) => {
@@ -41,7 +42,8 @@ export function ChangePasswordCard() {
         <CardDescription>{t('security.change_password_desc')}</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={onSubmit} className="space-y-4">
+        <form onSubmit={onSubmit}>
+          <fieldset disabled={support} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="pw-current">{t('security.current_password')}</Label>
             <Input id="pw-current" type="password" autoComplete="current-password" {...register('current')} />
@@ -62,6 +64,7 @@ export function ChangePasswordCard() {
           <Button type="submit" disabled={change.isPending}>
             {change.isPending ? t('party.saving') : t('security.change_password')}
           </Button>
+          </fieldset>
         </form>
       </CardContent>
     </Card>
@@ -71,6 +74,7 @@ export function ChangePasswordCard() {
 export function ChangeMpinCard() {
   const t = useT()
   const { me } = useAuth()
+  const support = !!me?.impersonatedBy // the API refuses it: the owner's own credentials (SupportNote says why)
   // `me` is only reloaded on login, so remember a successful save locally to flip the wording.
   const [hasMpin, setHasMpin] = useState(!!me?.hasMpin)
   const save = useSetMpin()
@@ -88,7 +92,8 @@ export function ChangeMpinCard() {
         <CardDescription>{t('security.mpin_desc')}</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={onSubmit} className="space-y-4">
+        <form onSubmit={onSubmit}>
+          <fieldset disabled={support} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="mpin-password">{t('security.account_password')}</Label>
             <Input id="mpin-password" type="password" autoComplete="current-password" {...register('password')} />
@@ -109,6 +114,7 @@ export function ChangeMpinCard() {
           <Button type="submit" disabled={save.isPending}>
             {save.isPending ? t('party.saving') : hasMpin ? t('security.change_mpin') : t('security.set_mpin')}
           </Button>
+          </fieldset>
         </form>
       </CardContent>
     </Card>
