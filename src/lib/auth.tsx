@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { toast } from 'sonner'
 
 import { SessionChanged } from '@/components/SessionChanged'
 import { clearAdState } from '@/lib/ads'
@@ -137,14 +138,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // End impersonation server-side with the impersonation token itself (G7 review 4: the old /platform call was refused,
   // so it never ended), then restore the real (super admin) session from the cookie.
   const endImpersonation = useCallback(async () => {
-    try {
-      await api.post('/auth/impersonation/end')
-    } catch {
-      // still restore the Super Admin: the impersonation token is dropped from memory either way
-    }
+    // a failed end still restores the Super Admin (the impersonation token is dropped from memory either way), but says so
+    const ended = await api.post('/auth/impersonation/end').then(() => true, () => false)
     dropUserState(queryClient) // also forgets the impersonated identity, so restore() adopts the Super Admin's own session
     if (clearAdState('/platform')) return
     await restore()
+    if (!ended) toast.warning('Could not close the support session on the server, so it is still recorded as open. You are the Super Admin again.')
   }, [restore, queryClient])
 
   const value = useMemo<AuthValue>(

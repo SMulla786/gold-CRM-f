@@ -10,8 +10,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { useCurrentRates, useRateHistory, useRateLimits, useSaveRateLimits, useSetRates } from '@/lib/appQueries'
+import { useCurrentRates, useKarats, useRateHistory, useRateLimits, useSaveRateLimits, useSetRates } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
+import { blankRate, withUnpricedKarats } from '@/lib/rateRows'
 import { RATE_UNIT_GRAMS, rateLimitsBody, setRatesBody, type Metal, type RateRowDto, type RateUnitKey } from '@/shared'
 
 type MpinAction = { title: string; run: (mpin: string) => Promise<unknown> }
@@ -76,12 +77,13 @@ function MetalRates({ metal, unit, rows, updatedAt, ask }: { metal: Metal; unit:
   const { can } = useAuth()
   const canEdit = can('settings.misc', 'edit')
   const setRates = useSetRates()
+  const { data: karats } = useKarats()
   const [edit, setEdit] = useState<EditRow[]>(rows.map(toEdit))
   const [override, setOverride] = useState(false)
   // "Select rate type": rates may be typed per another unit; they are converted back to the stored unit on save,
   // so billing (which reads the stored unit) is unaffected.
   const [entryUnit, setEntryUnit] = useState<RateUnitKey>(unit)
-  useEffect(() => { setEdit(rows.map(toEdit)); setEntryUnit(unit) }, [rows, unit])
+  useEffect(() => { setEdit(withUnpricedKarats(rows.map(toEdit), karats, metal)); setEntryUnit(unit) }, [rows, unit, karats, metal])
   const scale = (v: string, from: RateUnitKey, to: RateUnitKey) => (v === '' ? '' : String(Math.round(((Number(v) * RATE_UNIT_GRAMS[to]) / RATE_UNIT_GRAMS[from]) * 100) / 100))
   const changeEntryUnit = (next: RateUnitKey) => {
     setEdit((e) => e.map((r) => ({ ...r, sell: scale(r.sell, entryUnit, next), buy: scale(r.buy, entryUnit, next) })))
@@ -99,7 +101,9 @@ function MetalRates({ metal, unit, rows, updatedAt, ask }: { metal: Metal; unit:
   }
 
   const save = () => {
-    // shared zod coerces + rejects blanks (decimalInput: blank -> NaN -> error, not 0)
+    // the shared zod coerces a blank to 0, so a blank is asked for here rather than saved as ₹0
+    const blank = blankRate(edit)
+    if (blank) return toast.error(`Enter the ${blank.title} sell and buy rate (0 if you don't deal in it)`)
     const parsed = setRatesBody.safeParse({ metal, rateUnit: unit, overrideLimits: override, rates: edit.map((r) => ({ karatCode: r.karatCode, sellRate: scale(r.sell, entryUnit, unit), buyRate: scale(r.buy, entryUnit, unit) })) })
     if (!parsed.success) return toast.error(parsed.error.issues[0]?.message ?? 'Enter valid rates')
     const body = parsed.data as Record<string, unknown>

@@ -1,6 +1,7 @@
 import { KeyRound, UserRound } from 'lucide-react'
 
 import { ChangeMpinCard, ChangePasswordCard } from '@/components/SecurityCards'
+import { SupportNote } from '@/components/SupportNote'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAuth } from '@/lib/auth'
 
@@ -44,6 +45,7 @@ export function MyAccount() {
       <h2 className="flex items-center gap-2 pt-2">
         <KeyRound className="size-5 text-brand" aria-hidden /> Security
       </h2>
+      <SupportNote what="security" />
       <ChangePasswordCard />
       <ChangeMpinCard />
     </div>

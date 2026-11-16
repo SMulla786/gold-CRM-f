@@ -24,7 +24,7 @@ import { useBankAccounts, useKarats, useSaveSetting, useSettings } from '@/lib/a
 import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
 import { fetchDraftByNo, useDrafts } from '@/lib/draftsQueries'
-import { ApiException } from '@/lib/errors'
+import { ApiException, errorText } from '@/lib/errors'
 import { lineRateUnitGrams, metalRateUnitGrams, useCreateBill, useNextBillNo, usePartyBalance, useUpdateBill } from '@/lib/billingQueries'
 import { allCols, clearPersonalCols, COL_PRESETS, colsForKind, colsFromKeys, epcOk, huidOk, jtypesForMetal, loadPersonalCols, metalPayBody, PURCHASE_ONLY_COLS, purchaseLineExtras, resolveCols, savePersonalCols, shopColsValue, stoneRowFromDto, syncStoneCharge, keepRateChanged, keepUnitFor, type StoneRow } from '@/pages/app/billing/billFormParts'
 import { StonesDialog } from '@/pages/app/billing/StonesDialog'
@@ -443,7 +443,7 @@ export function BillForm({ kind, editBill }: { kind: BillKind; editBill?: BillDt
         if (d?.code === 'PAN_REQUIRED') { setPanOpen(true); return } // keeps editMpin for the resubmit
         if (d?.code === 'RATE_LIMIT') { setRateLimitLine(d.line ?? null); toast.error(t('bill.rate_limit', { line: (d.line ?? 0) + 1 })); return }
       }
-      toast.error(e instanceof ApiException ? e.message : editBill ? t('bill.err_update') : t('bill.err_save'))
+      toast.error(errorText(e, editBill ? t('bill.err_update') : t('bill.err_save')))
     }
   }
 

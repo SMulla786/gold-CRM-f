@@ -43,18 +43,19 @@ const branchInitial = (n: BranchNodeDto): BranchForm => ({
   disclaimer: n.disclaimer ?? undefined,
 })
 
+/** `status`: omitted = a new branch (admin-node only); 'edit' adds Active; 'fixed' (the root, your own node) offers neither. */
 function BranchDialog({
   title,
   initial,
   onSubmit,
   onClose,
-  showActive,
+  status,
 }: {
   title: string
   initial?: Partial<BranchForm>
   onSubmit: (v: BranchForm) => Promise<void>
   onClose: () => void
-  showActive?: boolean
+  status?: 'edit' | 'fixed'
 }) {
   const { register, handleSubmit, watch, setValue, formState } = useForm<BranchForm>({
     resolver: zodResolver(branchForm),
@@ -158,11 +159,13 @@ function BranchDialog({
             <textarea id="b-disclaimer" rows={2} className="w-full rounded-md border bg-transparent px-3 py-2 text-sm" placeholder="Printed on this branch's bills" {...register('disclaimer', opt)} />
             {err('disclaimer')}
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox checked={watch('isAdminNode')} onCheckedChange={(v) => setValue('isAdminNode', Boolean(v))} />
-            Branch-admin node (can manage sub-branches & users)
-          </label>
-          {showActive && (
+          {status !== 'fixed' && (
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={watch('isAdminNode')} onCheckedChange={(v) => setValue('isAdminNode', Boolean(v))} />
+              Branch-admin node (can manage sub-branches & users)
+            </label>
+          )}
+          {status === 'edit' && (
             <label className="flex items-center gap-2 text-sm">
               <Checkbox checked={watch('isActive')} onCheckedChange={(v) => setValue('isActive', Boolean(v))} />
               Active
@@ -308,10 +311,11 @@ function TreeRow({
       {dialog === 'edit' && (
         <BranchDialog
           title={`Edit ${node.name}`}
-          showActive
+          status={canToggleAdmin ? 'edit' : 'fixed'}
           initial={branchInitial(node)}
           onClose={() => setDialog(null)}
-          onSubmit={(v) => update.mutateAsync({ id: node.id, body: v }).then(() => {})}
+          // the root / your own node: the API refuses any body that carries isActive or isAdminNode, even unchanged
+          onSubmit={({ isActive, isAdminNode, ...rest }) => update.mutateAsync({ id: node.id, body: canToggleAdmin ? { ...rest, isActive, isAdminNode } : rest }).then(() => {})}
         />
       )}
       {dialog === 'move' && <MoveDialog node={node} all={all} onClose={() => setDialog(null)} />}

@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
 import { ChangeMpinCard, ChangePasswordCard } from '@/components/SecurityCards'
+import { SupportNote } from '@/components/SupportNote'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -57,6 +58,7 @@ export function BusinessProfile() {
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">
+            <SupportNote what="contacts" />
             <div className="space-y-1.5">
               <Label htmlFor="p-name">Business name</Label>
               <Input id="p-name" {...register('name', { required: true })} />
@@ -130,6 +132,7 @@ export function BusinessProfile() {
         </CardContent>
       </Card>
       <h2 className="pt-2">Security</h2>
+      <SupportNote what="security" />
       <ChangePasswordCard />
       <ChangeMpinCard />
     </div>

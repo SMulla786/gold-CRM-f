@@ -87,7 +87,7 @@ function NewTransferDialog({ onClose }: { onClose: () => void }) {
   const toggle = (id: number) => setPicked((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
 
   const paid = num(pay.cash) + num(pay.online)
-  const valid = lender && picked.size > 0 && num(terms.principal) > 0 && Math.abs(paid - num(terms.principal)) < 0.005 && (num(pay.online) === 0 || pay.bankAccountId)
+  const valid = branchReady && lender && picked.size > 0 && num(terms.principal) > 0 && Math.abs(paid - num(terms.principal)) < 0.005 && (num(pay.online) === 0 || pay.bankAccountId)
   const submit = () => {
     if (!valid || create.isPending) return
     create.mutate(

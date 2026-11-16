@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/
 import { toast } from 'sonner'
 
 import { api } from '@/lib/api'
-import { ApiException } from '@/lib/errors'
+import { ApiException, errorText } from '@/lib/errors'
 import type {
   AdminOverviewDto,
   BranchNodeDto,
@@ -57,7 +57,7 @@ export function useApiMutation<TArgs, TOut>(
     onError: (e) => {
       // Store users hitting a permission wall get a one-click path to ask for it (original 'Permission Enquiry' prompt).
       const forbidden = e instanceof ApiException && e.code === 'FORBIDDEN' && window.location.pathname.startsWith('/app')
-      toast.error(e instanceof ApiException ? e.message : 'Something went wrong', forbidden ? { action: { label: 'Request access', onClick: () => window.location.assign('/app/access-requests') } } : undefined)
+      toast.error(errorText(e), forbidden ? { action: { label: 'Request access', onClick: () => window.location.assign('/app/access-requests') } } : undefined)
     },
   })
 }

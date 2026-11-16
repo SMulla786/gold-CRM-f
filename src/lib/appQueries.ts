@@ -58,7 +58,7 @@ export const useToggleHsn = () =>
   useApiMutation(({ id, active }: { id: number; active: boolean }) => api.put(`/app/hsn/${id}`, { active }), { invalidate: [['hsn']] })
 
 // ───── Karats ─────
-export const useKarats = () => useQuery({ queryKey: ['karats'], queryFn: () => api.get<KaratDto[]>('/app/karats') })
+export const useKarats = (enabled = true) => useQuery({ queryKey: ['karats'], queryFn: () => api.get<KaratDto[]>('/app/karats'), enabled })
 export const useCreateKarat = () =>
   useApiMutation((body: Record<string, unknown>) => api.post('/app/karats', body), { invalidate: [['karats']], success: 'Karat added' })
 export const useUpdateKarat = () =>

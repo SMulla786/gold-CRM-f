@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth'
 import { LOCALES, useLocale, useT } from '@/lib/i18n'
 import type { NavItem } from '@/lib/nav'
+import { writeBranch } from '@/lib/txnBranch'
 import { cn } from '@/lib/utils'
 
 function ThemeToggle() {
@@ -65,12 +66,14 @@ interface ShellProps {
 }
 
 export function Shell({ area, nav, showBranch }: ShellProps) {
-  const { me, can, hasModule, logout, readOnly, endImpersonation } = useAuth()
+  const { me, activeBranch, can, hasModule, logout, readOnly, endImpersonation } = useAuth()
   const t = useT()
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const [newParty, setNewParty] = useState(false)
   const isStore = area === 'Store'
+  // G7: the API refuses every store write on an inactive branch (403 BRANCH_INACTIVE) — say so before anyone fills a form
+  const offBranch = isStore ? writeBranch(me, activeBranch) : null
   const canBill = can('billing.sell_bill', 'view') || can('billing.purchase_bill', 'view')
   const canAddParty = can('settings.parties', 'edit')
   const canSeeStock = hasModule('inventory') && can('inventory.all_stock', 'view')
@@ -125,6 +128,11 @@ export function Shell({ area, nav, showBranch }: ShellProps) {
       {readOnly && (
         <div className="bg-destructive px-4 py-1.5 text-center text-sm font-medium text-destructive-foreground">
           {t('shell.readonly')}
+        </div>
+      )}
+      {offBranch && !offBranch.isActive && (
+        <div role="status" className="bg-destructive px-4 py-1.5 text-center text-sm font-medium text-destructive-foreground">
+          {t('shell.branch_inactive', { name: offBranch.name })}
         </div>
       )}
 

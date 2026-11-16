@@ -11,10 +11,11 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useCurrentRates, useRateLimits, useSaveSetting, useSetRatesBatch } from '@/lib/appQueries'
+import { useCurrentRates, useKarats, useRateLimits, useSaveSetting, useSetRatesBatch } from '@/lib/appQueries'
 import { useAuth } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
-import { RATE_UNIT_GRAMS, setRatesBody, type CurrentRatesDto, type RateRowDto } from '@/shared'
+import { blankRate, withUnpricedKarats } from '@/lib/rateRows'
+import { RATE_UNIT_GRAMS, setRatesBody, type CurrentRatesDto, type KaratDto, type RateRowDto } from '@/shared'
 
 // Unit labels are i18n keys: `rates.unit.<RateUnitKey | display key>` (e.g. rates.unit.TOLA = 'per tola').
 const money = (s: string | number) => new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(Number(s))
@@ -46,13 +47,13 @@ function updatedAgo(iso: string): string {
   return `Updated on ${new Date(iso).toLocaleDateString('en-IN')}`
 }
 
-function EditRatesDialog({ onClose, showBuy, onShowBuy }: { onClose: () => void; showBuy: boolean; onShowBuy: (v: boolean) => void }) {
+function EditRatesDialog({ karats, onClose, showBuy, onShowBuy }: { karats?: KaratDto[]; onClose: () => void; showBuy: boolean; onShowBuy: (v: boolean) => void }) {
   const t = useT()
   const { data } = useCurrentRates()
   const { data: limits } = useRateLimits()
   const setRates = useSetRatesBatch()
-  const [gold, setGold] = useState<EditRow[]>(() => (data?.gold.rows ?? []).map(toEdit))
-  const [silver, setSilver] = useState<EditRow[]>(() => (data?.silver.rows ?? []).map(toEdit))
+  const [gold, setGold] = useState<EditRow[]>(() => withUnpricedKarats((data?.gold.rows ?? []).map(toEdit), karats, 'GOLD'))
+  const [silver, setSilver] = useState<EditRow[]>(() => withUnpricedKarats((data?.silver.rows ?? []).map(toEdit), karats, 'SILVER'))
   const [auto, setAuto] = useState({ gold: true, silver: true })
   const setter = (metal: 'gold' | 'silver') => (metal === 'gold' ? setGold : setSilver)
   const set = (metal: 'gold' | 'silver', i: number, k: 'sell' | 'buy', v: string) =>
@@ -81,7 +82,9 @@ function EditRatesDialog({ onClose, showBuy, onShowBuy }: { onClose: () => void;
       if (!rows.length) continue
       const base = purest(rows)
       if (!base || !(Number(base.sell) > 0)) return toast.error(`Enter the ${metal === 'gold' ? 'gold' : 'silver'} ${base?.title ?? ''} sell rate (must be more than 0)`)
-      // shared zod coerces + rejects blanks (blank -> error, not a silent 0)
+      // the shared zod coerces a blank to 0, so a blank is asked for here rather than saved as ₹0
+      const blank = blankRate(rows)
+      if (blank) return toast.error(`Enter the ${metal === 'gold' ? 'gold' : 'silver'} ${blank.title} sell and buy rate (0 if you don't deal in it)`)
       const parsed = setRatesBody.safeParse({ metal: metal === 'gold' ? 'GOLD' : 'SILVER', rateUnit: data[metal].rateUnit, rates: rows.map((r) => ({ karatCode: r.karatCode, sellRate: r.sell, buyRate: r.buy })) })
       if (!parsed.success) return toast.error(parsed.error.issues[0]?.message ?? 'Enter valid rates')
       bodies.push(parsed.data as Record<string, unknown>)
@@ -195,6 +198,7 @@ export function ShopRateCard() {
   const [edit, setEdit] = useState(false)
   const [unit, setUnit] = useState('DEFAULT')
   const [pendingShowBuy, setPendingShowBuy] = useState<boolean | null>(null) // toggle waiting for MPIN
+  const { data: karats } = useKarats(can('settings.misc', 'edit')) // the edit dialog also offers karats with no rate yet
   if (!data) return null
   const showBuy = data.display?.showBuy ?? true
   const saveShowBuy = async (mpin: string) => {
@@ -272,7 +276,8 @@ export function ShopRateCard() {
       >
         <div className="grid gap-4 p-6 pb-2 md:grid-cols-2">{panel('gold')}{panel('silver')}</div>
         {lastUpdated && <p className="px-6 pb-4 pt-2 text-xs text-muted-foreground" title={new Date(lastUpdated).toLocaleString('en-IN')}>{updatedAgo(lastUpdated)}</p>}
-        {edit && <EditRatesDialog showBuy={showBuy} onShowBuy={setPendingShowBuy} onClose={() => setEdit(false)} />}
+        {/* key: if the karats arrive after the dialog opened, it starts again with their rows */}
+        {edit && <EditRatesDialog key={karats ? 'karats' : 'rates'} karats={karats} showBuy={showBuy} onShowBuy={setPendingShowBuy} onClose={() => setEdit(false)} />}
         <MpinDialog open={pendingShowBuy != null} title={pendingShowBuy ? 'Show buy rates' : 'Hide buy rates'} onConfirm={saveShowBuy} onClose={() => setPendingShowBuy(null)} />
       </SectionCard>
     </>

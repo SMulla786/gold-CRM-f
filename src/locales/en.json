@@ -55,6 +55,7 @@
   "shell.logout": "Log out",
   "shell.language": "Language",
   "shell.readonly": "READ-ONLY MODE · subscription inactive — viewing allowed, changes blocked",
+  "shell.branch_inactive": "{name} is inactive — its history and reports stay readable, but new entries and changes are refused. Switch branch, or reactivate it in Admin → Branches.",
   "shell.viewing_as": "Viewing as {name}",
   "shell.end": "End",
 

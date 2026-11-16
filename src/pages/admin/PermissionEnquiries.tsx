@@ -1,5 +1,6 @@
 import { useState } from 'react'
 
+import { SupportNote } from '@/components/SupportNote'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -53,6 +54,7 @@ export function PermissionEnquiries() {
           </SelectContent>
         </Select>
       </div>
+      <SupportNote what="enquiries" />
 
       <div className="overflow-x-auto rounded-md border">
         <Table>

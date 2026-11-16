@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 
 import { DataTable } from '@/components/DataTable'
 import { PermissionMatrix, grantsToMap, mapToGrants, type GrantMap } from '@/components/PermissionMatrix'
+import { SupportNote } from '@/components/SupportNote'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -146,7 +147,7 @@ function UserDialog({ user, onClose }: { user?: UserDto; onClose: () => void }) 
           </dl>
           <DialogFooter>
             <Button variant="outline" title="Keep the role default permissions" onClick={onClose}>Done</Button>
-            {!me?.impersonatedBy && <Button variant="outline" onClick={() => setPermsStep(true)}>Set permissions</Button>}
+            <Button variant="outline" onClick={() => setPermsStep(true)}>Set permissions</Button>
             <Button onClick={() => copyLoginDetails(shop, created.username, created.password)}>
               <Copy className="size-4" aria-hidden /> Copy login details
             </Button>
@@ -233,8 +234,8 @@ function UserDialog({ user, onClose }: { user?: UserDto; onClose: () => void }) 
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="BRANCH_USER">Branch user</SelectItem>
-                  <SelectItem value="ADMIN" disabled={!adminAllowed || !!me?.impersonatedBy}>
-                    Admin {me?.impersonatedBy ? '(not while impersonating)' : adminAllowed ? '' : '(needs admin-node branch)'}
+                  <SelectItem value="ADMIN" disabled={!adminAllowed}>
+                    Admin {adminAllowed ? '' : '(needs admin-node branch)'}
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -448,6 +449,7 @@ function useStatusCounts(): Record<StatusTab, number | undefined> {
 
 export function Users() {
   const { me } = useAuth()
+  const support = !!me?.impersonatedBy
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [tab, setTab] = useState<StatusTab>('ALL')
@@ -472,13 +474,11 @@ export function Users() {
       id: 'actions',
       header: '',
       cell: ({ row }) => {
+        if (support) return null // every account / access change is the owner's (the API refuses them all while impersonating)
         const u = row.original
         // Only the business owner may manage the owner row; nobody may block themselves.
-        // Impersonating, the owner / admin rows and access grants are the owner's alone (the API refuses them too).
-        const support = !!me?.impersonatedBy
-        const locked = support && (u.isOwner || u.level === 'ADMIN')
-        const canManage = (!u.isOwner || me?.isOwner) && !locked
-        const canBlock = !u.isOwner && u.id !== me?.id && !locked
+        const canManage = !u.isOwner || me?.isOwner
+        const canBlock = !u.isOwner && u.id !== me?.id
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -490,7 +490,7 @@ export function Users() {
               ) : (
                 <>
                   {canManage && <DropdownMenuItem onClick={() => setEditing(u)}>Edit</DropdownMenuItem>}
-                  {canManage && !support && <DropdownMenuItem onClick={() => setPermsFor(u)}>Permissions</DropdownMenuItem>}
+                  {canManage && <DropdownMenuItem onClick={() => setPermsFor(u)}>Permissions</DropdownMenuItem>}
                   {canManage && <DropdownMenuItem onClick={() => setResetting(u)}>Reset password</DropdownMenuItem>}
                   {canManage && <DropdownMenuItem onClick={() => setMpinFor(u)}>Set MPIN</DropdownMenuItem>}
                   {canBlock &&
@@ -525,8 +525,9 @@ export function Users() {
           <h1>Users</h1>
           <p className="mt-1 text-sm text-muted-foreground">Staff logins, their roles and which branches they can work in.</p>
         </div>
-        <Button onClick={() => setCreating(true)}>New user</Button>
+        <Button disabled={support} onClick={() => setCreating(true)}>New user</Button>
       </div>
+      <SupportNote what="users" />
       <Tabs
         value={tab}
         onValueChange={(v) => {
